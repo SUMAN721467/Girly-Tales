@@ -207,6 +207,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
   const handleExecuteDelete = async () => {
     if (!deleteTarget || deleteConfirmInput.trim().toLowerCase() !== 'delete') return;
+
     setIsDeletingItem(true);
     try {
       await deleteTarget.onConfirm();
@@ -327,13 +328,19 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   };
 
   const handleDeleteCategory = async (id: string, name: string) => {
-    await DatabaseService.deleteCategory(id);
-    setCategoriesList((prev) => prev.filter((c) => c.id !== id));
+    setCategoriesList((prev) => prev.filter((c) => c.id !== id && c.name !== name));
     setProductForm((prev) => ({
       ...prev,
       categories: prev.categories.filter((c) => c !== name),
     }));
-    triggerToast('Category Deleted', `"${name}" removed from database.`, undefined, 'info');
+
+    try {
+      await DatabaseService.deleteCategory(id);
+      triggerToast('Category Deleted', `"${name}" removed from database.`, undefined, 'info');
+    } catch (e) {
+      await loadDatabaseData();
+      triggerToast('Error', 'Failed to delete category.', undefined, 'error');
+    }
   };
 
   const handleMoveCategory = async (index: number, direction: 'up' | 'down') => {
@@ -2216,30 +2223,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   Permanent Deletion Warning
                 </span>
                 <h3 className="font-serif text-xl font-bold text-brand-charcoal">
-                  Delete {deleteTarget.type}?
+                  Delete "{deleteTarget.name}"?
                 </h3>
               </div>
-            </div>
-
-            {/* Item info box */}
-            <div className="p-3.5 bg-rose-50/60 border border-rose-100 rounded-2xl space-y-1">
-              <p className="text-xs font-black text-rose-900 line-clamp-1">
-                "{deleteTarget.name}"
-              </p>
-              {deleteTarget.description && (
-                <p className="text-[11px] text-rose-700/80 font-mono">
-                  {deleteTarget.description}
-                </p>
-              )}
-              <p className="text-[11px] text-rose-600 pt-1 font-semibold">
-                ⚠️ This action CANNOT be undone and immediately removes the record from your live Supabase database.
-              </p>
             </div>
 
             {/* Type-box instruction & Live validation */}
             <div className="space-y-2">
               <label className="block text-xs font-bold text-brand-charcoal">
-                To prevent accidental deletion or mis-touch, please type <span className="font-mono bg-rose-100 text-rose-700 px-2 py-0.5 rounded-md font-black border border-rose-200">delete</span> to confirm:
+                To confirm permanent deletion, please type <span className="font-mono bg-rose-100 text-rose-700 px-2 py-0.5 rounded-md font-black border border-rose-200">delete</span>:
               </label>
               <input
                 type="text"
@@ -2290,7 +2282,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   setDeleteTarget(null);
                   setDeleteConfirmInput('');
                 }}
-                className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-brand-charcoal text-xs font-bold rounded-xl transition-colors"
+                className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-brand-charcoal text-xs font-bold rounded-xl transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -2298,14 +2290,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                 type="button"
                 disabled={deleteConfirmInput.trim().toLowerCase() !== 'delete' || isDeletingItem}
                 onClick={handleExecuteDelete}
-                className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 shadow-xs ${
+                className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 shadow-xs cursor-pointer ${
                   deleteConfirmInput.trim().toLowerCase() === 'delete'
-                    ? 'bg-rose-600 hover:bg-rose-700 text-white cursor-pointer active:scale-95 shadow-md shadow-rose-200'
+                    ? 'bg-rose-600 hover:bg-rose-700 text-white active:scale-95 shadow-md shadow-rose-200'
                     : 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-60'
                 }`}
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>{isDeletingItem ? 'Deleting from DB...' : 'Delete Permanently'}</span>
+                <span>{isDeletingItem ? 'Deleting...' : 'Delete Permanently'}</span>
               </button>
             </div>
           </div>

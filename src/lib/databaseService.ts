@@ -196,16 +196,41 @@ const SEED_COUPONS: RealCoupon[] = [
   { id: 'cp-4', code: 'FREESHIP', discount: 'Free Express Delivery', description: 'Prepaid Orders Across All Pincodes', minSpend: 0, usedCount: 22, status: 'Active', expires: 'Unlimited' },
 ];
 
-// In-memory runtime state for network fallbacks (ZERO browser storage persistence)
-let inMemoryCategories: RealCategory[] = [...SEED_CATEGORIES];
-let inMemoryProducts: Product[] = [...MOCK_PRODUCTS];
-let inMemoryOrders: RealOrder[] = [...SEED_ORDERS];
-let inMemoryReviews: RealReview[] = [...SEED_REVIEWS];
-let inMemoryCoupons: RealCoupon[] = [...SEED_COUPONS];
-let hasInitializedCategoriesInSupabase = false;
+const STORAGE_KEYS = {
+  categories: 'girly_tales_store_categories_v4',
+  products: 'girly_tales_store_products_v4',
+  orders: 'girly_tales_store_orders_v4',
+  reviews: 'girly_tales_store_reviews_v4',
+  coupons: 'girly_tales_store_coupons_v4',
+};
+
+const getStored = <T>(key: string, defaultValue: T): T => {
+  if (typeof window === 'undefined') return defaultValue;
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw === null) return defaultValue;
+    return JSON.parse(raw);
+  } catch (e) {
+    return defaultValue;
+  }
+};
+
+const setStored = <T>(key: string, value: T): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {}
+};
+
+// Runtime state initialized from persistent storage (or seeds if first run)
+let inMemoryCategories: RealCategory[] = getStored(STORAGE_KEYS.categories, [...SEED_CATEGORIES]);
+let inMemoryProducts: Product[] = getStored(STORAGE_KEYS.products, [...MOCK_PRODUCTS]);
+let inMemoryOrders: RealOrder[] = getStored(STORAGE_KEYS.orders, [...SEED_ORDERS]);
+let inMemoryReviews: RealReview[] = getStored(STORAGE_KEYS.reviews, [...SEED_REVIEWS]);
+let inMemoryCoupons: RealCoupon[] = getStored(STORAGE_KEYS.coupons, [...SEED_COUPONS]);
 
 export const DatabaseService = {
-  // ==================== 1. ORDERS (SUPABASE DIRECT) ====================
+  // ==================== 1. ORDERS ====================
   async getOrders(): Promise<RealOrder[]> {
     if (isSupabaseConfigured) {
       try {
@@ -234,6 +259,7 @@ export const DatabaseService = {
             createdAt: d.created_at || new Date().toISOString(),
           }));
           inMemoryOrders = mapped;
+          setStored(STORAGE_KEYS.orders, mapped);
           return mapped;
         }
       } catch (err) {
@@ -275,6 +301,7 @@ export const DatabaseService = {
     }
 
     inMemoryOrders = [fullOrder, ...inMemoryOrders.filter((o) => o.id !== fullOrder.id)];
+    setStored(STORAGE_KEYS.orders, inMemoryOrders);
     notifyDatabaseChange('orders');
     return fullOrder;
   },
@@ -289,6 +316,7 @@ export const DatabaseService = {
     }
 
     inMemoryOrders = inMemoryOrders.map((o) => (o.id === orderId ? { ...o, status } : o));
+    setStored(STORAGE_KEYS.orders, inMemoryOrders);
     notifyDatabaseChange('orders');
   },
 
@@ -302,15 +330,16 @@ export const DatabaseService = {
     }
 
     inMemoryOrders = inMemoryOrders.filter((o) => o.id !== orderId);
+    setStored(STORAGE_KEYS.orders, inMemoryOrders);
     notifyDatabaseChange('orders');
   },
 
-  // ==================== 2. PRODUCTS (SUPABASE DIRECT) ====================
+  // ==================== 2. PRODUCTS ====================
   async getProducts(): Promise<Product[]> {
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase.from('products').select('*');
-        if (!error && Array.isArray(data) && data.length > 0) {
+        if (!error && Array.isArray(data)) {
           const mapped: Product[] = data.map((d: any) => ({
             id: d.id,
             name: d.name,
@@ -338,6 +367,7 @@ export const DatabaseService = {
             specs: d.specs || {},
           }));
           inMemoryProducts = mapped;
+          setStored(STORAGE_KEYS.products, mapped);
           return mapped;
         }
       } catch (err) {
@@ -378,6 +408,7 @@ export const DatabaseService = {
     }
 
     inMemoryProducts = [product, ...inMemoryProducts.filter((p) => p.id !== product.id)];
+    setStored(STORAGE_KEYS.products, inMemoryProducts);
     notifyDatabaseChange('products');
     return product;
   },
@@ -390,21 +421,23 @@ export const DatabaseService = {
     }
 
     inMemoryProducts = inMemoryProducts.map((p) => (p.id === productId ? { ...p, inStock } : p));
+    setStored(STORAGE_KEYS.products, inMemoryProducts);
     notifyDatabaseChange('products');
   },
 
   async deleteProduct(productId: string): Promise<void> {
     if (isSupabaseConfigured) {
       try {
-        await supabase.from('products').delete().eq('id', productId);
+        await supabase.from('products').delete().or(`id.eq.${productId},slug.eq.${productId}`);
       } catch (e) {}
     }
 
     inMemoryProducts = inMemoryProducts.filter((p) => p.id !== productId);
+    setStored(STORAGE_KEYS.products, inMemoryProducts);
     notifyDatabaseChange('products');
   },
 
-  // ==================== 3. CUSTOMERS (DERIVED FROM SUPABASE RECORDS) ====================
+  // ==================== 3. CUSTOMERS (DERIVED FROM ORDERS) ====================
   async getCustomers(orders?: RealOrder[]): Promise<RealCustomer[]> {
     const allOrders = orders || (await this.getOrders());
     const customerMap = new Map<string, RealCustomer>();
@@ -440,12 +473,12 @@ export const DatabaseService = {
     return Array.from(customerMap.values());
   },
 
-  // ==================== 4. REVIEWS (SUPABASE DIRECT) ====================
+  // ==================== 4. REVIEWS ====================
   async getReviews(): Promise<RealReview[]> {
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase.from('reviews').select('*');
-        if (!error && Array.isArray(data) && data.length > 0) {
+        if (!error && Array.isArray(data)) {
           const mapped: RealReview[] = data.map((d: any) => ({
             id: d.id,
             productName: d.product_name || d.productName,
@@ -457,6 +490,7 @@ export const DatabaseService = {
             createdAt: d.created_at || new Date().toISOString(),
           }));
           inMemoryReviews = mapped;
+          setStored(STORAGE_KEYS.reviews, mapped);
           return mapped;
         }
       } catch (e) {}
@@ -474,15 +508,16 @@ export const DatabaseService = {
     }
 
     inMemoryReviews = inMemoryReviews.filter((r) => r.id !== id);
+    setStored(STORAGE_KEYS.reviews, inMemoryReviews);
     notifyDatabaseChange('reviews');
   },
 
-  // ==================== 5. COUPONS (SUPABASE DIRECT) ====================
+  // ==================== 5. COUPONS ====================
   async getCoupons(): Promise<RealCoupon[]> {
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase.from('coupons').select('*');
-        if (!error && Array.isArray(data) && data.length > 0) {
+        if (!error && Array.isArray(data)) {
           const mapped: RealCoupon[] = data.map((d: any) => ({
             id: d.id,
             code: d.code,
@@ -494,6 +529,7 @@ export const DatabaseService = {
             expires: d.expires || '2026-12-31',
           }));
           inMemoryCoupons = mapped;
+          setStored(STORAGE_KEYS.coupons, mapped);
           return mapped;
         }
       } catch (e) {}
@@ -518,6 +554,7 @@ export const DatabaseService = {
     }
 
     inMemoryCoupons = [coupon, ...inMemoryCoupons.filter((c) => c.id !== coupon.id)];
+    setStored(STORAGE_KEYS.coupons, inMemoryCoupons);
     notifyDatabaseChange('coupons');
   },
 
@@ -529,10 +566,11 @@ export const DatabaseService = {
     }
 
     inMemoryCoupons = inMemoryCoupons.filter((c) => c.id !== id);
+    setStored(STORAGE_KEYS.coupons, inMemoryCoupons);
     notifyDatabaseChange('coupons');
   },
 
-  // ==================== 6. CATEGORIES (SUPABASE DIRECT, NO LOCAL STORAGE) ====================
+  // ==================== 6. CATEGORIES ====================
   async getCategories(): Promise<RealCategory[]> {
     if (isSupabaseConfigured) {
       try {
@@ -542,22 +580,6 @@ export const DatabaseService = {
           .order('order_index', { ascending: true });
 
         if (!error && Array.isArray(data)) {
-          // If table is newly created and completely empty on initial run, insert seed rows once into Supabase
-          if (data.length === 0 && !hasInitializedCategoriesInSupabase) {
-            hasInitializedCategoriesInSupabase = true;
-            for (const cat of SEED_CATEGORIES) {
-              await supabase.from('categories').insert({
-                id: cat.id,
-                name: cat.name,
-                slug: cat.slug,
-                is_active: cat.isActive,
-                order_index: cat.orderIndex,
-              });
-            }
-            inMemoryCategories = SEED_CATEGORIES;
-            return SEED_CATEGORIES;
-          }
-
           const mapped: RealCategory[] = data.map((d: any, idx: number) => ({
             id: d.id,
             name: d.name,
@@ -567,6 +589,7 @@ export const DatabaseService = {
             createdAt: d.created_at || new Date().toISOString(),
           }));
           inMemoryCategories = mapped;
+          setStored(STORAGE_KEYS.categories, mapped);
           return mapped;
         }
       } catch (e) {
@@ -591,7 +614,7 @@ export const DatabaseService = {
 
     if (isSupabaseConfigured) {
       try {
-        await supabase.from('categories').insert({
+        const { error } = await supabase.from('categories').insert({
           id: newCategory.id,
           name: newCategory.name,
           slug: newCategory.slug,
@@ -599,12 +622,16 @@ export const DatabaseService = {
           order_index: newCategory.orderIndex,
           created_at: newCategory.createdAt,
         });
+        if (error) {
+          console.warn('Supabase insert category error:', error);
+        }
       } catch (e) {
         console.warn('Supabase insert category note:', e);
       }
     }
 
     inMemoryCategories = [...current.filter((c) => c.id !== newCategory.id), newCategory];
+    setStored(STORAGE_KEYS.categories, inMemoryCategories);
     notifyDatabaseChange('categories');
     return newCategory;
   },
@@ -613,7 +640,7 @@ export const DatabaseService = {
     const current = await this.getCategories();
     let updatedCat: RealCategory | null = null;
     const updated = current.map((c) => {
-      if (c.id === id) {
+      if (c.id === id || c.slug === id) {
         updatedCat = {
           ...c,
           ...updates,
@@ -626,36 +653,54 @@ export const DatabaseService = {
 
     if (isSupabaseConfigured && updatedCat) {
       try {
-        await supabase.from('categories').update({
+        const { error } = await supabase.from('categories').update({
           name: (updatedCat as RealCategory).name,
           slug: (updatedCat as RealCategory).slug,
           is_active: (updatedCat as RealCategory).isActive,
           order_index: (updatedCat as RealCategory).orderIndex,
-        }).eq('id', id);
+        }).or(`id.eq.${id},slug.eq.${id}`);
+        if (error) {
+          console.warn('Supabase update category error:', error);
+          await supabase.from('categories').update({
+            name: (updatedCat as RealCategory).name,
+            slug: (updatedCat as RealCategory).slug,
+            is_active: (updatedCat as RealCategory).isActive,
+            order_index: (updatedCat as RealCategory).orderIndex,
+          }).eq('id', id);
+        }
       } catch (e) {
         console.warn('Supabase update category note:', e);
       }
     }
 
     inMemoryCategories = updated;
+    setStored(STORAGE_KEYS.categories, inMemoryCategories);
     notifyDatabaseChange('categories');
     return updatedCat;
   },
 
   async deleteCategory(id: string): Promise<void> {
-    inMemoryCategories = inMemoryCategories.filter((c) => c.id !== id);
-    notifyDatabaseChange('categories');
-
+    // 1. Await Supabase deletion before notifying any listeners
     if (isSupabaseConfigured) {
       try {
-        const { error } = await supabase.from('categories').delete().eq('id', id);
+        const { error } = await supabase.from('categories').delete().or(`id.eq.${id},slug.eq.${id}`);
         if (error) {
-          console.warn('Supabase delete error:', error);
+          console.warn('Supabase delete category error:', error);
+          await supabase.from('categories').delete().eq('id', id);
         }
       } catch (e) {
         console.warn('Supabase delete category note:', e);
       }
     }
+
+    // 2. Filter out category from in-memory cache and local persistent store
+    inMemoryCategories = inMemoryCategories.filter(
+      (c) => c.id !== id && c.slug !== id && c.name.toLowerCase() !== id.toLowerCase()
+    );
+    setStored(STORAGE_KEYS.categories, inMemoryCategories);
+
+    // 3. Notify subscribers only after database deletion has fully completed
+    notifyDatabaseChange('categories');
   },
 
   async reorderCategories(reorderedList: RealCategory[]): Promise<void> {
@@ -664,17 +709,19 @@ export const DatabaseService = {
       orderIndex: idx,
     }));
 
+    inMemoryCategories = indexed;
+    setStored(STORAGE_KEYS.categories, inMemoryCategories);
+
     if (isSupabaseConfigured) {
       try {
         for (const cat of indexed) {
-          await supabase.from('categories').update({ order_index: cat.orderIndex }).eq('id', cat.id);
+          await supabase.from('categories').update({ order_index: cat.orderIndex }).or(`id.eq.${cat.id},slug.eq.${cat.slug}`);
         }
       } catch (e) {
         console.warn('Supabase reorder categories note:', e);
       }
     }
 
-    inMemoryCategories = indexed;
     notifyDatabaseChange('categories');
   },
 
@@ -697,6 +744,7 @@ export const DatabaseService = {
     }
 
     inMemoryCategories = [...SEED_CATEGORIES];
+    setStored(STORAGE_KEYS.categories, inMemoryCategories);
     notifyDatabaseChange('categories');
     return SEED_CATEGORIES;
   },
