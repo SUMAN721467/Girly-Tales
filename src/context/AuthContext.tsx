@@ -3,10 +3,21 @@ import { User } from '../types/product';
 import { useCart } from './CartContext';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
-export const ADMIN_EMAILS: string[] = [
-  'mallickananya.2004@gmail.com',
-  'sumansamanta721467@gmail.com',
-].map((e) => e.toLowerCase());
+// Admin Emails from environment variable + defaults
+const envAdminEmails = (import.meta.env.VITE_ADMIN_EMAILS || '')
+  .split(',')
+  .map((e: string) => e.trim().toLowerCase())
+  .filter(Boolean);
+
+export const ADMIN_EMAILS: string[] = Array.from(
+  new Set([
+    'royswastik.2004@gmail.com',
+    'ananya.mallick302@gmail.com',
+    'mallickananya.2004@gmail.com',
+    'sumansamanta721467@gmail.com',
+    ...envAdminEmails,
+  ].map((e) => e.toLowerCase()))
+);
 
 export const checkIsAdmin = (email?: string | null): boolean => {
   if (!email) return false;

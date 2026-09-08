@@ -12,7 +12,7 @@ interface MobileNavProps {
 
 export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onNavigate }) => {
   const { wishlistCount } = useWishlist();
-  const { user, isLoggedIn, isAdmin } = useAuth();
+  const { user, isLoggedIn, isAdmin, openAuthModal } = useAuth();
 
   if (!isOpen) return null;
 
@@ -83,27 +83,45 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onNavigat
               <ArrowRight className="w-4 h-4 text-amber-700" />
             </button>
 
-            <button
-              onClick={() => handleLinkClick('account')}
-              className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#FFFDD0] flex items-center justify-between transition-colors"
-            >
-              <span className="flex items-center gap-2">
-                <UserIcon className="w-4 h-4 text-[#967BB6]" />
-                <span>{isLoggedIn && user ? `My Account (${user.name})` : 'My Account'}</span>
-              </span>
-              <ArrowRight className="w-4 h-4 text-brand-muted-light" />
-            </button>
+            {isLoggedIn && user ? (
+              <>
+                <button
+                  onClick={() => handleLinkClick('account')}
+                  className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#FFFDD0] flex items-center justify-between transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <UserIcon className="w-4 h-4 text-[#967BB6]" />
+                    <span>My Account ({user.name})</span>
+                  </span>
+                  <ArrowRight className="w-4 h-4 text-brand-muted-light" />
+                </button>
 
-            <button
-              onClick={() => handleLinkClick('orders')}
-              className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#FFFDD0] flex items-center justify-between transition-colors"
-            >
-              <span className="flex items-center gap-2">
-                <UserIcon className="w-4 h-4 text-brand-muted" />
-                <span>My Orders</span>
-              </span>
-              <ArrowRight className="w-4 h-4 text-brand-muted-light" />
-            </button>
+                <button
+                  onClick={() => handleLinkClick('orders')}
+                  className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#FFFDD0] flex items-center justify-between transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <UserIcon className="w-4 h-4 text-brand-muted" />
+                    <span>My Orders</span>
+                  </span>
+                  <ArrowRight className="w-4 h-4 text-brand-muted-light" />
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => {
+                  onClose();
+                  openAuthModal('login');
+                }}
+                className="w-full text-left py-3 px-3 rounded-xl bg-[#FAF8F2] hover:bg-[#FFFDD0] flex items-center justify-between transition-colors text-[#967BB6] font-black"
+              >
+                <span className="flex items-center gap-2">
+                  <UserIcon className="w-4 h-4 text-[#967BB6]" />
+                  <span>Sign In / Register</span>
+                </span>
+                <ArrowRight className="w-4 h-4 text-[#967BB6]" />
+              </button>
+            )}
 
             {isAdmin && (
               <button

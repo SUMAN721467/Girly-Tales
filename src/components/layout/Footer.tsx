@@ -93,7 +93,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 </button>
               </li>
               <li>
-                <button onClick={() => onNavigate('login')} className="hover:text-white hover:underline text-[#FBB6CE] font-bold">
+                <button onClick={() => onNavigate('account')} className="hover:text-white hover:underline text-[#FBB6CE] font-bold">
                   ✦ Member Sign In / Account
                 </button>
               </li>
