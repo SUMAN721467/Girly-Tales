@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --brand-yellow: #FFFDD0;
+    --brand-lavender: #967BB6;
+  }
+
+  body {
+    background-color: #FFFDD0;
+    color: #1A1821;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Slim Aesthetic Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #FFFDD0;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #C4B2D8;
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #967BB6;
+  }
+}
+
+@layer components {
+  .nap-header {
+    background: #FFFFFF;
+    border-bottom: 1px solid #EAE6DB;
+  }
+
+  .nap-ticker {
+    background: #FCE7ED;
+    color: #1A1821;
+  }
+
+  .nap-btn-pink {
+    background: #FBB6CE;
+    color: #1A1821;
+    font-weight: 700;
+  }
+
+  .nap-btn-pink:hover {
+    background: #F89CBA;
+  }
+
+  .nap-btn-lavender {
+    background: #967BB6;
+    color: #FFFFFF;
+    font-weight: 700;
+  }
+
+  .nap-btn-lavender:hover {
+    background: #7F62A1;
+  }
+
+  .modal-backdrop {
+    background-color: rgba(26, 24, 33, 0.6);
+    backdrop-filter: blur(4px);
+  }
+}
+
+/* Continuous Marquee Animation */
+.marquee-container {
+  overflow: hidden;
+  white-space: nowrap;
+  display: flex;
+}
+
+.marquee-content {
+  display: flex;
+  animation: marquee 35s linear infinite;
+}
+
+.marquee-slow {
+  animation-duration: 40s;
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}

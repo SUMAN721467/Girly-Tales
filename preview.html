@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Girly Tales | Comfort, Elegance & Everyday Shine</title>
+  <meta name="description" content="Girly Tales - Premium Nightwear & 18K Anti-Tarnish Waterproof Jewellery for Modern Women." />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Playfair+Display:ital,wght@0,600;0,800;1,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              yellow: '#FFFDD0',         // User Requested Light Yellow
+              'yellow-card': '#FEFDEB',
+              lavender: '#967BB6',       // User Requested Grey Lavender
+              'lavender-dark': '#7F62A1',
+              'lavender-subtle': '#F5EEFA',
+              blush: '#FCE7ED',
+              'blush-btn': '#FBB6CE',
+              charcoal: '#1A1821',
+              muted: '#6B6678',
+              'muted-light': '#9B96A8',
+              border: '#EAE6DB',
+            }
+          },
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            serif: ['"Playfair Display"', 'Georgia', 'serif'],
+            handwritten: ['"Caveat"', 'cursive']
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- React & Babel CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body {
+      background-color: #FFFDD0;
+      color: #1A1821;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      overflow-x: hidden;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #C4B2D8;
+      border-radius: 9999px;
+    }
+    .modal-backdrop {
+      background-color: rgba(26, 24, 33, 0.65);
+      backdrop-filter: blur(4px);
+    }
+    .marquee-container {
+      overflow: hidden;
+      white-space: nowrap;
+      display: flex;
+    }
+    .marquee-content {
+      display: flex;
+      animation: marquee 35s linear infinite;
+    }
+    .marquee-slow {
+      animation-duration: 40s;
+    }
+    @keyframes marquee {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+  </style>
+</head>
+<body class="selection:bg-brand-lavender selection:text-white min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    const BANNERS = [
+      { id: 'b1', image: '/src/assets/banner1.png', category: 'all' },
+      { id: 'b2', image: '/src/assets/banner2.png', category: 'nightwear' },
+      { id: 'b3', image: '/src/assets/banner3.png', category: 'jewellery' }
+    ];
+
+    const CATEGORIES = [
+      {
+        id: 'cat-nightwear',
+        name: 'LUXURY NIGHTWEAR',
+        tagline: 'Cloud-Soft Cotton & Mulberry Silk Sets',
+        image: '/src/assets/slide1.jpg',
+        category: 'nightwear',
+        ctaText: 'SHOP NIGHTWEAR'
+      },
+      {
+        id: 'cat-jewellery',
+        name: '18K ANTI-TARNISH JEWELS',
+        tagline: 'Waterproof, Shower-Safe & Hypoallergenic',
+        image: '/src/assets/slide2.jpg',
+        category: 'jewellery',
+        ctaText: 'SHOP JEWELLERY'
+      },
+      {
+        id: 'cat-party',
+        name: 'PARTY & OCCASION',
+        tagline: 'Statement Layered Chains & Sparkling Huggies',
+        image: '/src/assets/slide1.jpg',
+        category: 'jewellery',
+        ctaText: 'EXPLORE PARTY'
+      },
+      {
+        id: 'cat-wedding',
+        name: 'WEDDING & FESTIVE',
+        tagline: 'Bridal Glow & Fine Occasion Wear',
+        image: '/src/assets/slide2.jpg',
+        category: 'jewellery',
+        ctaText: 'SHOP FESTIVE'
+      },
+      {
+        id: 'cat-daily',
+        name: 'DAILY ESSENTIALS',
+        tagline: 'Everyday Sleep Shirts & Minimalist Rings',
+        image: '/src/assets/slide1.jpg',
+        category: 'nightwear',
+        ctaText: 'SHOP ESSENTIALS'
+      }
+    ];
+
+    const PRODUCTS = [
+      {
+        id: 'nw-1',
+        name: 'Lemon Crush Pyjama Set',
+        category: 'nightwear',
+        subCategory: 'Cotton Sets',
+        price: 1399,
+        originalPrice: 1999,
+        isNewArrival: true,
+        images: ['https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=800&q=80', 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80'],
+        description: '100% breathable organic cotton with playful lemon prints and notch collar piping.',
+        sizes: ['S', 'M', 'L', 'XL'],
+        material: '100% Organic Combed Cotton'
+      },
+      {
+        id: 'nw-2',
+        name: 'Bug Pyjama Set',
+        category: 'nightwear',
+        subCategory: 'Cotton Sets',
+        price: 1399,
+        originalPrice: 1999,
+        isNewArrival: false,
+        isBestSeller: true,
+        images: ['https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&w=800&q=80'],
+        description: 'Cute polka and ladybug prints woven in featherweight soft combed cotton.',
+        sizes: ['S', 'M', 'L', 'XL'],
+        material: '100% Breathable Cotton'
+      },
+      {
+        id: 'nw-3',
+        name: 'Sugarbow Pyjama Set',
+        category: 'nightwear',
+        subCategory: 'Cotton Sets',
+        price: 1399,
+        originalPrice: 1999,
+        isBestSeller: true,
+        images: ['https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=800&q=80'],
+        description: 'Candy pink striped pyjama suit with cute bow accents and deep pockets.',
+        sizes: ['XS', 'S', 'M', 'L', 'XL'],
+        material: '100% Pure Poplin Cotton'
+      },
+      {
+        id: 'nw-4',
+        name: 'Noir Flared Satin Pyjama Set',
+        category: 'nightwear',
+        subCategory: 'Satin Sets',
+        price: 1899,
+        originalPrice: 2999,
+        isNewArrival: true,
+        images: ['https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=800&q=80'],
+        description: 'Luxe midnight black mulberry blend satin with ivory piping and flared comfort trousers.',
+        sizes: ['XS', 'S', 'M', 'L', 'XL'],
+        material: 'Mulberry Silk Satin Blend'
+      },
+      {
+        id: 'jw-1',
+        name: '18K Croissant Dome Ring',
+        category: 'jewellery',
+        subCategory: 'Rings',
+        price: 899,
+        originalPrice: 1499,
+        isNewArrival: true,
+        images: ['https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=800&q=80'],
+        description: '18K vacuum PVD gold-coated sculptural ring. 100% waterproof & sweatproof.',
+        material: '316L Stainless Steel with 18K Gold PVD'
+      },
+      {
+        id: 'jw-2',
+        name: 'Celestial Baroque Pearl Pendant',
+        category: 'jewellery',
+        subCategory: 'Necklaces',
+        price: 1299,
+        originalPrice: 2199,
+        isBestSeller: true,
+        images: ['https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=800&q=80'],
+        description: 'Genuine freshwater Baroque pearl on 18K gold anti-tarnish chain with 2-inch extender.',
+        material: '316L Stainless Steel + 18K Gold + Cultured Pearl'
+      },
+      {
+        id: 'jw-3',
+        name: 'Aura Snake & Paperclip Chain Duo',
+        category: 'jewellery',
+        subCategory: 'Necklaces',
+        price: 1499,
+        originalPrice: 2499,
+        isNewArrival: true,
+        images: ['https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=800&q=80'],
+        description: 'Zero-tangle dual layered chain design in mirror finish 18K gold.',
+        material: '316L Stainless Steel with 18K Gold PVD'
+      },
+      {
+        id: 'jw-4',
+        name: 'Sculptural Teardrop Statement Huggies',
+        category: 'jewellery',
+        subCategory: 'Earrings',
+        price: 999,
+        originalPrice: 1699,
+        isBestSeller: true,
+        images: ['https://images.unsplash.com/photo-1630019852942-f89202989a59?auto=format&fit=crop&w=800&q=80'],
+        description: 'Viral bulbous teardrop earrings. Hollow interior so only 3.8g each! 100% hypoallergenic.',
+        material: 'Hollow 316L Titanium Steel with 18K Gold PVD'
+      }
+    ];
+
+    const INFLUENCER_ITEMS = [
+      {
+        image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=600&q=80',
+        tag: 'Cute & comfy',
+        sub: "PJ's ft. Girly Tales",
+        product: PRODUCTS[0],
+        views: '8.4k'
+      },
+      {
+        image: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=600&q=80',
+        tag: 'Pinteresty',
+        sub: 'Nightsuits & Jewels',
+        product: PRODUCTS[5],
+        views: '12.1k'
+      },
+      {
+        image: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&w=600&q=80',
+        tag: 'Pure Cotton',
+        sub: 'Cloud-Soft Fit',
+        product: PRODUCTS[1],
+        views: '6.5k'
+      },
+      {
+        image: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=600&q=80',
+        tag: '100% Waterproof',
+        sub: '18K Anti-Tarnish',
+        product: PRODUCTS[4],
+        views: '15.2k'
+      }
+    ];
+
+    function App() {
+      const [page, setPage] = useState('home');
+      const [category, setCategory] = useState('all');
+      const [selectedProduct, setSelectedProduct] = useState(null);
+      const [cart, setCart] = useState([]);
+      const [isCartOpen, setIsCartOpen] = useState(false);
+      const [isMenuOpen, setIsMenuOpen] = useState(false);
+      const [isSearchOpen, setIsSearchOpen] = useState(false);
+      const [searchQuery, setSearchQuery] = useState('');
+      const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+      const [orderDone, setOrderDone] = useState(false);
+      const [toast, setToast] = useState(null);
+      const [bannerIdx, setBannerIdx] = useState(0);
+      const [catActiveIdx, setCatActiveIdx] = useState(0);
+      const [isCatPaused, setIsCatPaused] = useState(false);
+
+      useEffect(() => {
+        const interval = setInterval(() => {
+          setBannerIdx(prev => (prev + 1) % BANNERS.length);
+        }, 4500);
+        return () => clearInterval(interval);
+      }, []);
+
+      useEffect(() => {
+        if (isCatPaused) return;
+        const interval = setInterval(() => {
+          setCatActiveIdx(prev => (prev + 1) % CATEGORIES.length);
+        }, 4500);
+        return () => clearInterval(interval);
+      }, [isCatPaused]);
+
+      const nextCatSlide = () => {
+        setCatActiveIdx(prev => (prev + 1) % CATEGORIES.length);
+      };
+
+      const prevCatSlide = () => {
+        setCatActiveIdx(prev => (prev - 1 + CATEGORIES.length) % CATEGORIES.length);
+      };
+
+      const getCatOffset = (index) => {
+        const total = CATEGORIES.length;
+        let diff = index - catActiveIdx;
+        while (diff > total / 2) diff -= total;
+        while (diff <= -total / 2) diff += total;
+        return diff;
+      };
+
+      const showToast = (msg, sub) => {
+        setToast({ msg, sub });
+        setTimeout(() => setToast(null), 3000);
+      };
+
+      const addToCart = (product, size = 'M') => {
+        const key = `${product.id}-${size}`;
+        setCart(prev => {
+          const ex = prev.find(i => i.key === key);
+          if (ex) return prev.map(i => i.key === key ? { ...i, qty: i.qty + 1 } : i);
+          return [...prev, { key, product, size, qty: 1 }];
+        });
+        showToast('Added to Cart! ✨', `${product.name} (${size})`);
+      };
+
+      const updateQty = (key, delta) => {
+        setCart(prev => prev.map(i => {
+          if (i.key === key) {
+            const n = i.qty + delta;
+            return n > 0 ? { ...i, qty: n } : null;
+          }
+          return i;
+        }).filter(Boolean));
+      };
+
+      const subtotal = cart.reduce((s, i) => s + (i.product.price * i.qty), 0);
+      const shipping = subtotal >= 999 || subtotal === 0 ? 0 : 99;
+      const total = subtotal + shipping;
+
+      const navigate = (toPage, toCat = 'all') => {
+        setPage(toPage);
+        setCategory(toCat);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      };
+
+      return (
+        <div className="min-h-screen flex flex-col justify-between bg-[#FFFDD0] w-full overflow-x-hidden">
+          {/* Top Marquee Ticker */}
+          <div className="bg-[#FCE7ED] text-[#1A1821] py-2 text-[11px] sm:text-xs font-bold tracking-wider overflow-hidden border-b border-[#EBD7DE]">
+            <div className="marquee-container">
+              <div className="marquee-content flex items-center gap-8">
+                <span>✦ FREE DELIVERY ON ALL PREPAID ORDERS</span>
+                <span>✦ EXPRESS DELIVERY AVAILABLE</span>
+                <span>✦ COD OPTION AVAILABLE UPTO ₹3000/-</span>
+                <span>✦ 100% ANTI-TARNISH JEWELLERY</span>
+                <span>✦ PURE BREATHABLE COTTON</span>
+                <span>✦ FREE DELIVERY ON ALL PREPAID ORDERS</span>
+                <span>✦ EXPRESS DELIVERY AVAILABLE</span>
+                <span>✦ COD OPTION AVAILABLE UPTO ₹3000/-</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Sticky Header with Left Logo and Mid-Right Nav */}
+          <header className="sticky top-0 z-40 bg-white border-b border-[#EAE6DB] px-4 sm:px-8 py-3 flex items-center justify-between">
+            {/* Left Top Logo */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              <button onClick={() => setIsMenuOpen(true)} className="p-1 text-2xl font-bold lg:hidden">
+                ≡
+              </button>
+
+              <div onClick={() => navigate('home')} className="flex items-center cursor-pointer select-none">
+                <img
+                  src="/src/assets/logo-line.PNG"
+                  alt="Girly Tales"
+                  className="h-8 sm:h-12 w-auto object-contain"
+                  onError={(e) => { e.target.src = '/src/assets/logo-line.png'; }}
+                />
+              </div>
+            </div>
+
+            {/* Mid-Right Navigation & Action Icons */}
+            <div className="flex items-center space-x-4 sm:space-x-8">
+              <div className="hidden lg:flex items-center space-x-6 xl:space-x-8 text-xs font-bold uppercase tracking-wider text-[#1A1821]">
+                <button onClick={() => navigate('home')} className={`hover:text-[#967BB6] ${page === 'home' ? 'text-[#967BB6] font-black' : ''}`}>Home</button>
+                <button onClick={() => navigate('shop', 'all')} className={`hover:text-[#967BB6] ${page === 'shop' && category === 'all' ? 'text-[#967BB6] font-black' : ''}`}>Shop All</button>
+                <button onClick={() => navigate('shop', 'nightwear')} className="hover:text-[#967BB6]">Nightwear</button>
+                <button onClick={() => navigate('shop', 'jewellery')} className="hover:text-[#967BB6]">18K Jewellery</button>
+                <button onClick={() => navigate('about')} className="hover:text-[#967BB6]">Our Story</button>
+                <button onClick={() => navigate('contact')} className="hover:text-[#967BB6]">Contact</button>
+              </div>
+
+              {/* Action Icons */}
+              <div className="flex items-center space-x-2 sm:space-x-3">
+                <button onClick={() => setIsSearchOpen(true)} className="p-1.5 text-base sm:text-lg">🔍</button>
+                <button onClick={() => setIsCartOpen(true)} className="p-1.5 relative text-base sm:text-lg">
+                  🛍️ {cart.length > 0 && <span className="absolute top-0 right-0 bg-[#967BB6] text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">{cart.reduce((s, i) => s + i.qty, 0)}</span>}
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {/* MAIN PAGES */}
+          <main className="flex-1 w-full pb-16">
+            {page === 'home' && (
+              <div>
+                {/* 1. FULL-WIDTH HERO CAROUSEL BANNER */}
+                <div
+                  onClick={() => navigate('shop', BANNERS[bannerIdx].category)}
+                  className="relative w-full h-[180px] sm:h-[300px] md:h-[420px] lg:h-[500px] xl:h-[560px] overflow-hidden bg-[#FEFDEB] cursor-pointer group select-none"
+                >
+                  {BANNERS.map((banner, idx) => (
+                    <div
+                      key={banner.id}
+                      className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${idx === bannerIdx ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+                    >
+                      <img src={banner.image} className="w-full h-full object-cover object-center" />
+                    </div>
+                  ))}
+
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setBannerIdx(prev => (prev === 0 ? BANNERS.length - 1 : prev - 1)); }}
+                    className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-11 sm:h-11 rounded-full bg-white/80 hover:bg-white flex items-center justify-center font-bold text-base shadow-md opacity-0 group-hover:opacity-100 transition-all"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setBannerIdx(prev => (prev + 1) % BANNERS.length); }}
+                    className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-11 sm:h-11 rounded-full bg-white/80 hover:bg-white flex items-center justify-center font-bold text-base shadow-md opacity-0 group-hover:opacity-100 transition-all"
+                  >
+                    ›
+                  </button>
+                </div>
+
+                {/* 2. CONTINUOUS TICKER MARQUEE RIBBON */}
+                <div className="w-full bg-[#967BB6] text-white py-1 sm:py-1.5 overflow-hidden select-none border-y border-[#7F62A1]/30">
+                  <div className="marquee-container">
+                    <div className="marquee-content flex items-center gap-5 sm:gap-7">
+                      {['SLEEP INTO COMFORT', 'SWEET DREAMS START HERE', 'SLEEP INTO COMFORT', 'SWEET DREAMS START HERE', 'SLEEP INTO COMFORT', 'SWEET DREAMS START HERE', 'SLEEP INTO COMFORT', 'SWEET DREAMS START HERE', 'SLEEP INTO COMFORT', 'SWEET DREAMS START HERE', 'SLEEP INTO COMFORT', 'SWEET DREAMS START HERE'].map((phrase, idx) => (
+                        <div key={idx} className="flex items-center gap-5 sm:gap-7 shrink-0">
+                          <span className="text-[9px] sm:text-[10px] md:text-[11px] font-bold tracking-[0.2em] uppercase text-white">
+                            {phrase}
+                          </span>
+                          <span className="text-[#FFFDD0] text-[8px] sm:text-[9px] opacity-85">✦</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. THE ESSENTIALS - SHOP BY CATEGORY (5-CATEGORY FULL SIDE-TO-SIDE COVERAGE) */}
+                <div
+                  className="w-full pt-0 pb-2 sm:pb-3 select-none bg-transparent overflow-hidden mt-3 sm:mt-5"
+                  onMouseEnter={() => setIsCatPaused(true)}
+                  onMouseLeave={() => setIsCatPaused(false)}
+                >
+                  <div className="text-center mb-2 sm:mb-3 space-y-0.5 px-4">
+                    <span className="text-[10px] sm:text-xs font-bold tracking-[0.25em] text-[#967BB6] uppercase">THE ESSENTIALS</span>
+                    <h2 className="font-sans font-black text-xl sm:text-2xl md:text-3xl text-[#1A1821] uppercase tracking-tight">SHOP BY CATEGORY</h2>
+                  </div>
+
+                  {/* 100% Full Screen Width Frame Occupying Both Sides */}
+                  <div className="relative w-full px-0 overflow-hidden">
+                    {/* Floating Left Arrow */}
+                    <button
+                      onClick={prevCatSlide}
+                      className="absolute left-2 sm:left-4 md:left-6 top-1/2 -translate-y-1/2 z-40 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white text-[#1A1821] flex items-center justify-center shadow-xl border border-gray-100 hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer font-bold text-base sm:text-lg"
+                      aria-label="Previous Category"
+                    >
+                      ‹
+                    </button>
+
+                    {/* Floating Right Arrow */}
+                    <button
+                      onClick={nextCatSlide}
+                      className="absolute right-2 sm:right-4 md:right-6 top-1/2 -translate-y-1/2 z-40 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white text-[#1A1821] flex items-center justify-center shadow-xl border border-gray-100 hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer font-bold text-base sm:text-lg"
+                      aria-label="Next Category"
+                    >
+                      ›
+                    </button>
+
+                    {/* Sleek 3D Overlapping Stack Carousel Stage (Fitted Snugly to Card Ratio) */}
+                    <div className="relative w-full h-[350px] sm:h-[370px] md:h-[350px] lg:h-[380px] xl:h-[450px] 2xl:h-[470px] flex items-center justify-center overflow-visible">
+                      {CATEGORIES.map((cat, idx) => {
+                        const offset = getCatOffset(idx);
+                        const isCenter = offset === 0;
+                        const isPrev = offset === -1;
+                        const isNext = offset === 1;
+                        const isFarPrev = offset === -2;
+                        const isFarNext = offset === 2;
+
+                        let transformStyles = '';
+                        let zIndex = 0;
+                        let opacity = 0;
+                        let pointerEvents = 'none';
+
+                        if (isCenter) {
+                          transformStyles = 'translate3d(0%, 0, 0) scale(1)';
+                          zIndex = 30;
+                          opacity = 1;
+                          pointerEvents = 'auto';
+                        } else if (isPrev) {
+                          transformStyles = 'translate3d(-78%, 0, 0) scale(0.92)';
+                          zIndex = 20;
+                          opacity = 0.88;
+                          pointerEvents = 'auto';
+                        } else if (isNext) {
+                          transformStyles = 'translate3d(78%, 0, 0) scale(0.92)';
+                          zIndex = 20;
+                          opacity = 0.88;
+                          pointerEvents = 'auto';
+                        } else if (isFarPrev) {
+                          transformStyles = 'translate3d(-154%, 0, 0) scale(0.84)';
+                          zIndex = 10;
+                          opacity = 0.74;
+                          pointerEvents = 'auto';
+                        } else if (isFarNext) {
+                          transformStyles = 'translate3d(154%, 0, 0) scale(0.84)';
+                          zIndex = 10;
+                          opacity = 0.74;
+                          pointerEvents = 'auto';
+                        } else {
+                          transformStyles = `translate3d(${offset > 0 ? 220 : -220}%, 0, 0) scale(0.65)`;
+                          zIndex = 5;
+                          opacity = 0;
+                          pointerEvents = 'none';
+                        }
+
+                        return (
+                          <div
+                            key={cat.id}
+                            onClick={() => {
+                              if (isCenter) {
+                                navigate('shop', cat.category);
+                              } else {
+                                setCatActiveIdx(idx);
+                              }
+                            }}
+                            className={`absolute w-[70vw] sm:w-[42vw] md:w-[32vw] lg:w-[26vw] xl:w-[24vw] max-w-[360px] aspect-[4/5] rounded-none overflow-hidden cursor-pointer transition-all duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] origin-center ${
+                              isCenter ? 'shadow-2xl ring-1 ring-black/10' : 'shadow-xl'
+                            }`}
+                            style={{
+                              transform: transformStyles,
+                              zIndex,
+                              opacity,
+                              pointerEvents,
+                            }}
+                          >
+                            <img
+                              src={cat.image}
+                              alt={cat.name}
+                              className={`w-full h-full object-cover object-center transition-transform duration-1000 ease-out ${isCenter ? 'group-hover:scale-105' : 'filter brightness-95'}`}
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent pointer-events-none"></div>
+
+                            <div className={`absolute inset-x-3 sm:inset-x-5 bottom-4 sm:bottom-7 flex flex-col items-center text-center z-20 transition-all duration-500 ${isCenter ? 'opacity-100 translate-y-0' : 'opacity-85 translate-y-1'}`}>
+                              <h3 className="font-sans font-black text-sm sm:text-base md:text-xl text-white uppercase tracking-[0.16em] pb-1 border-b-[1.5px] border-white drop-shadow-md">
+                                {cat.name}
+                              </h3>
+                              <p className="text-[10px] sm:text-xs md:text-sm text-[#FFFDD0] font-medium tracking-wide mt-1.5 drop-shadow line-clamp-1 max-w-[92%]">
+                                {cat.tagline}
+                              </p>
+
+                              {isCenter && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate('shop', cat.category);
+                                  }}
+                                  className="mt-2.5 sm:mt-3.5 bg-[#FBB6CE] hover:bg-[#F89CBA] text-[#1A1821] px-4 sm:px-6 py-1.5 sm:py-2 rounded text-[11px] sm:text-xs font-black tracking-widest uppercase transition-all duration-200 shadow-md hover:scale-105 flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <span>{cat.ctaText || 'SHOP NOW'}</span>
+                                  <span>→</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Pagination Indicator Dots */}
+                    <div className="flex items-center justify-center gap-1.5 mt-2.5 sm:mt-3.5">
+                      {CATEGORIES.map((_, dotIdx) => {
+                        const isActive = dotIdx === catActiveIdx;
+                        return (
+                          <button
+                            key={dotIdx}
+                            onClick={() => setCatActiveIdx(dotIdx)}
+                            className={`transition-all duration-300 rounded-full cursor-pointer ${
+                              isActive
+                                ? 'w-6 h-1.5 bg-[#967BB6]'
+                                : 'w-1.5 h-1.5 bg-[#D1CAD9] hover:bg-[#967BB6]/60'
+                            }`}
+                            aria-label={`Go to slide ${dotIdx + 1}`}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. TRENDING THIS SEASON */}
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-6 mt-8 sm:mt-12">
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="font-sans font-black text-lg sm:text-2xl md:text-3xl uppercase tracking-tight">TRENDING THIS SEASON</h2>
+                    <button onClick={() => navigate('shop')} className="bg-[#FBB6CE] hover:bg-[#F89CBA] text-[#1A1821] px-3.5 sm:px-5 py-2 text-xs font-black uppercase tracking-wider rounded shrink-0">
+                      SHOP ALL TRENDING
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-6">
+                    {PRODUCTS.slice(0, 4).map(p => (
+                      <div key={p.id} onClick={() => { setSelectedProduct(p); setPage('product'); }} className="group cursor-pointer flex flex-col justify-between">
+                        <div className="aspect-[3/4] sm:aspect-[4/5] bg-white border border-[#EAE6DB] relative overflow-hidden mb-2">
+                          <img src={p.images[0]} className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300" />
+                          {p.isNewArrival && <span className="absolute top-2 left-2 bg-[#967BB6] text-white text-[9px] font-bold px-2 py-0.5 uppercase">New Arrival</span>}
+                          {p.isBestSeller && !p.isNewArrival && <span className="absolute top-2 left-2 bg-[#E56B88] text-white text-[9px] font-bold px-2 py-0.5 uppercase">Back in Stock</span>}
+                          <span className="absolute bottom-2 left-2 bg-white/90 text-[9px] font-bold px-2 py-0.5 border">
+                            {p.category === 'jewellery' ? '18K Gold ✨' : '100% Cotton 🌿'}
+                          </span>
+                        </div>
+                        <div>
+                          <h4 className="font-sans font-bold text-xs sm:text-sm truncate group-hover:text-[#967BB6]">{p.name}</h4>
+                          <p className="font-black text-xs sm:text-sm">Rs. {p.price}.00</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 4. INFLUENCER-APPROVED COMFORT */}
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-6">
+                  <div className="text-center space-y-1">
+                    <h2 className="font-sans font-black text-xl sm:text-3xl uppercase tracking-tight">Influencer-Approved Comfort</h2>
+                    <p className="text-xs text-brand-muted">Discover how influencers style our nightwear &amp; jewellery.</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-5">
+                    {INFLUENCER_ITEMS.map((inf, idx) => (
+                      <div key={idx} className="bg-white border border-[#EAE6DB] overflow-hidden flex flex-col justify-between">
+                        <div className="relative aspect-[9/14] overflow-hidden bg-black">
+                          <img src={inf.image} className="w-full h-full object-cover opacity-95" />
+                          <div className="absolute top-3 sm:top-4 left-3 sm:left-4 text-white">
+                            <span className="font-handwritten text-xl sm:text-2xl text-[#FFFDD0] block font-bold leading-tight">{inf.tag}</span>
+                            <span className="text-[9px] sm:text-[10px] font-bold uppercase">{inf.sub}</span>
+                          </div>
+                          <span className="absolute top-3 right-3 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded">👁️ {inf.views}</span>
+                        </div>
+
+                        <div className="p-2.5 sm:p-3 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <img src={inf.product.images[0]} className="w-8 h-8 sm:w-9 sm:h-9 object-cover rounded border shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[11px] sm:text-xs font-bold truncate">{inf.product.name}</p>
+                              <p className="text-xs font-black">₹{inf.product.price}</p>
+                            </div>
+                          </div>
+                          <button onClick={() => { addToCart(inf.product); setIsCartOpen(true); }} className="w-full py-2 bg-[#FBB6CE] hover:bg-[#F89CBA] text-[#1A1821] text-[11px] sm:text-xs font-black uppercase tracking-wider rounded">
+                            Add to Cart
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SHOP PAGE */}
+            {page === 'shop' && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-6">
+                <div className="flex items-center justify-between pb-4 border-b border-[#EAE6DB]">
+                  <h2 className="font-sans font-black text-xl sm:text-2xl uppercase">Shop {category === 'nightwear' ? 'Nightwear' : category === 'jewellery' ? '18K Jewels' : 'All'}</h2>
+                  <div className="flex gap-1.5 sm:gap-2">
+                    <button onClick={() => setCategory('all')} className={`px-3 py-1.5 text-xs font-bold uppercase ${category === 'all' ? 'bg-[#967BB6] text-white' : 'bg-white border'}`}>All</button>
+                    <button onClick={() => setCategory('nightwear')} className={`px-3 py-1.5 text-xs font-bold uppercase ${category === 'nightwear' ? 'bg-[#967BB6] text-white' : 'bg-white border'}`}>Nightwear</button>
+                    <button onClick={() => setCategory('jewellery')} className={`px-3 py-1.5 text-xs font-bold uppercase ${category === 'jewellery' ? 'bg-[#967BB6] text-white' : 'bg-white border'}`}>Jewellery</button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-6">
+                  {PRODUCTS.filter(p => category === 'all' || p.category === category).map(p => (
+                    <div key={p.id} onClick={() => { setSelectedProduct(p); setPage('product'); }} className="group cursor-pointer flex flex-col justify-between">
+                      <div className="aspect-[3/4] sm:aspect-[4/5] bg-white border border-[#EAE6DB] relative overflow-hidden mb-2">
+                        <img src={p.images[0]} className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300" />
+                        {p.isNewArrival && <span className="absolute top-2 left-2 bg-[#967BB6] text-white text-[9px] font-bold px-2 py-0.5 uppercase">New Arrival</span>}
+                        <span className="absolute bottom-2 left-2 bg-white/90 text-[9px] font-bold px-2 py-0.5 border">
+                          {p.category === 'jewellery' ? '18K Gold ✨' : '100% Cotton 🌿'}
+                        </span>
+                      </div>
+                      <div>
+                        <h4 className="font-sans font-bold text-xs sm:text-sm truncate group-hover:text-[#967BB6]">{p.name}</h4>
+                        <p className="font-black text-xs sm:text-sm">Rs. {p.price}.00</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* PRODUCT DETAILS PAGE */}
+            {page === 'product' && selectedProduct && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-6">
+                <button onClick={() => setPage('shop')} className="text-xs font-bold text-brand-muted hover:text-[#967BB6]">
+                  ← Back to Collection
+                </button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 items-start">
+                  <div className="aspect-[3/4] sm:aspect-[4/5] bg-white border border-[#EAE6DB] overflow-hidden">
+                    <img src={selectedProduct.images[0]} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="bg-white p-5 sm:p-8 border border-[#EAE6DB] space-y-4">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#967BB6]">{selectedProduct.subCategory}</span>
+                    <h1 className="font-sans font-black text-xl sm:text-3xl uppercase leading-tight">{selectedProduct.name}</h1>
+                    <div className="flex items-baseline gap-3">
+                      <span className="text-xl sm:text-2xl font-black">Rs. {selectedProduct.price}.00</span>
+                      <span className="text-xs sm:text-sm text-brand-muted line-through">Rs. {selectedProduct.originalPrice}.00</span>
+                    </div>
+                    <p className="text-xs text-brand-muted leading-relaxed">{selectedProduct.description}</p>
+                    {selectedProduct.sizes && (
+                      <div className="space-y-2">
+                        <span className="text-xs font-bold uppercase">Size:</span>
+                        <div className="flex gap-2">
+                          {selectedProduct.sizes.map(s => (
+                            <button key={s} className="w-10 h-10 border text-xs font-bold hover:border-[#967BB6] focus:bg-[#967BB6] focus:text-white">
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="space-y-2 pt-2">
+                      <button onClick={() => { addToCart(selectedProduct); setIsCartOpen(true); }} className="w-full py-3 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-black uppercase tracking-wider">
+                        Add to Cart
+                      </button>
+                      <button onClick={() => { addToCart(selectedProduct); setIsCheckoutOpen(true); }} className="w-full py-3 bg-[#FBB6CE] hover:bg-[#F89CBA] text-[#1A1821] text-xs font-black uppercase tracking-wider">
+                        Buy It Now (Express Checkout)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </main>
+
+          {/* Cart Drawer */}
+          {isCartOpen && (
+            <div className="fixed inset-0 z-50 flex justify-end modal-backdrop" onClick={() => setIsCartOpen(false)}>
+              <div className="w-full max-w-md bg-white h-full p-5 sm:p-6 flex flex-col justify-between" onClick={e => e.stopPropagation()}>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center border-b pb-3">
+                    <h3 className="font-sans font-black text-base uppercase">Your Bag ({cart.reduce((s, i) => s + i.qty, 0)})</h3>
+                    <button onClick={() => setIsCartOpen(false)} className="text-lg font-bold">✕</button>
+                  </div>
+                  {subtotal < 999 && subtotal > 0 && (
+                    <div className="p-2.5 bg-[#FFFDD0] border text-xs font-bold">
+                      Add <strong>₹{999 - subtotal}</strong> more for <strong>FREE Delivery!</strong>
+                    </div>
+                  )}
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {cart.map(i => (
+                      <div key={i.key} className="flex gap-3 border-b pb-3">
+                        <img src={i.product.images[0]} className="w-14 h-18 object-cover border" />
+                        <div className="flex-1">
+                          <h5 className="text-xs font-bold truncate">{i.product.name}</h5>
+                          <span className="text-[11px] text-brand-muted">Size: {i.size}</span>
+                          <div className="flex justify-between items-center mt-2">
+                            <div className="flex items-center gap-2 border px-2 py-0.5 text-xs font-bold">
+                              <button onClick={() => updateQty(i.key, -1)}>-</button>
+                              <span>{i.qty}</span>
+                              <button onClick={() => updateQty(i.key, 1)}>+</button>
+                            </div>
+                            <span className="text-xs font-bold">Rs. {i.product.price * i.qty}.00</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3 border-t pt-4">
+                  <div className="flex justify-between text-xs">
+                    <span>Subtotal:</span>
+                    <span className="font-bold">Rs. {subtotal}.00</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-black border-t pt-2">
+                    <span>Total:</span>
+                    <span>Rs. {total}.00</span>
+                  </div>
+                  <button onClick={() => { setIsCartOpen(false); setIsCheckoutOpen(true); }} className="w-full bg-[#967BB6] hover:bg-[#7F62A1] text-white py-3.5 font-black text-xs uppercase tracking-wider">
+                    Proceed to Checkout • Rs. {total}.00
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile Sidebar Navigation */}
+          {isMenuOpen && (
+            <div className="fixed inset-0 z-50 flex modal-backdrop" onClick={() => setIsMenuOpen(false)}>
+              <div className="w-4/5 max-w-xs bg-white h-full p-6 flex flex-col justify-between" onClick={e => e.stopPropagation()}>
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center border-b pb-3">
+                    <img src="/src/assets/logo-line.PNG" alt="Girly Tales" className="h-8 w-auto" onError={(e) => { e.target.src = '/src/assets/logo-line.png'; }} />
+                    <button onClick={() => setIsMenuOpen(false)} className="text-lg font-bold">✕</button>
+                  </div>
+                  <div className="space-y-2 text-xs font-bold uppercase tracking-wider">
+                    <button onClick={() => { navigate('home'); setIsMenuOpen(false); }} className="w-full text-left py-2.5 px-2 hover:bg-[#FFFDD0]">Home</button>
+                    <button onClick={() => { navigate('shop', 'all'); setIsMenuOpen(false); }} className="w-full text-left py-2.5 px-2 hover:bg-[#FFFDD0]">Shop All</button>
+                    <button onClick={() => { navigate('shop', 'nightwear'); setIsMenuOpen(false); }} className="w-full text-left py-2.5 px-2 hover:bg-[#FFFDD0] text-[#967BB6]">Nightwear &amp; Pyjamas</button>
+                    <button onClick={() => { navigate('shop', 'jewellery'); setIsMenuOpen(false); }} className="w-full text-left py-2.5 px-2 hover:bg-[#FFFDD0] text-amber-700">18K Anti-Tarnish Jewels</button>
+                  </div>
+                </div>
+                <div className="p-3 bg-[#FFFDD0] border text-center text-xs">
+                  <p className="font-bold">✦ BUNDLE DEAL ✦</p>
+                  <p className="text-[11px] text-brand-muted">Buy Any 3 for ₹2999</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Search Popup */}
+          {isSearchOpen && (
+            <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4 modal-backdrop" onClick={() => setIsSearchOpen(false)}>
+              <div className="bg-white max-w-lg w-full p-5 space-y-4" onClick={e => e.stopPropagation()}>
+                <input
+                  type="text"
+                  placeholder="Search pyjamas, rings, necklaces..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="w-full p-3 border-b text-sm font-bold outline-none uppercase"
+                  autoFocus
+                />
+                <div className="max-h-60 overflow-y-auto space-y-2">
+                  {PRODUCTS.filter(p => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase())).map(p => (
+                    <div key={p.id} onClick={() => { setSelectedProduct(p); setPage('product'); setIsSearchOpen(false); }} className="flex items-center gap-3 p-2 hover:bg-[#FFFDD0] cursor-pointer">
+                      <img src={p.images[0]} className="w-10 h-12 object-cover" />
+                      <div>
+                        <p className="text-xs font-bold">{p.name}</p>
+                        <p className="text-xs text-[#967BB6]">Rs. {p.price}.00</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Checkout Modal */}
+          {isCheckoutOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop" onClick={() => setIsCheckoutOpen(false)}>
+              <div className="bg-white max-w-md w-full p-6 space-y-4" onClick={e => e.stopPropagation()}>
+                {orderDone ? (
+                  <div className="text-center py-6 space-y-3">
+                    <span className="text-4xl">🎉</span>
+                    <h3 className="font-serif text-2xl font-bold">Order Confirmed!</h3>
+                    <p className="text-xs text-brand-muted">Order #GT-{Math.floor(100000 + Math.random()*900000)} placed.</p>
+                    <button onClick={() => { setIsCheckoutOpen(false); setOrderDone(false); setCart([]); }} className="bg-[#967BB6] text-white px-6 py-2 text-xs font-bold uppercase">Continue Shopping</button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <h3 className="font-sans font-black text-xl uppercase">Delivery Details</h3>
+                    <input type="text" placeholder="Full Name" defaultValue="Ananya Verma" className="w-full border p-2 text-xs font-bold" />
+                    <input type="text" placeholder="Address" defaultValue="Bandra West, Mumbai" className="w-full border p-2 text-xs font-bold" />
+                    <div className="p-3 bg-[#FFFDD0] border text-xs font-bold flex justify-between">
+                      <span>Total:</span>
+                      <span>Rs. {total}.00</span>
+                    </div>
+                    <button onClick={() => setOrderDone(true)} className="w-full bg-[#967BB6] text-white py-3 font-black text-xs uppercase tracking-wider">
+                      Place Order (COD / Prepaid)
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Toast Alert */}
+          {toast && (
+            <div className="fixed bottom-6 right-6 z-50 bg-white border border-[#967BB6] p-3 text-xs font-bold shadow-lg">
+              <span>{toast.msg}</span> {toast.sub && <span className="text-brand-muted font-normal">({toast.sub})</span>}
+            </div>
+          )}
+
+          {/* Footer */}
+          <footer className="bg-[#1A1821] text-white py-12 px-6 border-t border-[#33303D] text-xs">
+            <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
+              <div className="space-y-2">
+                <span className="font-serif font-black text-xl text-white uppercase">Girly Tales</span>
+                <p className="text-white/60">Everyday soft luxury and 100% waterproof anti-tarnish jewels for modern women.</p>
+              </div>
+              <div>
+                <h5 className="font-bold text-[#FFFDD0] uppercase mb-2">Shop</h5>
+                <p className="text-white/60 cursor-pointer hover:underline" onClick={() => navigate('shop', 'nightwear')}>Night Suits</p>
+                <p className="text-white/60 cursor-pointer hover:underline mt-1" onClick={() => navigate('shop', 'jewellery')}>Anti-Tarnish Jewellery</p>
+              </div>
+              <div>
+                <h5 className="font-bold text-[#FFFDD0] uppercase mb-2">Help</h5>
+                <p className="text-white/60">WhatsApp: +91 98765 43210</p>
+                <p className="text-white/60 mt-1">care@girlytales.com</p>
+              </div>
+              <div>
+                <h5 className="font-bold text-[#FFFDD0] uppercase mb-2">Instagram</h5>
+                <p className="text-white/60">@girlytalesofficial</p>
+              </div>
+            </div>
+            <div className="text-center text-white/40 pt-8 mt-8 border-t border-white/10">
+              © 2026 Girly Tales India. All rights reserved.
+            </div>
+          </footer>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
