@@ -30,7 +30,10 @@ import { ContactPage } from './pages/ContactPage';
 import { LoginPage } from './pages/LoginPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 
+import { useAuth } from './context/AuthContext';
+
 export const AppContent: React.FC = () => {
+  const { user, isLoggedIn, isAdmin, openAuthModal } = useAuth();
   const [currentPage, setCurrentPage] = useState<string>('home');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -158,7 +161,54 @@ export const AppContent: React.FC = () => {
         )}
 
         {currentPage === 'admin' && (
-          <AdminDashboardPage onNavigate={navigateTo} />
+          isAdmin ? (
+            <AdminDashboardPage onNavigate={navigateTo} />
+          ) : (
+            <div className="max-w-xl mx-auto px-4 py-20 text-center animate-fade-in space-y-6">
+              <div className="w-18 h-18 mx-auto rounded-3xl bg-[#FAF8F2] border border-[#EAE6DB] flex items-center justify-center text-[#967BB6] shadow-sm">
+                <span className="text-3xl">🔒</span>
+              </div>
+              <div className="space-y-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-[#967BB6] bg-[#FFFDD0] border border-[#EAE6DB] px-3 py-1 rounded-full">
+                  Admin Access Required
+                </span>
+                <h2 className="font-serif font-black text-2xl sm:text-3xl text-brand-charcoal uppercase">
+                  Restricted Control Center
+                </h2>
+                <p className="text-xs sm:text-sm text-brand-muted max-w-md mx-auto leading-relaxed">
+                  The Admin Dashboard is strictly reserved for authorized store administrators. Please log in with your administrator email.
+                </p>
+              </div>
+
+              {isLoggedIn ? (
+                <div className="p-4 bg-[#FAF8F2] rounded-2xl border border-[#EAE6DB] text-xs text-brand-muted space-y-2">
+                  <p>Currently logged in as: <strong className="text-brand-charcoal">{user?.email}</strong></p>
+                  <p className="text-[11px] text-rose-500 font-semibold">This account does not have store administrator privileges.</p>
+                  <button
+                    onClick={() => openAuthModal('login')}
+                    className="mt-2 px-5 py-2 bg-[#967BB6] hover:bg-[#7F62A1] text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all"
+                  >
+                    Switch to Admin Account
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                  <button
+                    onClick={() => openAuthModal('login')}
+                    className="w-full sm:w-auto px-6 py-3 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-sm transition-all"
+                  >
+                    Log In as Admin
+                  </button>
+                  <button
+                    onClick={() => navigateTo('home')}
+                    className="w-full sm:w-auto px-6 py-3 bg-[#FAF8F2] hover:bg-[#FFFDD0] border border-[#EAE6DB] text-brand-charcoal text-xs font-bold uppercase tracking-wider rounded-xl transition-all"
+                  >
+                    Return to Store
+                  </button>
+                </div>
+              )}
+            </div>
+          )
         )}
       </main>
 

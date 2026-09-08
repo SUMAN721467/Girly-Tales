@@ -143,18 +143,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6 pb-8 border-b border-[#EAE6DB] text-center sm:text-left">
             <div className="flex flex-col sm:flex-row items-center gap-5">
               <div className="w-20 h-20 rounded-full bg-[#967BB6] text-white font-serif font-bold text-3xl flex items-center justify-center shadow-md">
-                {user.name ? user.name.charAt(0).toUpperCase() : 'S'}
+                {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
               </div>
               <div className="space-y-1">
                 <div className="flex items-center justify-center sm:justify-start gap-2">
                   <h1 className="font-sans font-black text-2xl sm:text-3xl text-brand-charcoal uppercase">
-                    Hello, {user.name || 'Sabara'}!
+                    Hello, {user.name || 'Member'}!
                   </h1>
                   <span className="bg-[#FFFDD0] text-[#967BB6] border border-[#EAE6DB] text-[10px] font-black uppercase px-2 py-0.5 rounded">
                     VIP Member
                   </span>
                 </div>
-                <p className="text-xs text-brand-muted">{user.email || 'contact.sabara@gmail.com'}</p>
+                <p className="text-xs text-brand-muted">{user.email || 'member@girlytales.com'}</p>
                 {user.phone && <p className="text-xs text-brand-muted">Phone: {user.phone}</p>}
               </div>
             </div>

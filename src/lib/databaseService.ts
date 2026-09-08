@@ -663,5 +663,60 @@ export const DatabaseService = {
     notifyDatabaseChange('categories');
     return SEED_CATEGORIES;
   },
-};
 
+  // ==================== 7. DATABASE HEALTH & TABLE STATUS ====================
+  async checkSupabaseStatus(): Promise<{
+    isConfigured: boolean;
+    url: string;
+    tables: { name: string; count: number; status: 'ready' | 'missing' | 'error'; message?: string }[];
+  }> {
+    const rawUrl = import.meta.env.VITE_SUPABASE_URL || '';
+    if (!isSupabaseConfigured) {
+      return {
+        isConfigured: false,
+        url: rawUrl || 'Not configured in environment variables',
+        tables: [
+          { name: 'categories', count: inMemoryCategories.length, status: 'missing', message: 'Using in-memory seed fallback' },
+          { name: 'products', count: inMemoryProducts.length, status: 'missing', message: 'Using in-memory seed fallback' },
+          { name: 'orders', count: inMemoryOrders.length, status: 'missing', message: 'Using in-memory seed fallback' },
+          { name: 'reviews', count: inMemoryReviews.length, status: 'missing', message: 'Using in-memory seed fallback' },
+          { name: 'coupons', count: inMemoryCoupons.length, status: 'missing', message: 'Using in-memory seed fallback' },
+        ],
+      };
+    }
+
+    const tableNames = ['categories', 'products', 'orders', 'reviews', 'coupons'];
+    const results: { name: string; count: number; status: 'ready' | 'missing' | 'error'; message?: string }[] = [];
+
+    for (const tableName of tableNames) {
+      try {
+        const { data, error, count } = await supabase
+          .from(tableName)
+          .select('*', { count: 'exact', head: false });
+
+        if (error) {
+          if (error.code === '42P01' || error.message?.toLowerCase().includes('relation') || error.message?.toLowerCase().includes('does not exist')) {
+            results.push({ name: tableName, count: 0, status: 'missing', message: 'Table does not exist. Run SQL script to create it.' });
+          } else {
+            results.push({ name: tableName, count: 0, status: 'error', message: error.message });
+          }
+        } else {
+          results.push({
+            name: tableName,
+            count: typeof count === 'number' ? count : (Array.isArray(data) ? data.length : 0),
+            status: 'ready',
+            message: 'Active & connected in Supabase',
+          });
+        }
+      } catch (err: any) {
+        results.push({ name: tableName, count: 0, status: 'error', message: err?.message || 'Check failed' });
+      }
+    }
+
+    return {
+      isConfigured: true,
+      url: rawUrl,
+      tables: results,
+    };
+  },
+};

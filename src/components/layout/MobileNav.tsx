@@ -12,7 +12,7 @@ interface MobileNavProps {
 
 export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onNavigate }) => {
   const { wishlistCount } = useWishlist();
-  const { user, isLoggedIn } = useAuth();
+  const { user, isLoggedIn, isAdmin } = useAuth();
 
   if (!isOpen) return null;
 
@@ -105,16 +105,18 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onNavigat
               <ArrowRight className="w-4 h-4 text-brand-muted-light" />
             </button>
 
-            <button
-              onClick={() => handleLinkClick('admin')}
-              className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#FFFDD0] flex items-center justify-between transition-colors"
-            >
-              <span className="flex items-center gap-2">
-                <span className="text-[10px] bg-[#967BB6] text-white px-1.5 py-0.5 rounded font-black">ADMIN</span>
-                <span>Admin Dashboard</span>
-              </span>
-              <ArrowRight className="w-4 h-4 text-brand-muted-light" />
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => handleLinkClick('admin')}
+                className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#FFFDD0] flex items-center justify-between transition-colors bg-[#FAF8F2]"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="text-[10px] bg-[#967BB6] text-white px-1.5 py-0.5 rounded font-black">ADMIN</span>
+                  <span>Admin Dashboard</span>
+                </span>
+                <ArrowRight className="w-4 h-4 text-brand-muted-light" />
+              </button>
+            )}
 
             <button
               onClick={() => handleLinkClick('wishlist')}

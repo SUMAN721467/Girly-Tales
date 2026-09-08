@@ -21,7 +21,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { totalItems, openCart } = useCart();
   const { wishlistCount } = useWishlist();
-  const { user, isLoggedIn } = useAuth();
+  const { user, isLoggedIn, isAdmin } = useAuth();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   return (
@@ -134,7 +134,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     : 'border-[#EAE6DB] hover:border-[#967BB6] text-brand-charcoal hover:text-[#967BB6]'
                 } relative`}
                 aria-label="Account Menu"
-                title={isLoggedIn && user ? `Account (${user.name})` : 'Profile Menu'}
+                title={isLoggedIn && user ? (isAdmin ? `Admin (${user.name || user.email})` : `Account (${user.name})`) : 'Profile Menu'}
               >
                 {isLoggedIn && user ? (
                   <div className="w-6 h-6 rounded-full bg-[#967BB6] text-white text-[10px] font-black flex items-center justify-center shadow-xs">
@@ -145,8 +145,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <UserIcon className="w-3.5 h-3.5 stroke-[2.2]" />
                   </div>
                 )}
-                {/* Active online green dot */}
-                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[#10B981] border-2 border-white rounded-full shadow-xs" />
+                {/* Active online green dot if logged in */}
+                {isLoggedIn && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[#10B981] border-2 border-white rounded-full shadow-xs" />
+                )}
               </button>
 
               {/* Profile Dropdown Card */}

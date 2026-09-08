@@ -3,9 +3,20 @@ import { User } from '../types/product';
 import { useCart } from './CartContext';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
+export const ADMIN_EMAILS: string[] = [
+  'mallickananya.2004@gmail.com',
+  'sumansamanta721467@gmail.com',
+].map((e) => e.toLowerCase());
+
+export const checkIsAdmin = (email?: string | null): boolean => {
+  if (!email) return false;
+  return ADMIN_EMAILS.includes(email.trim().toLowerCase());
+};
+
 interface AuthContextType {
   user: User | null;
   isLoggedIn: boolean;
+  isAdmin: boolean;
   isLoading: boolean;
   isAuthModalOpen: boolean;
   authModalTab: 'login' | 'signup';
@@ -55,12 +66,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const u = session.user;
           const userMeta = u.user_metadata || {};
           const fallbackName = userMeta.name || userMeta.full_name || u.email?.split('@')[0] || 'Member';
+          const userEmail = u.email || '';
+          const userIsAdmin = checkIsAdmin(userEmail);
           const newUser: User = {
             id: u.id,
-            email: u.email || '',
+            email: userEmail,
             name: fallbackName.charAt(0).toUpperCase() + fallbackName.slice(1),
             phone: userMeta.phone,
             isLoggedIn: true,
+            isAdmin: userIsAdmin,
+            role: userIsAdmin ? 'admin' : 'customer',
             avatarUrl: userMeta.avatar_url,
             createdAt: u.created_at,
           };
@@ -78,12 +93,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const u = session.user;
         const userMeta = u.user_metadata || {};
         const fallbackName = userMeta.name || userMeta.full_name || u.email?.split('@')[0] || 'Member';
+        const userEmail = u.email || '';
+        const userIsAdmin = checkIsAdmin(userEmail);
         const newUser: User = {
           id: u.id,
-          email: u.email || '',
+          email: userEmail,
           name: fallbackName.charAt(0).toUpperCase() + fallbackName.slice(1),
           phone: userMeta.phone,
           isLoggedIn: true,
+          isAdmin: userIsAdmin,
+          role: userIsAdmin ? 'admin' : 'customer',
           avatarUrl: userMeta.avatar_url,
           createdAt: u.created_at,
         };
@@ -164,12 +183,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const userMeta = u.user_metadata || {};
           const fallbackName = userMeta.name || userMeta.full_name || u.email?.split('@')[0] || 'Member';
           const capitalized = fallbackName.charAt(0).toUpperCase() + fallbackName.slice(1);
+          const userIsAdmin = checkIsAdmin(email);
           const newUser: User = {
             id: u.id,
             email: u.email || email,
             name: capitalized,
             phone: userMeta.phone,
             isLoggedIn: true,
+            isAdmin: userIsAdmin,
+            role: userIsAdmin ? 'admin' : 'customer',
             createdAt: u.created_at,
           };
           setUser(newUser);
@@ -183,10 +205,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Local fallback for testing
       const formattedName = email.split('@')[0].replace('.', ' ');
       const capitalName = formattedName.charAt(0).toUpperCase() + formattedName.slice(1);
+      const userIsAdmin = checkIsAdmin(email);
       const newUser: User = {
         email: email.trim(),
         name: capitalName,
         isLoggedIn: true,
+        isAdmin: userIsAdmin,
+        role: userIsAdmin ? 'admin' : 'customer',
       };
       setUser(newUser);
       closeAuthModal();
@@ -224,10 +249,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // Demo Google login fallback
+      const demoEmail = 'user@gmail.com';
+      const userIsAdmin = checkIsAdmin(demoEmail);
       const newUser: User = {
         name: 'Google User',
-        email: 'user@gmail.com',
+        email: demoEmail,
         isLoggedIn: true,
+        isAdmin: userIsAdmin,
+        role: userIsAdmin ? 'admin' : 'customer',
       };
       setUser(newUser);
       closeAuthModal();
@@ -260,11 +289,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const userMeta = u.user_metadata || {};
           const displayName = userMeta.name || name || u.email?.split('@')[0] || 'Member';
           const capitalized = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+          const userEmail = u.email || email;
+          const userIsAdmin = checkIsAdmin(userEmail);
           const newUser: User = {
             id: u.id,
-            email: u.email || email,
+            email: userEmail,
             name: capitalized,
             isLoggedIn: true,
+            isAdmin: userIsAdmin,
+            role: userIsAdmin ? 'admin' : 'customer',
             createdAt: u.created_at,
           };
           setUser(newUser);
@@ -278,10 +311,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Local / Offline fallback logic
       const formattedName = name || email.split('@')[0].replace('.', ' ');
       const capitalName = formattedName.charAt(0).toUpperCase() + formattedName.slice(1);
+      const userIsAdmin = checkIsAdmin(email);
       const newUser: User = {
         email: email.trim(),
         name: capitalName,
         isLoggedIn: true,
+        isAdmin: userIsAdmin,
+        role: userIsAdmin ? 'admin' : 'customer',
       };
       setUser(newUser);
       closeAuthModal();
@@ -316,12 +352,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (data.user) {
+          const userEmail = email.trim();
+          const userIsAdmin = checkIsAdmin(userEmail);
           const newUser: User = {
             id: data.user.id,
             name: name.trim(),
-            email: email.trim(),
+            email: userEmail,
             phone: phone?.trim(),
             isLoggedIn: true,
+            isAdmin: userIsAdmin,
+            role: userIsAdmin ? 'admin' : 'customer',
             createdAt: data.user.created_at,
           };
           setUser(newUser);
@@ -333,11 +373,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // Local fallback
+      const userEmail = email.trim();
+      const userIsAdmin = checkIsAdmin(userEmail);
       const newUser: User = {
         name: name.trim(),
-        email: email.trim(),
+        email: userEmail,
         phone: phone?.trim(),
         isLoggedIn: true,
+        isAdmin: userIsAdmin,
+        role: userIsAdmin ? 'admin' : 'customer',
       };
       setUser(newUser);
       closeAuthModal();
@@ -382,6 +426,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         isLoggedIn: !!user?.isLoggedIn,
+        isAdmin: checkIsAdmin(user?.email),
         isLoading,
         isAuthModalOpen,
         authModalTab,

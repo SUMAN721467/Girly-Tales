@@ -73,6 +73,8 @@ export interface User {
   email: string;
   phone?: string;
   isLoggedIn: boolean;
+  isAdmin?: boolean;
+  role?: 'admin' | 'customer';
   avatarUrl?: string;
   createdAt?: string;
 }
