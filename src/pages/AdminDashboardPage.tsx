@@ -69,6 +69,17 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const [isCopiedSql, setIsCopiedSql] = useState(false);
   const [isCheckingDb, setIsCheckingDb] = useState(false);
 
+  // Strict Delete Confirmation Type-box State
+  const [deleteTarget, setDeleteTarget] = useState<{
+    type: string;
+    name: string;
+    id?: string;
+    description?: string;
+    onConfirm: () => Promise<void> | void;
+  } | null>(null);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState('');
+  const [isDeletingItem, setIsDeletingItem] = useState(false);
+
   // Category Manager State (matching reference screenshot)
   const [newCategoryInput, setNewCategoryInput] = useState('');
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
@@ -191,6 +202,20 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       setTimeout(() => setIsCopiedSql(false), 4000);
     } catch (e) {
       triggerToast('Copy Failed', 'Please copy manually from supabase_schema.sql.', undefined, 'error');
+    }
+  };
+
+  const handleExecuteDelete = async () => {
+    if (!deleteTarget || deleteConfirmInput.trim().toLowerCase() !== 'delete') return;
+    setIsDeletingItem(true);
+    try {
+      await deleteTarget.onConfirm();
+      setDeleteTarget(null);
+      setDeleteConfirmInput('');
+    } catch (err) {
+      triggerToast('Delete Failed', 'Could not delete item. Please try again.', undefined, 'error');
+    } finally {
+      setIsDeletingItem(false);
     }
   };
 
@@ -1170,7 +1195,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           <td className="py-3.5 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               <button
-                                onClick={() => handleDeleteProduct(prod.id)}
+                                onClick={() => {
+                                  setDeleteTarget({
+                                    type: 'Product',
+                                    name: prod.name,
+                                    id: prod.id,
+                                    description: `Price: ₹${prod.price} | SKU: ${prod.sku || 'N/A'}`,
+                                    onConfirm: async () => {
+                                      await handleDeleteProduct(prod.id);
+                                    },
+                                  });
+                                  setDeleteConfirmInput('');
+                                }}
                                 className="p-1.5 rounded-lg text-brand-muted hover:text-rose-600 hover:bg-rose-50 transition-colors"
                                 title="Delete Product from DB"
                               >
@@ -1298,16 +1334,39 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                         </span>
                       </td>
                       <td className="py-4 px-4 text-right">
-                        <select
-                          value={ord.status}
-                          onChange={(e) => handleOrderStatusChange(ord.id, e.target.value as RealOrder['status'])}
-                          className="bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl px-2.5 py-1 text-xs font-bold text-brand-charcoal focus:outline-none focus:border-[#967BB6]"
-                        >
-                          <option value="Processing">Processing</option>
-                          <option value="Shipped">Shipped</option>
-                          <option value="Delivered">Delivered</option>
-                          <option value="Cancelled">Cancelled</option>
-                        </select>
+                        <div className="flex items-center justify-end gap-2">
+                          <select
+                            value={ord.status}
+                            onChange={(e) => handleOrderStatusChange(ord.id, e.target.value as RealOrder['status'])}
+                            className="bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl px-2.5 py-1 text-xs font-bold text-brand-charcoal focus:outline-none focus:border-[#967BB6]"
+                          >
+                            <option value="Processing">Processing</option>
+                            <option value="Shipped">Shipped</option>
+                            <option value="Delivered">Delivered</option>
+                            <option value="Cancelled">Cancelled</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDeleteTarget({
+                                type: 'Order Record',
+                                name: `Order #${ord.id} - ${ord.customerName}`,
+                                id: ord.id,
+                                description: `Amount: ₹${ord.total} | Status: ${ord.status} | Payment: ${ord.paymentMethod}`,
+                                onConfirm: async () => {
+                                  await DatabaseService.deleteOrder(ord.id);
+                                  setOrders((prev) => prev.filter((o) => o.id !== ord.id));
+                                  triggerToast('Order Deleted', `Order #${ord.id} removed from database.`, undefined, 'info');
+                                },
+                              });
+                              setDeleteConfirmInput('');
+                            }}
+                            className="p-1.5 text-brand-muted hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                            title="Delete Order Record"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1410,9 +1469,32 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   </p>
                   <div className="flex items-center justify-between pt-2 border-t border-[#EAE6DB]/70 text-[11px]">
                     <span className="text-emerald-700 font-bold">✓ Verified Purchase</span>
-                    <span className="bg-white border border-[#EAE6DB] px-2.5 py-0.5 rounded-full text-[10px] font-bold text-[#967BB6]">
-                      {rev.status}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="bg-white border border-[#EAE6DB] px-2.5 py-0.5 rounded-full text-[10px] font-bold text-[#967BB6]">
+                        {rev.status}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeleteTarget({
+                            type: 'Customer Review',
+                            name: `${rev.author} - "${rev.comment.slice(0, 35)}..."`,
+                            id: rev.id,
+                            description: `Product: ${rev.productName} | Rating: ${rev.rating}★`,
+                            onConfirm: async () => {
+                              await DatabaseService.deleteReview(rev.id);
+                              setReviews((prev) => prev.filter((r) => r.id !== rev.id));
+                              triggerToast('Review Deleted', 'Removed from database.', undefined, 'info');
+                            },
+                          });
+                          setDeleteConfirmInput('');
+                        }}
+                        className="p-1.5 text-brand-muted hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                        title="Delete Review"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1454,9 +1536,32 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                       Min spend: ₹{promo.minSpend} • Used {promo.usedCount} times
                     </p>
                   </div>
-                  <span className="text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full">
-                    {promo.status}
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full">
+                      {promo.status}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeleteTarget({
+                          type: 'Coupon Code',
+                          name: promo.code,
+                          id: promo.id,
+                          description: `Discount: ${promo.discount} | Min Spend: ₹${promo.minSpend}`,
+                          onConfirm: async () => {
+                            await DatabaseService.deleteCoupon(promo.id);
+                            setCoupons((prev) => prev.filter((c) => c.id !== promo.id));
+                            triggerToast('Coupon Deleted', `Code "${promo.code}" removed from database.`, undefined, 'info');
+                          },
+                        });
+                        setDeleteConfirmInput('');
+                      }}
+                      className="p-1.5 text-brand-muted hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                      title="Delete Coupon"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1765,7 +1870,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                             {/* Delete */}
                             <button
                               type="button"
-                              onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                              onClick={() => {
+                                setDeleteTarget({
+                                  type: 'Category',
+                                  name: cat.name,
+                                  id: cat.id,
+                                  description: `Slug: /${cat.slug}`,
+                                  onConfirm: async () => {
+                                    await handleDeleteCategory(cat.id, cat.name);
+                                  },
+                                });
+                                setDeleteConfirmInput('');
+                              }}
                               className="p-1.5 text-brand-muted hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
                               title="Delete Category"
                             >
@@ -1787,7 +1903,17 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
                 <button
                   type="button"
-                  onClick={handleResetCategories}
+                  onClick={() => {
+                    setDeleteTarget({
+                      type: 'All Custom Categories',
+                      name: 'Reset to Default Categories',
+                      description: 'This will restore default categories and erase any custom categories in the database.',
+                      onConfirm: async () => {
+                        await handleResetCategories();
+                      },
+                    });
+                    setDeleteConfirmInput('');
+                  }}
                   className="w-full py-3.5 px-4 bg-[#FAF8F2] hover:bg-[#FFFDD0] border border-[#EAE6DB] hover:border-[#967BB6]/40 text-brand-charcoal text-xs font-bold uppercase tracking-wider rounded-2xl transition-all shadow-xs"
                 >
                   Reset to Default Categories
@@ -2062,6 +2188,126 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: STRICT TYPED DELETE CONFIRMATION ================= */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border-2 border-rose-200 relative animate-scale-in space-y-5">
+            <button
+              onClick={() => {
+                setDeleteTarget(null);
+                setDeleteConfirmInput('');
+              }}
+              className="absolute top-5 right-5 p-1.5 rounded-full hover:bg-gray-100 text-brand-muted transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Warning Header */}
+            <div className="flex items-start gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 shadow-xs">
+                <AlertCircle className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                  Permanent Deletion Warning
+                </span>
+                <h3 className="font-serif text-xl font-bold text-brand-charcoal">
+                  Delete {deleteTarget.type}?
+                </h3>
+              </div>
+            </div>
+
+            {/* Item info box */}
+            <div className="p-3.5 bg-rose-50/60 border border-rose-100 rounded-2xl space-y-1">
+              <p className="text-xs font-black text-rose-900 line-clamp-1">
+                "{deleteTarget.name}"
+              </p>
+              {deleteTarget.description && (
+                <p className="text-[11px] text-rose-700/80 font-mono">
+                  {deleteTarget.description}
+                </p>
+              )}
+              <p className="text-[11px] text-rose-600 pt-1 font-semibold">
+                ⚠️ This action CANNOT be undone and immediately removes the record from your live Supabase database.
+              </p>
+            </div>
+
+            {/* Type-box instruction & Live validation */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-brand-charcoal">
+                To prevent accidental deletion or mis-touch, please type <span className="font-mono bg-rose-100 text-rose-700 px-2 py-0.5 rounded-md font-black border border-rose-200">delete</span> to confirm:
+              </label>
+              <input
+                type="text"
+                autoFocus
+                value={deleteConfirmInput}
+                onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                placeholder='Type "delete" here...'
+                className={`w-full px-4 py-3 bg-[#FAF8F2] border-2 rounded-2xl text-xs sm:text-sm font-mono font-bold focus:outline-none transition-all ${
+                  deleteConfirmInput.trim().toLowerCase() === 'delete'
+                    ? 'border-rose-500 bg-rose-50/40 text-rose-950 ring-2 ring-rose-200'
+                    : 'border-[#EAE6DB] text-brand-charcoal focus:border-brand-charcoal'
+                }`}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && deleteConfirmInput.trim().toLowerCase() === 'delete' && !isDeletingItem) {
+                    handleExecuteDelete();
+                  } else if (e.key === 'Escape') {
+                    setDeleteTarget(null);
+                    setDeleteConfirmInput('');
+                  }
+                }}
+              />
+
+              {/* Real-time Verification Helper */}
+              <div className="min-h-[20px] flex items-center">
+                {deleteConfirmInput.trim().toLowerCase() === 'delete' ? (
+                  <span className="text-[11px] text-emerald-700 font-bold flex items-center gap-1.5 animate-fade-in bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Keyword verified! Safe to delete permanently.</span>
+                  </span>
+                ) : deleteConfirmInput.length > 0 ? (
+                  <span className="text-[11px] text-amber-700 font-medium flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Please type the exact word <strong className="font-mono">delete</strong></span>
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-brand-muted">
+                    Enter <strong className="font-mono font-bold text-brand-charcoal">delete</strong> above to enable the action button.
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteTarget(null);
+                  setDeleteConfirmInput('');
+                }}
+                className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-brand-charcoal text-xs font-bold rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleteConfirmInput.trim().toLowerCase() !== 'delete' || isDeletingItem}
+                onClick={handleExecuteDelete}
+                className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 shadow-xs ${
+                  deleteConfirmInput.trim().toLowerCase() === 'delete'
+                    ? 'bg-rose-600 hover:bg-rose-700 text-white cursor-pointer active:scale-95 shadow-md shadow-rose-200'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-60'
+                }`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeletingItem ? 'Deleting from DB...' : 'Delete Permanently'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

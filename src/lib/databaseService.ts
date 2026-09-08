@@ -292,6 +292,19 @@ export const DatabaseService = {
     notifyDatabaseChange('orders');
   },
 
+  async deleteOrder(orderId: string): Promise<void> {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('orders').delete().eq('id', orderId);
+      } catch (e) {
+        console.warn('Supabase delete order note:', e);
+      }
+    }
+
+    inMemoryOrders = inMemoryOrders.filter((o) => o.id !== orderId);
+    notifyDatabaseChange('orders');
+  },
+
   // ==================== 2. PRODUCTS (SUPABASE DIRECT) ====================
   async getProducts(): Promise<Product[]> {
     if (isSupabaseConfigured) {
@@ -451,6 +464,19 @@ export const DatabaseService = {
     return inMemoryReviews;
   },
 
+  async deleteReview(id: string): Promise<void> {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('reviews').delete().eq('id', id);
+      } catch (e) {
+        console.warn('Supabase delete review note:', e);
+      }
+    }
+
+    inMemoryReviews = inMemoryReviews.filter((r) => r.id !== id);
+    notifyDatabaseChange('reviews');
+  },
+
   // ==================== 5. COUPONS (SUPABASE DIRECT) ====================
   async getCoupons(): Promise<RealCoupon[]> {
     if (isSupabaseConfigured) {
@@ -492,6 +518,17 @@ export const DatabaseService = {
     }
 
     inMemoryCoupons = [coupon, ...inMemoryCoupons.filter((c) => c.id !== coupon.id)];
+    notifyDatabaseChange('coupons');
+  },
+
+  async deleteCoupon(id: string): Promise<void> {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('coupons').delete().eq('id', id);
+      } catch (e) {}
+    }
+
+    inMemoryCoupons = inMemoryCoupons.filter((c) => c.id !== id);
     notifyDatabaseChange('coupons');
   },
 
