@@ -1,8 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { User as UserIcon, ShoppingBag, Heart, Settings, LogOut, ChevronRight, ShieldCheck, Sparkles } from 'lucide-react';
+import { User as UserIcon, ShoppingBag, Heart, Settings, LogOut, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useWishlist } from '../../context/WishlistContext';
-import { useCart } from '../../context/CartContext';
 
 interface ProfileDropdownProps {
   isOpen: boolean;
@@ -17,7 +16,6 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
 }) => {
   const { user, isLoggedIn, logout, openAuthModal } = useAuth();
   const { wishlistCount } = useWishlist();
-  const { totalItems } = useCart();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click

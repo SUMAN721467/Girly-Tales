@@ -6,7 +6,7 @@ interface ToastData {
   message: string;
   submessage?: string;
   product?: Product;
-  type: 'cart' | 'wishlist' | 'info' | 'success';
+  type: 'cart' | 'wishlist' | 'info' | 'success' | 'error';
 }
 
 interface CartContextType {
@@ -31,7 +31,7 @@ interface CartContextType {
   removeCoupon: () => void;
   toasts: ToastData[];
   dismissToast: (id: string) => void;
-  triggerToast: (message: string, submessage?: string, product?: Product, type?: 'cart' | 'wishlist' | 'info' | 'success') => void;
+  triggerToast: (message: string, submessage?: string, product?: Product, type?: 'cart' | 'wishlist' | 'info' | 'success' | 'error') => void;
 }
 
 const FREE_SHIPPING_THRESHOLD = 999;
@@ -67,7 +67,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     message: string,
     submessage?: string,
     product?: Product,
-    type: 'cart' | 'wishlist' | 'info' | 'success' = 'cart'
+    type: 'cart' | 'wishlist' | 'info' | 'success' | 'error' = 'cart'
   ) => {
     const id = Date.now().toString() + Math.random().toString(36).substring(2, 5);
     const newToast: ToastData = { id, message, submessage, product, type };

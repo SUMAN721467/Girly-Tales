@@ -12,7 +12,7 @@ interface MobileNavProps {
 
 export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onNavigate }) => {
   const { wishlistCount } = useWishlist();
-  const { user, isLoggedIn, openAuthModal } = useAuth();
+  const { user, isLoggedIn } = useAuth();
 
   if (!isOpen) return null;
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle, Heart, ShoppingBag, X } from 'lucide-react';
+import { CheckCircle, Heart, ShoppingBag, X, AlertCircle } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 
 export const ToastContainer: React.FC = () => {
@@ -12,6 +12,7 @@ export const ToastContainer: React.FC = () => {
       {toasts.map((toast) => {
         const isCart = toast.type === 'cart';
         const isWishlist = toast.type === 'wishlist';
+        const isError = toast.type === 'error';
 
         return (
           <div
@@ -28,14 +29,18 @@ export const ToastContainer: React.FC = () => {
             ) : (
               <div
                 className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                  isWishlist
+                  isError
+                    ? 'bg-rose-50 text-rose-600'
+                    : isWishlist
                     ? 'bg-rose-50 text-rose-500'
                     : isCart
                     ? 'bg-brand-lilac-subtle text-brand-lilac'
                     : 'bg-emerald-50 text-emerald-600'
                 }`}
               >
-                {isWishlist ? (
+                {isError ? (
+                  <AlertCircle className="w-5 h-5 text-rose-600" />
+                ) : isWishlist ? (
                   <Heart className="w-5 h-5 fill-rose-500" />
                 ) : isCart ? (
                   <ShoppingBag className="w-5 h-5" />

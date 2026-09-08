@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Package, ShoppingBag, Users, DollarSign, Layers,
-  Search, Filter, CheckCircle2, Clock, Truck, AlertCircle, 
-  ArrowLeft, Sparkles, Tag, Eye, ChevronRight, Plus, Trash2, Edit3,
-  Star, RefreshCw, X, MessageSquare, HelpCircle, Send, Globe,
-  Sliders, ShieldCheck, Check, Layout, Megaphone, Truck as ShippingIcon,
-  ListFilter, Database, Image as ImageIcon, ArrowUp, ArrowDown
+  Package, ShoppingBag, Users, Layers,
+  Search, CheckCircle2, Clock, Truck, 
+  ArrowLeft, Eye, Plus, Trash2, Edit3,
+  RefreshCw, X, Check, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { Product } from '../types/product';
 import { useCart } from '../context/CartContext';
@@ -101,14 +99,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const [heroSubtext, setHeroSubtext] = useState('Indulge in feather-soft Mulberry Silk & 18K Anti-Tarnish jewellery crafted for graceful everyday living.');
 
   // Promotions State
-  const [promotions, setPromotions] = useState([
+  const [promotions] = useState([
     { id: 'p-1', name: 'Monsoon Silk Comfort Bundle', discount: 'Buy Any 3 Sets for ₹2,999', badge: 'Best Deal', active: true, bannerText: 'Flat 35% Savings on Silk Lounge Combos' },
     { id: 'p-2', name: '18K Gold Jewellery Welcome Gift', discount: 'Free Luxury Jewellery Pouch with every ₹1,500+ order', badge: 'Freebie', active: true, bannerText: 'Complimentary Anti-Tarnish Pouch included' },
     { id: 'p-3', name: 'VIP Secret Drop Sale', discount: 'Extra 10% for Registered Members', badge: 'Members Only', active: true, bannerText: 'Use code GIRLY10 at instant checkout' },
   ]);
 
   // Shipping Rules State
-  const [shippingRules, setShippingRules] = useState({
+  const [shippingRules] = useState({
     freeThreshold: 999,
     standardRate: 99,
     expressRate: 199,
@@ -118,7 +116,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   });
 
   // FAQs State
-  const [faqs, setFaqs] = useState<FAQItem[]>([
+  const [faqs] = useState<FAQItem[]>([
     { id: 'f-1', category: 'Nightwear & Loungewear', question: 'How do I care for Mulberry silk and modal sets?', answer: 'We recommend gentle machine wash in cold water using a laundry wash bag, or delicate hand wash with mild liquid detergent. Line dry in shade to preserve color luster.' },
     { id: 'f-2', category: '18K Anti-Tarnish Jewellery', question: 'Can I wear the 18K jewellery while bathing or swimming?', answer: 'Yes! Our pieces are crafted with premium stainless steel / brass cores with vacuum-plated 18K real gold and protective clear ceramic seal, making them 100% waterproof, sweatproof, and hypoallergenic.' },
     { id: 'f-3', category: 'Shipping & Delivery', question: 'How soon will my order be dispatched and delivered?', answer: 'Orders placed before 2 PM IST are dispatched on the same business day. Delivery takes 2-4 business days for metro cities and 3-5 days for other locations.' },

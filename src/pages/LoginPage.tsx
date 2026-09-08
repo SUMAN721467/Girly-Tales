@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Mail, Lock, User, Phone, Eye, EyeOff, Sparkles, ShieldCheck, Heart, ShoppingBag, ArrowRight, CheckCircle2, Star, LogOut, Clock, Truck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { DatabaseService, RealOrder } from '../lib/databaseService';
 import slide1 from '../assets/slide1.jpg';
@@ -18,7 +17,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   initialSection = 'overview'
 }) => {
   const { user, isLoggedIn, login, signup, logout, resetPassword } = useAuth();
-  const { totalItems } = useCart();
   const { wishlistCount } = useWishlist();
 
   const [accountTab, setAccountTab] = useState<'overview' | 'orders' | 'addresses'>(initialSection);

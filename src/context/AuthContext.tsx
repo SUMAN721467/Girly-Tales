@@ -73,7 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     checkSession();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event: any, session: any) => {
       if (session?.user) {
         const u = session.user;
         const userMeta = u.user_metadata || {};
@@ -199,7 +199,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const loginWithEmailOnly = async (email: string, name?: string): Promise<{ success: boolean; error?: string }> => {
+  const loginWithEmailOnly = async (email: string, _name?: string): Promise<{ success: boolean; error?: string }> => {
     return sendEmailOtp(email);
   };
 
