@@ -26,6 +26,9 @@ if (isSupabaseConfigured) {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+        storageKey: 'girly_tales_supabase_auth_session_v1',
       },
     });
   } catch (err) {

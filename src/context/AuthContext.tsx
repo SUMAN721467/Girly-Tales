@@ -45,14 +45,57 @@ interface AuthContextType {
 }
 
 const USER_STORAGE_KEY = 'girly_tales_user_v1';
+const SESSION_EXPIRY_KEY = 'girly_tales_session_expiry_v1';
+const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000; // 30 days (1 month in milliseconds)
+
+const renewSessionExpiry = () => {
+  try {
+    const expiresAt = Date.now() + ONE_MONTH_MS;
+    localStorage.setItem(SESSION_EXPIRY_KEY, expiresAt.toString());
+  } catch (e) {
+    console.warn('Failed to set session expiry:', e);
+  }
+};
+
+const clearSession = () => {
+  try {
+    localStorage.removeItem(USER_STORAGE_KEY);
+    localStorage.removeItem(SESSION_EXPIRY_KEY);
+    localStorage.removeItem('girly_tales_supabase_auth_session_v1');
+  } catch (e) {
+    console.warn('Failed to clear session:', e);
+  }
+};
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
     try {
+      if (typeof window === 'undefined') return null;
+
+      const expiryStr = localStorage.getItem(SESSION_EXPIRY_KEY);
+      if (expiryStr) {
+        const expiryTime = parseInt(expiryStr, 10);
+        if (Date.now() > expiryTime) {
+          // Session expired after 1 month
+          clearSession();
+          return null;
+        }
+      }
+
       const saved = localStorage.getItem(USER_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : null;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.email) {
+          // Valid active session within 1 month
+          if (!expiryStr) {
+            renewSessionExpiry();
+          }
+          return parsed;
+        }
+      }
+      return null;
     } catch {
       return null;
     }
@@ -73,8 +116,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const checkSession = async () => {
       try {
+        const expiryStr = localStorage.getItem(SESSION_EXPIRY_KEY);
+        if (expiryStr && Date.now() > parseInt(expiryStr, 10)) {
+          clearSession();
+          await supabase.auth.signOut();
+          if (mounted) setUser(null);
+          return;
+        }
+
         const { data: { session }, error } = await supabase.auth.getSession();
         if (!error && session?.user && mounted) {
+          renewSessionExpiry();
           const u = session.user;
           const userMeta = u.user_metadata || {};
           const fallbackName = userMeta.name || userMeta.full_name || u.email?.split('@')[0] || 'Member';
@@ -104,6 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (_event: any, session: any) => {
       if (session?.user) {
+        renewSessionExpiry();
         const u = session.user;
         const userMeta = u.user_metadata || {};
         const fallbackName = userMeta.name || userMeta.full_name || u.email?.split('@')[0] || 'Member';
@@ -138,8 +191,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       if (user) {
         localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+        if (!localStorage.getItem(SESSION_EXPIRY_KEY)) {
+          renewSessionExpiry();
+        }
       } else {
-        localStorage.removeItem(USER_STORAGE_KEY);
+        clearSession();
       }
     } catch (e) {
       console.error('Failed to sync auth state:', e);
@@ -444,6 +500,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {
       console.warn('Supabase logout note:', e);
     }
+    clearSession();
     setUser(null);
     triggerToast('Logged out successfully', 'See you again soon!', undefined, 'info');
   };
