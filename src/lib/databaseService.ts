@@ -1,6 +1,7 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 import { Product } from '../types/product';
 import { MOCK_PRODUCTS } from '../data/products';
+import { CartService } from './cartService';
 
 // Clear legacy browser storage keys to guarantee no stale caches interfere with Supabase
 if (typeof window !== 'undefined') {

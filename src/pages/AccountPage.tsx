@@ -34,7 +34,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
-import { DatabaseService, RealOrder } from '../lib/databaseService';
+import { DatabaseService, RealOrder, RealOrderItem } from '../lib/databaseService';
 import { AddressService } from '../lib/addressService';
 import { ShippingAddress } from '../types/product';
 import { Button } from '../components/common/Button';
@@ -103,6 +103,19 @@ const getProductImageForItem = (itemStr: string): string => {
     return matched.images[0];
   }
   return 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&q=80&w=600';
+};
+
+const getOrderItemName = (item: string | RealOrderItem | undefined): string => {
+  if (!item) return 'Girly Tales Signature Luxury Collection';
+  if (typeof item === 'string') return item;
+  return item.name || 'Girly Tales Luxury Item';
+};
+
+const getOrderItemImage = (item: string | RealOrderItem | undefined): string => {
+  if (!item) return 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&q=80&w=600';
+  if (typeof item === 'object' && item.image) return item.image;
+  const name = typeof item === 'string' ? item : item.name;
+  return getProductImageForItem(name || '');
 };
 
 export const AccountPage: React.FC<AccountPageProps> = ({
@@ -1177,8 +1190,9 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                 <div className="lg:col-span-7 bg-white border border-[#EAE6DB] rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
                   {/* Product Snapshot */}
                   {(() => {
-                    const firstItem = selectedOrderForDetail.items[0] || 'Girly Tales Signature Luxury Collection';
-                    const itemImg = getProductImageForItem(firstItem);
+                    const firstItem = selectedOrderForDetail.items[0];
+                    const firstItemName = getOrderItemName(firstItem);
+                    const itemImg = getOrderItemImage(firstItem);
                     const formattedOrderDate = new Date(selectedOrderForDetail.createdAt).toLocaleDateString('en-US', {
                       weekday: 'short',
                       month: 'short',
@@ -1189,7 +1203,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                       <div className="flex items-start justify-between gap-4 pb-6 border-b border-[#EAE6DB]">
                         <div className="space-y-1.5 flex-1 min-w-0">
                           <h4 className="font-sans text-base sm:text-lg font-black text-brand-charcoal leading-snug">
-                            {firstItem}
+                            {firstItemName}
                           </h4>
                           <p className="text-xs font-bold text-brand-muted">
                             Qty: {selectedOrderForDetail.items.length || 1}
@@ -1205,7 +1219,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                         <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-[#FAF8F2] border border-[#EAE6DB] p-1 overflow-hidden shrink-0 flex items-center justify-center shadow-xs">
                           <img
                             src={itemImg}
-                            alt={firstItem}
+                            alt={firstItemName}
                             className="w-full h-full object-cover rounded-xl"
                           />
                         </div>
@@ -1580,8 +1594,9 @@ export const AccountPage: React.FC<AccountPageProps> = ({
               {/* Order Cards List */}
               <div className="space-y-3.5">
                 {userOrders.map((ord) => {
-                  const firstItemName = ord.items[0] || 'Girly Tales Luxury Collection Item';
-                  const itemImg = getProductImageForItem(firstItemName);
+                  const firstItem = ord.items[0];
+                  const firstItemName = getOrderItemName(firstItem);
+                  const itemImg = getOrderItemImage(firstItem);
                   const orderDateFormatted = new Date(ord.createdAt).toLocaleDateString('en-US', {
                     month: 'long',
                     day: 'numeric',

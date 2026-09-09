@@ -102,6 +102,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [selectedAddressId, setSelectedAddressId] = useState<string>('custom');
   const [showNewAddressForm, setShowNewAddressForm] = useState(false);
   const [saveToAddresses, setSaveToAddresses] = useState(true);
+  const [paymentMethod, setPaymentMethod] = useState<'prepaid' | 'cod'>('prepaid');
 
   // Address form fields
   const [formData, setFormData] = useState({

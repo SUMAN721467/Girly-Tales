@@ -298,11 +298,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
                   {/* Items */}
                   <div className="space-y-2 pt-2 text-xs">
-                    {ord.items.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between py-1 border-b border-[#FAF8F2]">
-                        <span className="font-medium text-brand-charcoal">{item}</span>
-                      </div>
-                    ))}
+                    {ord.items.map((item, idx) => {
+                      const itemName = typeof item === 'string' ? item : item.name;
+                      const itemSize = typeof item === 'object' && item.size ? ` (${item.size})` : '';
+                      const itemQty = typeof item === 'object' && item.quantity ? ` x ${item.quantity}` : '';
+                      return (
+                        <div key={idx} className="flex items-center justify-between py-1 border-b border-[#FAF8F2]">
+                          <span className="font-medium text-brand-charcoal">{itemName}{itemSize}{itemQty}</span>
+                        </div>
+                      );
+                    })}
                     <div className="flex items-center justify-between pt-3 font-black text-sm text-brand-charcoal">
                       <span>Total ({ord.paymentMethod})</span>
                       <span>₹{ord.total}</span>
