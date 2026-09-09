@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, ArrowRight, Heart, Sparkles, Moon, Phone, HelpCircle, User as UserIcon } from 'lucide-react';
+import { X, ArrowRight, Heart, Sparkles, Moon, Phone, HelpCircle, User as UserIcon, ShoppingBag } from 'lucide-react';
 import { useWishlist } from '../../context/WishlistContext';
 import { useAuth } from '../../context/AuthContext';
 import logoLine from '../../assets/logo-line.PNG';
