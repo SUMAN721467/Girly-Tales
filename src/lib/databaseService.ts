@@ -201,38 +201,12 @@ const SEED_COUPONS: RealCoupon[] = [
   { id: 'cp-4', code: 'FREESHIP', discount: 'Free Express Delivery', description: 'Prepaid Orders Across All Pincodes', minSpend: 0, usedCount: 22, status: 'Active', expires: 'Unlimited' },
 ];
 
-const STORAGE_KEYS = {
-  categories: 'girly_tales_store_categories_v4',
-  products: 'girly_tales_store_products_v4',
-  orders: 'girly_tales_store_orders_v4',
-  reviews: 'girly_tales_store_reviews_v4',
-  coupons: 'girly_tales_store_coupons_v4',
-};
-
-const getStored = <T>(key: string, defaultValue: T): T => {
-  if (typeof window === 'undefined') return defaultValue;
-  try {
-    const raw = localStorage.getItem(key);
-    if (raw === null) return defaultValue;
-    return JSON.parse(raw);
-  } catch (e) {
-    return defaultValue;
-  }
-};
-
-const setStored = <T>(key: string, value: T): void => {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {}
-};
-
-// Runtime state initialized from persistent storage (or seeds if first run)
-let inMemoryCategories: RealCategory[] = getStored(STORAGE_KEYS.categories, [...SEED_CATEGORIES]);
-let inMemoryProducts: Product[] = getStored(STORAGE_KEYS.products, [...MOCK_PRODUCTS]);
-let inMemoryOrders: RealOrder[] = getStored(STORAGE_KEYS.orders, [...SEED_ORDERS]);
-let inMemoryReviews: RealReview[] = getStored(STORAGE_KEYS.reviews, [...SEED_REVIEWS]);
-let inMemoryCoupons: RealCoupon[] = getStored(STORAGE_KEYS.coupons, [...SEED_COUPONS]);
+// Pure In-Memory Runtime fallback state (Direct Supabase data is primary source)
+let inMemoryCategories: RealCategory[] = [...SEED_CATEGORIES];
+let inMemoryProducts: Product[] = [...MOCK_PRODUCTS];
+let inMemoryOrders: RealOrder[] = [...SEED_ORDERS];
+let inMemoryReviews: RealReview[] = [...SEED_REVIEWS];
+let inMemoryCoupons: RealCoupon[] = [...SEED_COUPONS];
 
 export const DatabaseService = {
   // ==================== 1. ORDERS ====================
@@ -264,7 +238,6 @@ export const DatabaseService = {
             createdAt: d.created_at || new Date().toISOString(),
           }));
           inMemoryOrders = mapped;
-          setStored(STORAGE_KEYS.orders, mapped);
           return mapped;
         }
       } catch (err) {
@@ -306,7 +279,6 @@ export const DatabaseService = {
     }
 
     inMemoryOrders = [fullOrder, ...inMemoryOrders.filter((o) => o.id !== fullOrder.id)];
-    setStored(STORAGE_KEYS.orders, inMemoryOrders);
     notifyDatabaseChange('orders');
     return fullOrder;
   },
@@ -321,7 +293,6 @@ export const DatabaseService = {
     }
 
     inMemoryOrders = inMemoryOrders.map((o) => (o.id === orderId ? { ...o, status } : o));
-    setStored(STORAGE_KEYS.orders, inMemoryOrders);
     notifyDatabaseChange('orders');
   },
 
@@ -335,7 +306,6 @@ export const DatabaseService = {
     }
 
     inMemoryOrders = inMemoryOrders.filter((o) => o.id !== orderId);
-    setStored(STORAGE_KEYS.orders, inMemoryOrders);
     notifyDatabaseChange('orders');
   },
 
@@ -372,7 +342,6 @@ export const DatabaseService = {
             specs: d.specs || {},
           }));
           inMemoryProducts = mapped;
-          setStored(STORAGE_KEYS.products, mapped);
           return mapped;
         }
       } catch (err) {
@@ -413,7 +382,6 @@ export const DatabaseService = {
     }
 
     inMemoryProducts = [product, ...inMemoryProducts.filter((p) => p.id !== product.id)];
-    setStored(STORAGE_KEYS.products, inMemoryProducts);
     notifyDatabaseChange('products');
     return product;
   },
@@ -426,7 +394,6 @@ export const DatabaseService = {
     }
 
     inMemoryProducts = inMemoryProducts.map((p) => (p.id === productId ? { ...p, inStock } : p));
-    setStored(STORAGE_KEYS.products, inMemoryProducts);
     notifyDatabaseChange('products');
   },
 
@@ -438,7 +405,6 @@ export const DatabaseService = {
     }
 
     inMemoryProducts = inMemoryProducts.filter((p) => p.id !== productId);
-    setStored(STORAGE_KEYS.products, inMemoryProducts);
     notifyDatabaseChange('products');
   },
 
@@ -495,7 +461,6 @@ export const DatabaseService = {
             createdAt: d.created_at || new Date().toISOString(),
           }));
           inMemoryReviews = mapped;
-          setStored(STORAGE_KEYS.reviews, mapped);
           return mapped;
         }
       } catch (e) {}
@@ -513,7 +478,6 @@ export const DatabaseService = {
     }
 
     inMemoryReviews = inMemoryReviews.filter((r) => r.id !== id);
-    setStored(STORAGE_KEYS.reviews, inMemoryReviews);
     notifyDatabaseChange('reviews');
   },
 
@@ -534,7 +498,6 @@ export const DatabaseService = {
             expires: d.expires || '2026-12-31',
           }));
           inMemoryCoupons = mapped;
-          setStored(STORAGE_KEYS.coupons, mapped);
           return mapped;
         }
       } catch (e) {}
@@ -559,7 +522,6 @@ export const DatabaseService = {
     }
 
     inMemoryCoupons = [coupon, ...inMemoryCoupons.filter((c) => c.id !== coupon.id)];
-    setStored(STORAGE_KEYS.coupons, inMemoryCoupons);
     notifyDatabaseChange('coupons');
   },
 
@@ -571,7 +533,6 @@ export const DatabaseService = {
     }
 
     inMemoryCoupons = inMemoryCoupons.filter((c) => c.id !== id);
-    setStored(STORAGE_KEYS.coupons, inMemoryCoupons);
     notifyDatabaseChange('coupons');
   },
 
@@ -594,7 +555,6 @@ export const DatabaseService = {
             createdAt: d.created_at || new Date().toISOString(),
           }));
           inMemoryCategories = mapped;
-          setStored(STORAGE_KEYS.categories, mapped);
           return mapped;
         }
       } catch (e) {
@@ -636,7 +596,6 @@ export const DatabaseService = {
     }
 
     inMemoryCategories = [...current.filter((c) => c.id !== newCategory.id), newCategory];
-    setStored(STORAGE_KEYS.categories, inMemoryCategories);
     notifyDatabaseChange('categories');
     return newCategory;
   },
@@ -679,7 +638,6 @@ export const DatabaseService = {
     }
 
     inMemoryCategories = updated;
-    setStored(STORAGE_KEYS.categories, inMemoryCategories);
     notifyDatabaseChange('categories');
     return updatedCat;
   },
@@ -702,7 +660,6 @@ export const DatabaseService = {
     inMemoryCategories = inMemoryCategories.filter(
       (c) => c.id !== id && c.slug !== id && c.name.toLowerCase() !== id.toLowerCase()
     );
-    setStored(STORAGE_KEYS.categories, inMemoryCategories);
 
     // 3. Notify subscribers only after database deletion has fully completed
     notifyDatabaseChange('categories');
@@ -715,7 +672,6 @@ export const DatabaseService = {
     }));
 
     inMemoryCategories = indexed;
-    setStored(STORAGE_KEYS.categories, inMemoryCategories);
 
     if (isSupabaseConfigured) {
       try {
@@ -749,7 +705,6 @@ export const DatabaseService = {
     }
 
     inMemoryCategories = [...SEED_CATEGORIES];
-    setStored(STORAGE_KEYS.categories, inMemoryCategories);
     notifyDatabaseChange('categories');
     return SEED_CATEGORIES;
   },

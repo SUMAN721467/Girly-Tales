@@ -226,6 +226,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const capitalName = formattedName.charAt(0).toUpperCase() + formattedName.slice(1);
       const userIsAdmin = checkIsAdmin(email);
       const newUser: User = {
+        id: email.trim().toLowerCase(),
         email: email.trim(),
         name: capitalName,
         isLoggedIn: true,
@@ -271,6 +272,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const demoEmail = 'user@gmail.com';
       const userIsAdmin = checkIsAdmin(demoEmail);
       const newUser: User = {
+        id: demoEmail.toLowerCase(),
         name: 'Google User',
         email: demoEmail,
         isLoggedIn: true,
@@ -336,6 +338,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const capitalName = formattedName.charAt(0).toUpperCase() + formattedName.slice(1);
       const userIsAdmin = checkIsAdmin(email);
       const newUser: User = {
+        id: email.trim().toLowerCase(),
         email: email.trim(),
         name: capitalName,
         isLoggedIn: true,
@@ -399,6 +402,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userEmail = email.trim();
       const userIsAdmin = checkIsAdmin(userEmail);
       const newUser: User = {
+        id: userEmail.toLowerCase(),
         name: name.trim(),
         email: userEmail,
         phone: phone?.trim(),

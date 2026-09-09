@@ -15,20 +15,19 @@ interface WishlistContextType {
   clearWishlist: () => void;
 }
 
-const WISHLIST_STORAGE_KEY = 'girly_tales_wishlist_v1';
+// Purge any legacy browser storage for wishlist
+if (typeof window !== 'undefined') {
+  try {
+    localStorage.removeItem('girly_tales_wishlist_v1');
+    sessionStorage.removeItem('girly_tales_wishlist_v1');
+  } catch (e) {}
+}
 
 const WishlistContext = createContext<WishlistContextType | undefined>(undefined);
 
 export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [wishlistIds, setWishlistIds] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem(WISHLIST_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : ['nw-1', 'jw-1'];
-    } catch {
-      return ['nw-1', 'jw-1'];
-    }
-  });
-
+  // Pure in-memory React state - Zero localStorage / browser storage
+  const [wishlistIds, setWishlistIds] = useState<string[]>([]);
   const [allProducts, setAllProducts] = useState<Product[]>(MOCK_PRODUCTS);
   const { triggerToast } = useToast();
   const { user, isLoggedIn } = useAuth();
@@ -44,7 +43,9 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // Fetch from Supabase when user logs in
   const fetchRemoteWishlist = useCallback(async () => {
-    if (!isSupabaseConfigured || !isLoggedIn || !user) return;
+    if (!isSupabaseConfigured || !isLoggedIn || !user) {
+      return;
+    }
     const userId = user.id || user.email;
     const userEmail = user.email;
 
@@ -57,13 +58,9 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
 
       const { data, error } = await query;
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         const remoteIds = data.map((d: any) => d.product_id).filter(Boolean);
-        setWishlistIds((prev) => {
-          // Merge local and remote IDs without duplicates
-          const combined = Array.from(new Set([...remoteIds, ...prev]));
-          return combined;
-        });
+        setWishlistIds(remoteIds);
       }
     } catch (e) {
       console.warn('Supabase fetch wishlist note:', e);
@@ -73,17 +70,10 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     if (isLoggedIn && user) {
       fetchRemoteWishlist();
+    } else {
+      setWishlistIds([]); // Clear in-memory wishlist on logout
     }
   }, [isLoggedIn, user, fetchRemoteWishlist]);
-
-  // Persist locally
-  useEffect(() => {
-    try {
-      localStorage.setItem(WISHLIST_STORAGE_KEY, JSON.stringify(wishlistIds));
-    } catch (e) {
-      console.error('Failed to save wishlist:', e);
-    }
-  }, [wishlistIds]);
 
   const toggleWishlist = async (productId: string) => {
     const product = allProducts.find((p) => p.id === productId || p.slug === productId) ||

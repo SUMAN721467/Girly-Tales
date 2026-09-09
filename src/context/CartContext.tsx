@@ -29,11 +29,19 @@ interface CartContextType {
   dismissToast: (id: string) => void;
   triggerToast: (message: string, submessage?: string, product?: Product, type?: 'cart' | 'wishlist' | 'info' | 'success' | 'error') => void;
   isCartSyncing: boolean;
+  refreshCartFromCloud: () => Promise<void>;
 }
 
 const FREE_SHIPPING_THRESHOLD = 999;
 const STANDARD_SHIPPING_FEE = 99;
-const CART_STORAGE_KEY = 'girly_tales_cart_v1';
+
+// Purge any legacy browser storage
+if (typeof window !== 'undefined') {
+  try {
+    localStorage.removeItem('girly_tales_cart_v1');
+    sessionStorage.removeItem('girly_tales_cart_v1');
+  } catch (e) {}
+}
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
@@ -41,34 +49,17 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { user, isLoggedIn } = useAuth();
   const { toasts, triggerToast, dismissToast } = useToast();
 
-  const [items, setItems] = useState<CartItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(CART_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-
+  // Pure in-memory React state - Zero localStorage / browser storage
+  const [items, setItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
   const [isCartSyncing, setIsCartSyncing] = useState<boolean>(false);
 
-  // Track if initial cloud load has completed for current user
   const loadedUserRef = useRef<string | null>(null);
   const syncTimeoutRef = useRef<any>(null);
   const isInternalUpdateRef = useRef<boolean>(false);
 
-  // 1. Synchronize to localStorage whenever items state changes
-  useEffect(() => {
-    try {
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
-    } catch (e) {
-      console.error('Failed to persist cart locally:', e);
-    }
-  }, [items]);
-
-  // 2. Fetch & Merge cart from Supabase when user logs in or switches account
+  // 1. Fetch cart directly from Supabase Cloud
   const loadRemoteCart = useCallback(
     async (currentUser: typeof user) => {
       if (!isSupabaseConfigured || !currentUser) {
@@ -82,51 +73,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       try {
         const remoteCart = await CartService.fetchUserCart(userId, currentUser.email);
-
-        setItems((currentLocalItems) => {
-          // If remote cart is empty and local items exist (e.g. added before login), save local items to remote
-          if (remoteCart.length === 0 && currentLocalItems.length > 0) {
-            CartService.saveUserCart(userId, currentLocalItems, currentUser.email);
-            return currentLocalItems;
-          }
-
-          // If remote cart has items, intelligently merge with any guest items
-          if (remoteCart.length > 0) {
-            const mergedMap = new Map<string, CartItem>();
-
-            // Populate remote items first
-            remoteCart.forEach((item) => {
-              mergedMap.set(item.id, item);
-            });
-
-            // Merge local guest items
-            currentLocalItems.forEach((localItem) => {
-              if (mergedMap.has(localItem.id)) {
-                const existing = mergedMap.get(localItem.id)!;
-                // Combine quantities or keep highest
-                mergedMap.set(localItem.id, {
-                  ...existing,
-                  quantity: Math.max(existing.quantity, localItem.quantity),
-                });
-              } else {
-                mergedMap.set(localItem.id, localItem);
-              }
-            });
-
-            const mergedList = Array.from(mergedMap.values());
-
-            // If merging resulted in additions, sync merged state back to Supabase
-            if (mergedList.length !== remoteCart.length) {
-              CartService.saveUserCart(userId, mergedList, currentUser.email);
-            }
-
-            return mergedList;
-          }
-
-          return currentLocalItems;
-        });
+        setItems(remoteCart);
       } catch (err) {
-        console.warn('loadRemoteCart error:', err);
+        console.warn('loadRemoteCart from Supabase error:', err);
       } finally {
         setIsCartSyncing(false);
       }
@@ -134,20 +83,27 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     []
   );
 
-  // Trigger load when user auth state is established
+  const refreshCartFromCloud = useCallback(async () => {
+    if (isLoggedIn && user) {
+      await loadRemoteCart(user);
+    }
+  }, [isLoggedIn, user, loadRemoteCart]);
+
+  // 2. Load from Supabase on Login / User Change, Clear on Logout
   useEffect(() => {
     if (isLoggedIn && user) {
-      const currentId = user.id || user.email;
+      const currentId = (user.id || user.email || '').toLowerCase().trim();
       if (loadedUserRef.current !== currentId) {
         loadedUserRef.current = currentId;
         loadRemoteCart(user);
       }
     } else {
       loadedUserRef.current = null;
+      setItems([]); // Clear in-memory cart on logout
     }
   }, [isLoggedIn, user, loadRemoteCart]);
 
-  // 3. Realtime Supabase Subscription & Window focus revalidation
+  // 3. Realtime Supabase Subscription & Window focus live revalidation
   useEffect(() => {
     if (!isSupabaseConfigured || !isLoggedIn || !user) {
       return;
@@ -156,7 +112,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const userId = user.id || user.email;
     if (!userId) return;
 
-    // A. Window focus / visibility change handler (e.g. user updated cart on phone and opened laptop tab)
+    // Window focus / visibility change handler
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState === 'visible') {
         loadRemoteCart(user);
@@ -166,7 +122,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     window.addEventListener('focus', handleVisibilityOrFocus);
     document.addEventListener('visibilitychange', handleVisibilityOrFocus);
 
-    // B. Supabase Realtime channel
+    // Supabase Realtime channel for instant cross-device updates
     const channelName = `cart_realtime_${userId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
     const channel = supabase
       .channel(channelName)
@@ -178,7 +134,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           table: 'cart_items',
         },
         () => {
-          // If remote table changed externally, reload remote cart
           if (!isInternalUpdateRef.current) {
             loadRemoteCart(user);
           }
@@ -195,7 +150,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [isLoggedIn, user, loadRemoteCart]);
 
-  // 4. Debounced Sync Helper to push cart changes to Supabase
+  // 4. Debounced Sync Helper to push live in-memory cart changes directly to Supabase
   const scheduleCloudSync = useCallback(
     (updatedItems: CartItem[]) => {
       if (!isSupabaseConfigured || !isLoggedIn || !user) {
@@ -216,15 +171,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           await CartService.saveUserCart(userId, updatedItems, user.email);
         } catch (e) {
-          console.warn('Cloud cart sync error:', e);
+          console.warn('Supabase cloud cart sync error:', e);
         } finally {
           setIsCartSyncing(false);
-          // Release internal update flag after short cooldown
           setTimeout(() => {
             isInternalUpdateRef.current = false;
           }, 1000);
         }
-      }, 400); // 400ms debounce
+      }, 300);
     },
     [isLoggedIn, user]
   );
@@ -301,9 +255,24 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const openCart = () => setIsCartOpen(true);
+  const openCart = () => {
+    setIsCartOpen(true);
+    if (isLoggedIn && user) {
+      loadRemoteCart(user);
+    }
+  };
+
   const closeCart = () => setIsCartOpen(false);
-  const toggleCart = () => setIsCartOpen((prev) => !prev);
+
+  const toggleCart = () => {
+    setIsCartOpen((prev) => {
+      const next = !prev;
+      if (next && isLoggedIn && user) {
+        loadRemoteCart(user);
+      }
+      return next;
+    });
+  };
 
   // Totals calculations
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -384,6 +353,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         dismissToast,
         triggerToast,
         isCartSyncing,
+        refreshCartFromCloud,
       }}
     >
       {children}

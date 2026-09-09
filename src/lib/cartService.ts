@@ -2,167 +2,238 @@ import { supabase, isSupabaseConfigured } from './supabase';
 import { CartItem, Product } from '../types/product';
 import { MOCK_PRODUCTS } from '../data/products';
 import { DatabaseService } from './databaseService';
-
 export const CartService = {
   /**
-   * Fetches the user's cart from Supabase.
-   * Looks up products in MOCK_PRODUCTS or dynamic products from DatabaseService.
+   * Fetches the user's cart from Supabase using dual-layer recovery:
+   * 1. Supabase Database `cart_items` table
+   * 2. Supabase Auth `user_metadata.cart`
    */
-  async fetchUserCart(userId: string, userEmail?: string): Promise<CartItem[]> {
-    if (!isSupabaseConfigured || !userId) {
+  async fetchUserCart(userId?: string, userEmail?: string): Promise<CartItem[]> {
+    if (!isSupabaseConfigured) {
       return [];
     }
 
+    const cleanEmail = userEmail?.toLowerCase().trim();
+    const cleanId = userId?.trim();
+
+    let allProducts: Product[] = MOCK_PRODUCTS;
+    try {
+      const dynamicProds = await DatabaseService.getProducts();
+      if (dynamicProds && dynamicProds.length > 0) {
+        allProducts = dynamicProds;
+      }
+    } catch (e) {
+      // Fallback to MOCK_PRODUCTS
+    }
+
+    const resolveProduct = (productId: string, fallbackData?: any): Product | null => {
+      let matched = allProducts.find((p) => p.id === productId || p.slug === productId);
+      if (!matched && fallbackData && fallbackData.name && fallbackData.price) {
+        matched = fallbackData as Product;
+      }
+      if (!matched) {
+        matched = MOCK_PRODUCTS.find((p) => p.id === productId || p.slug === productId) || null;
+      }
+      return matched;
+    };
+
+    // --- 1. First priority: Check Supabase Database `cart_items` table ---
     try {
       let query = supabase.from('cart_items').select('*');
-
-      if (userId && userEmail && userId !== userEmail) {
-        query = query.or(`user_id.eq.${userId},user_id.eq.${userEmail}`);
-      } else {
-        query = query.eq('user_id', userId);
+      if (cleanId && cleanEmail && cleanId !== cleanEmail) {
+        query = query.or(`user_id.eq.${cleanId},user_id.eq.${cleanEmail}`);
+      } else if (cleanEmail) {
+        query = query.eq('user_id', cleanEmail);
+      } else if (cleanId) {
+        query = query.eq('user_id', cleanId);
       }
 
       const { data, error } = await query;
 
-      if (error) {
-        if (error.code !== '42P01' && !error.message?.includes('does not exist')) {
-          console.warn('Supabase fetchUserCart note:', error.message);
-        }
-        return [];
-      }
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const dbItems: CartItem[] = [];
+        for (const row of data) {
+          const productId = row.product_id || row.productId;
+          const size = row.selected_size || row.selectedSize || undefined;
+          const color = row.selected_color || row.selectedColor || undefined;
+          const quantity = Number(row.quantity) || 1;
 
-      if (!Array.isArray(data) || data.length === 0) {
-        return [];
-      }
-
-      // Fetch dynamic products to ensure custom admin-created products can also be reconstructed
-      let allProducts: Product[] = MOCK_PRODUCTS;
-      try {
-        const dynamicProds = await DatabaseService.getProducts();
-        if (dynamicProds && dynamicProds.length > 0) {
-          allProducts = dynamicProds;
-        }
-      } catch (e) {
-        // Fallback to MOCK_PRODUCTS
-      }
-
-      const cartItems: CartItem[] = [];
-
-      for (const row of data) {
-        const productId = row.product_id || row.productId;
-        const size = row.selected_size || row.selectedSize || undefined;
-        const color = row.selected_color || row.selectedColor || undefined;
-        const quantity = Number(row.quantity) || 1;
-
-        // Find product definition
-        let matchedProduct = allProducts.find(
-          (p) => p.id === productId || p.slug === productId
-        );
-
-        // Fallback if product data is stored in jsonb
-        if (!matchedProduct && row.product_data && typeof row.product_data === 'object') {
-          matchedProduct = row.product_data as Product;
+          const product = resolveProduct(productId, row.product_data);
+          if (product) {
+            const itemId = `${product.id}-${size || 'default'}-${color || 'default'}`;
+            dbItems.push({
+              id: itemId,
+              product,
+              quantity,
+              selectedSize: size || undefined,
+              selectedColor: color || undefined,
+            });
+          }
         }
 
-        // Fallback to mock product search
-        if (!matchedProduct) {
-          matchedProduct = MOCK_PRODUCTS.find(
-            (p) => p.id === productId || p.slug === productId
-          );
-        }
-
-        if (matchedProduct) {
-          const itemId = `${matchedProduct.id}-${size || 'default'}-${color || 'default'}`;
-          cartItems.push({
-            id: itemId,
-            product: matchedProduct,
-            quantity,
-            selectedSize: size || undefined,
-            selectedColor: color || undefined,
-          });
+        if (dbItems.length > 0) {
+          return dbItems;
         }
       }
-
-      return cartItems;
-    } catch (err: any) {
-      console.warn('CartService.fetchUserCart exception:', err);
-      return [];
+    } catch (e) {
+      console.warn('CartService cart_items table check note:', e);
     }
+
+    // --- 2. Second priority: Check Supabase Auth user_metadata (works cross-device immediately without SQL table) ---
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.user_metadata?.cart) {
+        const rawMetaCart = user.user_metadata.cart;
+        const parsedList: any[] = Array.isArray(rawMetaCart)
+          ? rawMetaCart
+          : typeof rawMetaCart === 'string'
+          ? JSON.parse(rawMetaCart)
+          : [];
+
+        if (parsedList.length > 0) {
+          const metaItems: CartItem[] = [];
+          for (const item of parsedList) {
+            const prodId = item.product?.id || item.productId || item.id;
+            const size = item.selectedSize || item.selected_size || undefined;
+            const color = item.selectedColor || item.selected_color || undefined;
+            const quantity = Number(item.quantity) || 1;
+
+            const product = resolveProduct(prodId, item.product);
+            if (product) {
+              const itemId = `${product.id}-${size || 'default'}-${color || 'default'}`;
+              metaItems.push({
+                id: itemId,
+                product,
+                quantity,
+                selectedSize: size || undefined,
+                selectedColor: color || undefined,
+              });
+            }
+          }
+
+          if (metaItems.length > 0) {
+            return metaItems;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('CartService auth user_metadata check note:', e);
+    }
+
+    return [];
   },
 
   /**
-   * Overwrites the user's remote cart in Supabase with the current items list.
+   * Persists the user's cart to both Supabase Auth user_metadata AND database cart_items table
    */
-  async saveUserCart(userId: string, items: CartItem[], userEmail?: string): Promise<boolean> {
-    if (!isSupabaseConfigured || !userId) {
+  async saveUserCart(userId: string | undefined, items: CartItem[], userEmail?: string): Promise<boolean> {
+    if (!isSupabaseConfigured) {
       return false;
     }
 
+    const cleanEmail = userEmail?.toLowerCase().trim();
+    const cleanId = userId?.trim();
+    const primaryKey = cleanEmail || cleanId;
+
+    if (!primaryKey) return false;
+
+    // 1. Sync to Supabase Auth user_metadata
     try {
-      // 1. Delete existing cart records for this user
-      if (userId && userEmail && userId !== userEmail) {
+      const serializedCart = items.map((i) => ({
+        id: i.id,
+        productId: i.product.id,
+        quantity: i.quantity,
+        selectedSize: i.selectedSize || null,
+        selectedColor: i.selectedColor || null,
+        product: {
+          id: i.product.id,
+          name: i.product.name,
+          slug: i.product.slug,
+          price: i.product.price,
+          originalPrice: i.product.originalPrice,
+          images: i.product.images,
+          category: i.product.category,
+        },
+      }));
+
+      await supabase.auth.updateUser({
+        data: {
+          cart: serializedCart,
+          cart_updated_at: new Date().toISOString(),
+        },
+      });
+    } catch (err) {
+      console.warn('Supabase auth metadata cart update note:', err);
+    }
+
+    // 2. Sync to Supabase Database `cart_items` table
+    try {
+      if (cleanId && cleanEmail && cleanId !== cleanEmail) {
         await supabase
           .from('cart_items')
           .delete()
-          .or(`user_id.eq.${userId},user_id.eq.${userEmail}`);
+          .or(`user_id.eq.${cleanId},user_id.eq.${cleanEmail}`);
       } else {
         await supabase
           .from('cart_items')
           .delete()
-          .eq('user_id', userId);
+          .eq('user_id', primaryKey);
       }
 
-      // 2. If cart is not empty, insert the updated items
       if (items.length > 0) {
-        const rowsToInsert = items.map((item) => ({
-          user_id: userId,
+        const rows = items.map((item) => ({
+          user_id: cleanEmail || cleanId,
           product_id: item.product.id,
           quantity: item.quantity,
           selected_size: item.selectedSize || '',
           selected_color: item.selectedColor || '',
+          product_data: {
+            id: item.product.id,
+            name: item.product.name,
+            price: item.product.price,
+            images: item.product.images,
+            category: item.product.category,
+          },
         }));
 
-        const { error } = await supabase.from('cart_items').insert(rowsToInsert);
-
-        if (error) {
-          if (error.code !== '42P01' && !error.message?.includes('does not exist')) {
-            console.warn('Supabase saveUserCart error:', error.message);
-          }
-          return false;
-        }
+        await supabase.from('cart_items').insert(rows);
       }
-
-      return true;
-    } catch (err: any) {
-      console.warn('CartService.saveUserCart exception:', err);
-      return false;
+    } catch (err) {
+      console.warn('Supabase database cart_items insert note:', err);
     }
+
+    return true;
   },
 
-  /**
-   * Clears the user's cart in Supabase.
-   */
-  async clearUserCart(userId: string, userEmail?: string): Promise<boolean> {
-    if (!isSupabaseConfigured || !userId) {
-      return false;
-    }
+  async clearUserCart(userId: string | undefined, userEmail?: string): Promise<boolean> {
+    if (!isSupabaseConfigured) return false;
+
+    const cleanEmail = userEmail?.toLowerCase().trim();
+    const cleanId = userId?.trim();
 
     try {
-      if (userId && userEmail && userId !== userEmail) {
+      await supabase.auth.updateUser({
+        data: {
+          cart: [],
+          cart_updated_at: new Date().toISOString(),
+        },
+      });
+    } catch (e) {}
+
+    try {
+      if (cleanId && cleanEmail && cleanId !== cleanEmail) {
         await supabase
           .from('cart_items')
           .delete()
-          .or(`user_id.eq.${userId},user_id.eq.${userEmail}`);
-      } else {
+          .or(`user_id.eq.${cleanId},user_id.eq.${cleanEmail}`);
+      } else if (cleanEmail || cleanId) {
         await supabase
           .from('cart_items')
           .delete()
-          .eq('user_id', userId);
+          .eq('user_id', cleanEmail || cleanId);
       }
-      return true;
-    } catch (err) {
-      console.warn('CartService.clearUserCart exception:', err);
-      return false;
-    }
+    } catch (e) {}
+
+    return true;
   },
 };
