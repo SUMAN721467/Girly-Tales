@@ -20,7 +20,9 @@ export interface Product {
   waterproof?: boolean;
   hypoallergenic?: boolean;
   features: string[];
+  highlights?: string[];
   careInstructions: string[];
+  deliveryPolicy?: string;
   specs: Record<string, string>;
   inStock: boolean;
   stockQuantity?: number;

@@ -124,7 +124,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
             className="relative w-full max-w-sm sm:max-w-md lg:max-w-none mx-auto aspect-square max-h-[400px] sm:max-h-[440px] bg-white border border-[#EAE6DB] rounded-2xl overflow-hidden shadow-xs flex items-center justify-center cursor-crosshair select-none"
           >
             <img
-              src={product.images[activeImage]}
+              src={product.images[activeImage] || product.images[0] || 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=1000&q=80'}
               alt={product.name}
               className="w-full h-full object-cover object-center"
             />
@@ -160,7 +160,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
             <div
               className="absolute left-[calc(100%+1rem)] top-0 z-50 w-[270px] h-[380px] xl:w-[300px] xl:h-[400px] bg-white rounded-3xl border-2 border-[#967BB6]/50 shadow-2xl overflow-hidden pointer-events-none hidden lg:block animate-fade-in bg-no-repeat"
               style={{
-                backgroundImage: `url(${product.images[activeImage]})`,
+                backgroundImage: `url(${product.images[activeImage] || product.images[0]})`,
                 backgroundPosition: `${zoomState.xPercent}% ${zoomState.yPercent}%`,
                 backgroundSize: '260% 260%',
                 backgroundColor: '#FFFFFF',
@@ -305,21 +305,30 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
             </button>
           </div>
 
-          {/* USPs Bullets */}
-          <div className="p-3.5 bg-[#FFFDD0] border border-[#EAE6DB] space-y-1.5 text-xs">
-            <div className="flex items-center gap-2 font-bold text-brand-charcoal">
-              <Truck className="w-3.5 h-3.5 text-brand-lavender shrink-0" />
-              <span>Free Delivery on all prepaid orders</span>
-            </div>
-            <div className="flex items-center gap-2 font-bold text-brand-charcoal">
-              <RefreshCw className="w-3.5 h-3.5 text-brand-lavender shrink-0" />
-              <span>7-Day Hassle-Free Size Exchange</span>
-            </div>
-            <div className="flex items-center gap-2 font-bold text-brand-charcoal">
-              <Sparkles className="w-3.5 h-3.5 text-brand-lavender shrink-0" />
-              <span>100% Anti-Tarnish &amp; Waterproof</span>
-            </div>
-          </div>
+          {/* USPs Bullets / Highlights */}
+          {(() => {
+            const highlightsList = (product.highlights && product.highlights.length > 0)
+              ? product.highlights
+              : [
+                  'Free Delivery on all prepaid orders',
+                  '7-Day Hassle-Free Size Exchange',
+                  '100% Anti-Tarnish & Waterproof'
+                ];
+
+            return (
+              <div className="p-3.5 bg-[#FFFDD0] border border-[#EAE6DB] space-y-1.5 text-xs">
+                {highlightsList.map((item, idx) => {
+                  const IconComponent = idx === 0 ? Truck : idx === 1 ? RefreshCw : Sparkles;
+                  return (
+                    <div key={idx} className="flex items-center gap-2 font-bold text-brand-charcoal">
+                      <IconComponent className="w-3.5 h-3.5 text-brand-lavender shrink-0" />
+                      <span>{item}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
 
           {/* Expandable Accordions */}
           <div className="border-t border-[#EAE6DB] divide-y divide-[#EAE6DB]">
@@ -332,9 +341,9 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                 {openAccordions.description ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </button>
               {openAccordions.description && (
-                <div className="pb-3 text-xs text-brand-muted leading-relaxed space-y-1.5">
-                  <p>{product.description}</p>
-                  <p><strong>Material:</strong> {product.material}</p>
+                <div className="pb-3 text-xs text-brand-muted leading-relaxed space-y-2 whitespace-pre-line">
+                  <p>{product.description || 'Crafted with premium quality materials designed for ultra-lightweight all-day comfort.'}</p>
+                  {product.material && <p><strong>Material:</strong> {product.material}</p>}
                 </div>
               )}
             </div>
@@ -349,7 +358,10 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
               </button>
               {openAccordions.care && (
                 <div className="pb-3 text-xs text-brand-muted space-y-1">
-                  {product.careInstructions.map((c, i) => (
+                  {((product.careInstructions && product.careInstructions.length > 0)
+                    ? product.careInstructions
+                    : ['Simply wipe clean with a dry cloth']
+                  ).map((c, i) => (
                     <p key={i}>• {c}</p>
                   ))}
                 </div>
@@ -365,8 +377,8 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                 {openAccordions.shipping ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </button>
               {openAccordions.shipping && (
-                <div className="pb-3 text-xs text-brand-muted leading-relaxed">
-                  Dispatched within 24 hours. Delivered across India within 2 to 4 business days. Easy 7-day exchange support available on WhatsApp.
+                <div className="pb-3 text-xs text-brand-muted leading-relaxed whitespace-pre-line">
+                  {product.deliveryPolicy || 'Dispatched within 24 hours. Delivered across India within 2 to 4 business days. Easy 7-day exchange support available on WhatsApp.'}
                 </div>
               )}
             </div>

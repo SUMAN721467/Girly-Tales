@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Package, ShoppingBag, Users, Layers,
   Search, CheckCircle2, Clock, Truck, 
   ArrowLeft, Eye, Plus, Trash2, Edit3,
   RefreshCw, X, Check, ArrowUp, ArrowDown,
-  Database, Copy, ExternalLink, ShieldCheck, AlertCircle, CheckCircle
+  Database, Copy, ExternalLink, ShieldCheck, AlertCircle, CheckCircle, Sparkles,
+  UploadCloud, Image as ImageIcon, MoveLeft, MoveRight, Star, Loader2,
+  MapPin, Send, Mail, Phone, Calendar, MessageSquare,
+  Heart, ShoppingCart, User
 } from 'lucide-react';
 import { Product } from '../types/product';
 import { useCart } from '../context/CartContext';
@@ -12,7 +15,14 @@ import { useAuth } from '../context/AuthContext';
 import { 
   DatabaseService, 
   RealOrder, 
+  RealOrderItem,
+  SellerStatus,
+  CustomerStatus,
+  normalizeOrderItems,
   RealCustomer, 
+  CustomerPurchasedProduct,
+  CustomerCartItem,
+  CustomerWishlistItem,
   RealReview, 
   RealCoupon,
   RealCategory
@@ -45,9 +55,23 @@ interface FAQItem {
   answer: string;
 }
 
+const getInitials = (name?: string, email?: string): string => {
+  if (name && name.trim()) {
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2 && parts[0] && parts[1]) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  }
+  if (email && email.trim()) {
+    return email.slice(0, 2).toUpperCase();
+  }
+  return 'GT';
+};
+
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNavigate }) => {
   const { user } = useAuth();
-  const { triggerToast } = useCart();
+  const { items: currentCartItems, triggerToast } = useCart();
   const [activeTab, setActiveTab] = useState<AdminTab>('products');
   const [isLoadingData, setIsLoadingData] = useState(true);
 
@@ -89,11 +113,20 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const [productSearch, setProductSearch] = useState('');
   const [productCategoryFilter, setProductCategoryFilter] = useState<'all' | 'nightwear' | 'jewellery'>('all');
 
-  // Add Product Form State matching exact user screenshot
+  // Add/Edit Product Form State matching exact user requirements
   const [isAddingCustomTag, setIsAddingCustomTag] = useState(false);
   const [customTagInput, setCustomTagInput] = useState('');
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
 
-  const [productForm, setProductForm] = useState({
+  // Product Media Upload & Management State
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [uploadProgressText, setUploadProgressText] = useState('');
+  const [replacingImageIndex, setReplacingImageIndex] = useState<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const replaceFileInputRef = useRef<HTMLInputElement>(null);
+
+  const DEFAULT_PRODUCT_FORM = {
+    mainCategory: 'nightwear' as 'nightwear' | 'jewellery',
     name: '',
     sku: '',
     price: '',
@@ -105,13 +138,122 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     materials: '',
     dimensions: '',
     description: '',
-    image: 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=1000&q=80',
+    highlights: 'Free Delivery on all prepaid orders\n7-Day Hassle-Free Size Exchange\n100% Anti-Tarnish & Waterproof',
+    careInstructionsText: 'Simply wipe clean with a dry cloth',
+    deliveryPolicy: 'Dispatched within 24 hours. Delivered across India within 2 to 4 business days. Easy 7-day exchange support available on WhatsApp.',
+    images: [
+      'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=1000&q=80',
+      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1000&q=80',
+      'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=1000&q=80'
+    ] as string[],
     inStock: true,
-  });
+  };
 
-  // Orders filters
+  const [productForm, setProductForm] = useState(DEFAULT_PRODUCT_FORM);
+
+  // Orders filters & details state
   const [orderSearch, setOrderSearch] = useState('');
-  const [orderStatusFilter, setOrderStatusFilter] = useState<string>('All');
+  const [orderStatusFilter, setOrderStatusFilter] = useState<'All' | SellerStatus>('All');
+  const [selectedOrderDetail, setSelectedOrderDetail] = useState<RealOrder | null>(null);
+  const [specialInstructionDraft, setSpecialInstructionDraft] = useState('');
+  const [isSavingInstruction, setIsSavingInstruction] = useState(false);
+
+  // Courier & Tracking Modal State
+  const [shippingModalOrder, setShippingModalOrder] = useState<RealOrder | null>(null);
+  const [shippingModalTargetStatus, setShippingModalTargetStatus] = useState<SellerStatus>('Shipped');
+  const [courierInput, setCourierInput] = useState('BlueDart Express');
+  const [trackingInput, setTrackingInput] = useState('');
+  const [trackingUrlInput, setTrackingUrlInput] = useState('');
+  const [isSavingShipping, setIsSavingShipping] = useState(false);
+
+  // Customer directory & details state
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [selectedCustomerDetail, setSelectedCustomerDetail] = useState<RealCustomer | null>(null);
+  const [customerCartItems, setCustomerCartItems] = useState<CustomerCartItem[]>([]);
+  const [customerWishlistItems, setCustomerWishlistItems] = useState<CustomerWishlistItem[]>([]);
+  const [isLoadingCustomerActivity, setIsLoadingCustomerActivity] = useState(false);
+
+  const handleViewCustomerDetails = async (cust: RealCustomer) => {
+    setSelectedCustomerDetail(cust);
+    setIsLoadingCustomerActivity(true);
+
+    const isSelf = Boolean(
+      (user?.email && cust.email && user.email.toLowerCase().trim() === cust.email.toLowerCase().trim()) ||
+      (user?.id && cust.id && user.id === cust.id) ||
+      (user?.id && cust.supabaseUid && user.id === cust.supabaseUid)
+    );
+
+    if (isSelf && currentCartItems && currentCartItems.length > 0) {
+      setCustomerCartItems(
+        currentCartItems.map((item) => ({
+          id: item.id,
+          productId: item.product.id,
+          name: item.product.name,
+          image: item.product.images?.[0] || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80',
+          price: item.product.price,
+          quantity: item.quantity,
+          selectedSize: item.selectedSize,
+          selectedColor: item.selectedColor,
+          addedAt: new Date().toISOString(),
+        }))
+      );
+    } else {
+      setCustomerCartItems([]);
+    }
+    setCustomerWishlistItems([]);
+
+    try {
+      const activity = await DatabaseService.getCustomerActivity(cust.supabaseUid || cust.id, cust.email);
+      if (activity.cartItems && activity.cartItems.length > 0) {
+        setCustomerCartItems(activity.cartItems);
+      } else if (isSelf && currentCartItems && currentCartItems.length > 0) {
+        setCustomerCartItems(
+          currentCartItems.map((item) => ({
+            id: item.id,
+            productId: item.product.id,
+            name: item.product.name,
+            image: item.product.images?.[0] || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80',
+            price: item.product.price,
+            quantity: item.quantity,
+            selectedSize: item.selectedSize,
+            selectedColor: item.selectedColor,
+            addedAt: new Date().toISOString(),
+          }))
+        );
+      }
+      setCustomerWishlistItems(activity.wishlistItems);
+    } catch (e) {
+      console.warn('Customer activity fetch error:', e);
+    } finally {
+      setIsLoadingCustomerActivity(false);
+    }
+  };
+
+  // Keep customer detail view's cart in sync if active cart items change
+  useEffect(() => {
+    if (selectedCustomerDetail && user) {
+      const isSelf = Boolean(
+        (user.email && selectedCustomerDetail.email && user.email.toLowerCase().trim() === selectedCustomerDetail.email.toLowerCase().trim()) ||
+        (user.id && selectedCustomerDetail.id && user.id === selectedCustomerDetail.id) ||
+        (user.id && selectedCustomerDetail.supabaseUid && user.id === selectedCustomerDetail.supabaseUid)
+      );
+      if (isSelf && currentCartItems) {
+        setCustomerCartItems(
+          currentCartItems.map((item) => ({
+            id: item.id,
+            productId: item.product.id,
+            name: item.product.name,
+            image: item.product.images?.[0] || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80',
+            price: item.product.price,
+            quantity: item.quantity,
+            selectedSize: item.selectedSize,
+            selectedColor: item.selectedColor,
+            addedAt: new Date().toISOString(),
+          }))
+        );
+      }
+    }
+  }, [currentCartItems, selectedCustomerDetail, user]);
 
   // Coupon creation
   const [newCouponCode, setNewCouponCode] = useState({ code: '', discount: '10% OFF', minSpend: 999, description: '' });
@@ -167,8 +309,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       setCategoriesList(fetchedCats);
       setDbStatus(statusInfo);
 
-      // Derive Real Customers directly from Database Orders
-      const derivedCustomers = await DatabaseService.getCustomers(fetchedOrders);
+      // Derive Real Customers directly from Database Orders and logged-in profiles
+      const derivedCustomers = await DatabaseService.getCustomers(fetchedOrders, user);
       setCustomers(derivedCustomers);
 
       if (showToast) {
@@ -250,6 +392,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             { event: '*', schema: 'public', table: 'orders' },
             () => loadDatabaseData()
           )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'profiles' },
+            () => loadDatabaseData()
+          )
           .subscribe();
       } catch (err) {
         console.warn('Supabase realtime admin subscription note:', err);
@@ -262,7 +409,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         supabase.removeChannel(channel);
       }
     };
-  }, []);
+  }, [user]);
 
   // Compute Real Metrics
   const totalRealRevenue = orders
@@ -396,6 +543,129 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     triggerToast('Product Deleted', 'Removed from database.', undefined, 'info');
   };
 
+  // Product Media Management Handlers (Direct Local Storage -> Supabase Storage)
+  const handleUploadImagesFromFiles = async (files: FileList | File[]) => {
+    if (!files || files.length === 0) return;
+    const fileArray = Array.from(files);
+
+    if (productForm.images.length + fileArray.length > 8) {
+      triggerToast('Upload Limit', 'You can upload up to 8 images per product.', undefined, 'info');
+    }
+
+    setIsUploadingMedia(true);
+    const uploadedUrls: string[] = [];
+
+    try {
+      for (let i = 0; i < fileArray.length; i++) {
+        const file = fileArray[i];
+        setUploadProgressText(`Uploading image ${i + 1} of ${fileArray.length}...`);
+        const url = await DatabaseService.uploadProductImage(file);
+        if (url) {
+          uploadedUrls.push(url);
+        }
+      }
+
+      setProductForm((prev) => ({
+        ...prev,
+        images: [...prev.images, ...uploadedUrls].slice(0, 8),
+      }));
+
+      triggerToast('Images Uploaded! 📸', `Successfully added ${uploadedUrls.length} image(s).`, undefined, 'success');
+    } catch (err) {
+      triggerToast('Upload Failed', 'Could not upload some images. Please try again.', undefined, 'error');
+    } finally {
+      setIsUploadingMedia(false);
+      setUploadProgressText('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleReplaceImageFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || replacingImageIndex === null) return;
+
+    setIsUploadingMedia(true);
+    setUploadProgressText('Replacing image...');
+    try {
+      const url = await DatabaseService.uploadProductImage(file);
+      if (url) {
+        setProductForm((prev) => {
+          const updated = [...prev.images];
+          updated[replacingImageIndex] = url;
+          return { ...prev, images: updated };
+        });
+        triggerToast('Image Replaced! 🔄', 'Updated image successfully.', undefined, 'success');
+      }
+    } catch (err) {
+      triggerToast('Replace Failed', 'Failed to replace image.', undefined, 'error');
+    } finally {
+      setIsUploadingMedia(false);
+      setUploadProgressText('');
+      setReplacingImageIndex(null);
+      if (replaceFileInputRef.current) replaceFileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setProductForm((prev) => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index),
+    }));
+    triggerToast('Image Removed', 'Photo removed from product gallery.', undefined, 'info');
+  };
+
+  const handleMoveImage = (index: number, direction: 'left' | 'right') => {
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= productForm.images.length) return;
+
+    setProductForm((prev) => {
+      const updated = [...prev.images];
+      const temp = updated[index];
+      updated[index] = updated[targetIndex];
+      updated[targetIndex] = temp;
+      return { ...prev, images: updated };
+    });
+  };
+
+  const handleSetAsCover = (index: number) => {
+    if (index === 0) return;
+    setProductForm((prev) => {
+      const updated = [...prev.images];
+      const [chosen] = updated.splice(index, 1);
+      updated.unshift(chosen);
+      return { ...prev, images: updated };
+    });
+    triggerToast('Cover Photo Set ✦', 'This image is now the main cover photo.', undefined, 'success');
+  };
+
+  const handleStartEditProduct = (prod: Product) => {
+    setEditingProductId(prod.id);
+    setProductForm({
+      mainCategory: (prod.category === 'jewellery' ? 'jewellery' : 'nightwear') as 'nightwear' | 'jewellery',
+      name: prod.name,
+      sku: prod.sku || '',
+      price: String(prod.price),
+      originalPrice: prod.originalPrice ? String(prod.originalPrice) : '',
+      stockQuantity: String(prod.stockQuantity ?? 10),
+      categories: prod.subCategory ? prod.subCategory.split(',').map((s) => s.trim()).filter(Boolean) : ['Floor'],
+      badge: prod.tag || '',
+      variety: prod.variety || '',
+      materials: prod.material || '',
+      dimensions: prod.dimensions || '',
+      description: prod.description || '',
+      highlights: (prod.highlights && prod.highlights.length > 0)
+        ? prod.highlights.join('\n')
+        : 'Free Delivery on all prepaid orders\n7-Day Hassle-Free Size Exchange\n100% Anti-Tarnish & Waterproof',
+      careInstructionsText: (prod.careInstructions && prod.careInstructions.length > 0)
+        ? prod.careInstructions.join('\n')
+        : 'Simply wipe clean with a dry cloth',
+      deliveryPolicy: prod.deliveryPolicy || 'Dispatched within 24 hours. Delivered across India within 2 to 4 business days. Easy 7-day exchange support available on WhatsApp.',
+      images: Array.isArray(prod.images) && prod.images.length > 0 ? [...prod.images] : [],
+      inStock: prod.inStock,
+    });
+    setIsCreatingProduct(true);
+  };
+
   const handlePublishProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!productForm.name.trim()) {
@@ -411,12 +681,77 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     const originalPriceNum = productForm.originalPrice ? Number(productForm.originalPrice) : priceNum;
     const discountCalc = originalPriceNum > priceNum ? Math.round(((originalPriceNum - priceNum) / originalPriceNum) * 100) : 0;
 
-    // Detect category classification
-    const mainCategory = productForm.categories.some((c) =>
-      ['18K Jewellery', 'Necklaces', 'Earrings', 'Bracelets', 'Rings'].includes(c)
-    )
-      ? 'jewellery'
-      : 'nightwear';
+    // Use explicit admin selected department radio: 'nightwear' | 'jewellery'
+    const mainCategory = productForm.mainCategory;
+
+    const highlightsArray = productForm.highlights
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const careInstructionsArray = productForm.careInstructionsText
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const deliveryPolicyText = productForm.deliveryPolicy.trim() || 'Dispatched within 24 hours. Delivered across India within 2 to 4 business days. Easy 7-day exchange support available on WhatsApp.';
+
+    const finalImages = productForm.images.length > 0
+      ? productForm.images
+      : ['https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=1000&q=80'];
+
+    if (editingProductId) {
+      const existing = productsList.find((p) => p.id === editingProductId);
+      const updatedProduct: Product = {
+        id: editingProductId,
+        name: productForm.name.trim(),
+        slug: existing?.slug || productForm.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        category: mainCategory,
+        subCategory: productForm.categories.join(', ') || 'Boutique Collection',
+        price: priceNum,
+        originalPrice: originalPriceNum,
+        discount: discountCalc,
+        rating: existing?.rating || 5.0,
+        reviewCount: existing?.reviewCount || 1,
+        images: finalImages,
+        description: productForm.description || 'Luxurious craftsmanship designed for everyday glamour.',
+        shortDescription: productForm.description.slice(0, 90) || 'Premium curated collection item.',
+        material: productForm.materials || 'Premium Cotton / Silk / 18K Finish',
+        dimensions: productForm.dimensions || 'Standard Fit',
+        sku: productForm.sku || `GT-SKU-${Math.floor(1000 + Math.random() * 9000)}`,
+        variety: productForm.variety,
+        tag: productForm.badge || 'New Arrival',
+        stockQuantity: Number(productForm.stockQuantity) || 10,
+        inStock: productForm.inStock,
+        highlights: highlightsArray.length > 0 ? highlightsArray : [
+          'Free Delivery on all prepaid orders',
+          '7-Day Hassle-Free Size Exchange',
+          '100% Anti-Tarnish & Waterproof'
+        ],
+        careInstructions: careInstructionsArray.length > 0 ? careInstructionsArray : ['Simply wipe clean with a dry cloth'],
+        deliveryPolicy: deliveryPolicyText,
+        features: [
+          productForm.materials ? `Material: ${productForm.materials}` : 'Ultra-soft comfort',
+          productForm.dimensions ? `Dimensions: ${productForm.dimensions}` : 'Tailored finish',
+          productForm.badge ? `Tag: ${productForm.badge}` : 'Boutique Exclusive',
+          'Hypoallergenic & premium gifting packaging',
+        ],
+        specs: {
+          'Materials': productForm.materials || 'Premium Satin / Silk',
+          'Dimensions': productForm.dimensions || 'Standard',
+          'SKU': productForm.sku || 'GT-01',
+          'Category': productForm.categories.join(', '),
+        },
+      };
+
+      await DatabaseService.updateProduct(editingProductId, updatedProduct);
+      setProductsList((prev) => prev.map((p) => (p.id === editingProductId ? updatedProduct : p)));
+      setIsCreatingProduct(false);
+      setEditingProductId(null);
+      setProductForm(DEFAULT_PRODUCT_FORM);
+      triggerToast('Product Updated! ✨', `${updatedProduct.name} updated in live database.`, undefined, 'success');
+      return;
+    }
 
     const newProd: Product = {
       id: `gt-prod-${Date.now()}`,
@@ -429,7 +764,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       discount: discountCalc,
       rating: 5.0,
       reviewCount: 1,
-      images: [productForm.image || 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=1000&q=80'],
+      images: finalImages,
       description: productForm.description || 'Luxurious craftsmanship designed for everyday glamour.',
       shortDescription: productForm.description.slice(0, 90) || 'Premium curated collection item.',
       material: productForm.materials || 'Premium Cotton / Silk / 18K Finish',
@@ -439,13 +774,19 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       tag: productForm.badge || 'New Arrival',
       stockQuantity: Number(productForm.stockQuantity) || 10,
       inStock: true,
+      highlights: highlightsArray.length > 0 ? highlightsArray : [
+        'Free Delivery on all prepaid orders',
+        '7-Day Hassle-Free Size Exchange',
+        '100% Anti-Tarnish & Waterproof'
+      ],
+      careInstructions: careInstructionsArray.length > 0 ? careInstructionsArray : ['Simply wipe clean with a dry cloth'],
+      deliveryPolicy: deliveryPolicyText,
       features: [
         productForm.materials ? `Material: ${productForm.materials}` : 'Ultra-soft comfort',
         productForm.dimensions ? `Dimensions: ${productForm.dimensions}` : 'Tailored finish',
         productForm.badge ? `Tag: ${productForm.badge}` : 'Boutique Exclusive',
         'Hypoallergenic & premium gifting packaging',
       ],
-      careInstructions: ['Handle with gentle care', 'Line dry in shade'],
       specs: {
         'Materials': productForm.materials || 'Premium Satin / Silk',
         'Dimensions': productForm.dimensions || 'Standard',
@@ -457,33 +798,153 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     await DatabaseService.addProduct(newProd);
     setProductsList([newProd, ...productsList]);
     setIsCreatingProduct(false);
-
-    // Reset Form
-    setProductForm({
-      name: '',
-      sku: '',
-      price: '',
-      originalPrice: '',
-      stockQuantity: '10',
-      categories: ['Floor', 'Yoga'],
-      badge: '',
-      variety: '',
-      materials: '',
-      dimensions: '',
-      description: '',
-      image: 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=1000&q=80',
-      inStock: true,
-    });
+    setProductForm(DEFAULT_PRODUCT_FORM);
 
     triggerToast('Product Published! ✨', `${newProd.name} saved to live database.`, undefined, 'success');
   };
 
-  const handleOrderStatusChange = async (orderId: string, newStatus: RealOrder['status']) => {
-    await DatabaseService.updateOrderStatus(orderId, newStatus);
-    setOrders((prev) =>
-      prev.map((ord) => (ord.id === orderId ? { ...ord, status: newStatus } : ord))
-    );
-    triggerToast('Order Status Updated 📦', `Order #${orderId} marked as ${newStatus}`, undefined, 'success');
+  const handleSellerStatusChange = (orderId: string, newStatus: SellerStatus) => {
+    const targetOrder = orders.find((o) => o.id === orderId) || (selectedOrderDetail?.id === orderId ? selectedOrderDetail : null);
+    if (!targetOrder) return;
+
+    if (newStatus === 'Shipped' || newStatus === 'Out for Delivery') {
+      setShippingModalOrder(targetOrder);
+      setShippingModalTargetStatus(newStatus);
+      setCourierInput(targetOrder.courierName || 'BlueDart Express');
+      setTrackingInput(targetOrder.trackingNumber || '');
+      setTrackingUrlInput(targetOrder.trackingUrl || '');
+      return;
+    }
+
+    // Direct update for other statuses (Pending, Delivered, Cancelled by Seller)
+    executeSellerStatusUpdate(orderId, newStatus);
+  };
+
+  const executeSellerStatusUpdate = async (
+    orderId: string,
+    newStatus: SellerStatus,
+    shippingInfo?: { courierName?: string; trackingNumber?: string; trackingUrl?: string }
+  ) => {
+    try {
+      await DatabaseService.updateSellerStatus(
+        orderId,
+        newStatus,
+        shippingInfo
+      );
+      setOrders((prev) =>
+        prev.map((ord) =>
+          ord.id === orderId
+            ? {
+                ...ord,
+                sellerStatus: newStatus,
+                status: newStatus,
+                ...(shippingInfo ? {
+                  courierName: shippingInfo.courierName,
+                  trackingNumber: shippingInfo.trackingNumber,
+                  trackingUrl: shippingInfo.trackingUrl,
+                } : {}),
+              }
+            : ord
+        )
+      );
+      if (selectedOrderDetail && selectedOrderDetail.id === orderId) {
+        setSelectedOrderDetail((prev) =>
+          prev
+            ? {
+                ...prev,
+                sellerStatus: newStatus,
+                status: newStatus,
+                ...(shippingInfo ? {
+                  courierName: shippingInfo.courierName,
+                  trackingNumber: shippingInfo.trackingNumber,
+                  trackingUrl: shippingInfo.trackingUrl,
+                } : {}),
+              }
+            : null
+        );
+      }
+      triggerToast('Seller Status Updated 📦', `Order #${orderId} marked as ${newStatus}`, undefined, 'success');
+    } catch (e) {
+      triggerToast('Update Failed', 'Could not update order status in database.', undefined, 'error');
+    }
+  };
+
+  const handleConfirmShippingModal = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!shippingModalOrder) return;
+
+    setIsSavingShipping(true);
+    try {
+      await executeSellerStatusUpdate(shippingModalOrder.id, shippingModalTargetStatus, {
+        courierName: courierInput.trim() || 'BlueDart Express',
+        trackingNumber: trackingInput.trim(),
+        trackingUrl: trackingUrlInput.trim(),
+      });
+      setShippingModalOrder(null);
+    } finally {
+      setIsSavingShipping(false);
+    }
+  };
+
+  const handleSaveSpecialInstruction = async (orderId: string) => {
+    if (!orderId) return;
+    setIsSavingInstruction(true);
+    try {
+      await DatabaseService.updateSpecialInstructions(orderId, specialInstructionDraft);
+      setOrders((prev) =>
+        prev.map((ord) =>
+          ord.id === orderId ? { ...ord, specialInstructions: specialInstructionDraft } : ord
+        )
+      );
+      if (selectedOrderDetail && selectedOrderDetail.id === orderId) {
+        setSelectedOrderDetail((prev) =>
+          prev ? { ...prev, specialInstructions: specialInstructionDraft } : null
+        );
+      }
+      triggerToast('Instruction Saved ✉️', `Message updated for Order #${orderId}`, undefined, 'success');
+    } catch (e) {
+      triggerToast('Save Failed', 'Could not save instruction to database.', undefined, 'error');
+    } finally {
+      setIsSavingInstruction(false);
+    }
+  };
+
+  const handleOrderStatusChange = (orderId: string, newStatus: RealOrder['status']) => {
+    const validSellerStatus: SellerStatus = 
+      newStatus === 'Processing' ? 'Pending' :
+      newStatus === 'Cancelled' ? 'Cancelled by Seller' : 
+      (newStatus as SellerStatus);
+    handleSellerStatusChange(orderId, validSellerStatus);
+  };
+
+  const getSellerStatusBadgeClass = (status: SellerStatus) => {
+    switch (status) {
+      case 'Delivered':
+        return 'bg-emerald-100 text-emerald-800 border border-emerald-200/60';
+      case 'Shipped':
+        return 'bg-blue-100 text-blue-800 border border-blue-200/60';
+      case 'Out for Delivery':
+        return 'bg-[#EAE1F3] text-[#7F62A1] border border-[#D5C2E6]';
+      case 'Cancelled by Seller':
+        return 'bg-rose-100 text-rose-800 border border-rose-200/60';
+      case 'Pending':
+      default:
+        return 'bg-amber-100 text-amber-800 border border-amber-200/60';
+    }
+  };
+
+  const getCustomerStatusBadgeClass = (status: CustomerStatus) => {
+    switch (status) {
+      case 'Paid':
+        return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+      case 'Cancelled by Customer':
+        return 'bg-rose-50 text-rose-700 border border-rose-200';
+      case 'Payment Failed':
+        return 'bg-red-50 text-red-700 border border-red-200';
+      case 'Pending':
+      default:
+        return 'bg-amber-50 text-amber-700 border border-amber-200';
+    }
   };
 
   const handleAddCoupon = async (e: React.FormEvent) => {
@@ -515,11 +976,22 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   });
 
   const filteredOrders = orders.filter((o) => {
-    const matchesStatus = orderStatusFilter === 'All' || o.status === orderStatusFilter;
+    const matchesStatus =
+      orderStatusFilter === 'All' ||
+      o.sellerStatus === orderStatusFilter ||
+      o.status === orderStatusFilter;
+    const query = orderSearch.toLowerCase().trim();
+    if (!query) return matchesStatus;
+
     const matchesSearch =
-      o.id.toLowerCase().includes(orderSearch.toLowerCase()) ||
-      o.customerName.toLowerCase().includes(orderSearch.toLowerCase()) ||
-      o.email.toLowerCase().includes(orderSearch.toLowerCase());
+      o.id.toLowerCase().includes(query) ||
+      o.customerName.toLowerCase().includes(query) ||
+      o.email.toLowerCase().includes(query) ||
+      (o.city && o.city.toLowerCase().includes(query)) ||
+      (o.state && o.state.toLowerCase().includes(query)) ||
+      (o.phone && o.phone.toLowerCase().includes(query)) ||
+      (o.sellerStatus && o.sellerStatus.toLowerCase().includes(query)) ||
+      (o.customerStatus && o.customerStatus.toLowerCase().includes(query));
     return matchesStatus && matchesSearch;
   });
 
@@ -805,24 +1277,41 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
         {/* ================= 4. TAB CONTENTS ================= */}
 
-        {/* TAB 1: PRODUCTS (TABLE OR FULL 'ADD NEW PRODUCT' VIEW) */}
+        {/* TAB 1: PRODUCTS (TABLE OR FULL 'ADD / EDIT PRODUCT' VIEW) */}
         {activeTab === 'products' && (
           <div>
             {isCreatingProduct ? (
-              /* ================= DEDICATED ADD NEW PRODUCT VIEW (MATCHING USER SCREENSHOT) ================= */
+              /* ================= DEDICATED ADD / EDIT PRODUCT VIEW ================= */
               <div className="space-y-6 animate-fade-in">
                 {/* Header Back Title */}
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setIsCreatingProduct(false)}
-                    className="p-1.5 -ml-1.5 rounded-full hover:bg-[#FFFDD0] text-brand-muted hover:text-brand-charcoal transition-colors"
-                    title="Back to products list"
-                  >
-                    <ArrowLeft className="w-5 h-5 stroke-[2]" />
-                  </button>
-                  <h2 className="font-serif text-2xl sm:text-3xl text-brand-charcoal font-normal tracking-tight">
-                    Add New Product
-                  </h2>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => {
+                        setIsCreatingProduct(false);
+                        setEditingProductId(null);
+                        setProductForm(DEFAULT_PRODUCT_FORM);
+                      }}
+                      className="p-1.5 -ml-1.5 rounded-full hover:bg-[#FFFDD0] text-brand-muted hover:text-brand-charcoal transition-colors"
+                      title="Back to products list"
+                    >
+                      <ArrowLeft className="w-5 h-5 stroke-[2]" />
+                    </button>
+                    <div>
+                      <h2 className="font-serif text-2xl sm:text-3xl text-brand-charcoal font-normal tracking-tight">
+                        {editingProductId ? 'Edit Product' : 'Add New Product'}
+                      </h2>
+                      <p className="text-xs text-brand-muted">
+                        Configure product details, top highlights, and custom dropdown accordion sections.
+                      </p>
+                    </div>
+                  </div>
+
+                  {editingProductId && (
+                    <span className="px-3 py-1 bg-[#F3EEF9] text-[#967BB6] border border-[#967BB6]/30 text-xs font-bold rounded-full">
+                      Editing Mode
+                    </span>
+                  )}
                 </div>
 
                 {/* Form Card */}
@@ -833,8 +1322,69 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   {/* SECTION 1: BASIC INFORMATION */}
                   <div className="space-y-5">
                     <h3 className="text-xs font-bold uppercase tracking-widest text-brand-muted">
-                      BASIC INFORMATION
+                      1. BASIC INFORMATION
                     </h3>
+
+                    {/* Admin Main Store Classification (Radio: NIGHTWEAR or JEWELLERY) */}
+                    <div className="p-4 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl space-y-2.5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                        <div>
+                          <label className="block text-xs font-black uppercase tracking-wider text-brand-charcoal">
+                            Product Department / Main Type *
+                          </label>
+                          <p className="text-[11px] text-brand-muted">
+                            Admin-only classification. Controls whether this product reflects under <strong className="text-brand-charcoal">NIGHTWEAR</strong> or <strong className="text-brand-charcoal">JEWELLERY</strong> in the product table filter.
+                          </p>
+                        </div>
+                        <span className="text-[11px] text-[#967BB6] font-bold shrink-0">
+                          ✦ Filter: {productForm.mainCategory.toUpperCase()}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <label
+                          className={`flex items-center gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+                            productForm.mainCategory === 'nightwear'
+                              ? 'bg-white border-[#967BB6] shadow-xs text-brand-charcoal ring-2 ring-[#967BB6]/15'
+                              : 'bg-white/60 border-[#EAE6DB] text-brand-muted hover:border-[#967BB6]/50 hover:bg-white'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="adminMainDepartment"
+                            value="nightwear"
+                            checked={productForm.mainCategory === 'nightwear'}
+                            onChange={() => setProductForm({ ...productForm, mainCategory: 'nightwear' })}
+                            className="w-4 h-4 text-[#967BB6] accent-[#967BB6] focus:ring-[#967BB6]"
+                          />
+                          <div>
+                            <div className="text-xs font-black uppercase tracking-wide text-brand-charcoal">NIGHTWEAR</div>
+                            <div className="text-[11px] text-brand-muted">Mulberry Silk, Modal Sets, Satin Robes & Pajamas</div>
+                          </div>
+                        </label>
+
+                        <label
+                          className={`flex items-center gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+                            productForm.mainCategory === 'jewellery'
+                              ? 'bg-white border-[#967BB6] shadow-xs text-brand-charcoal ring-2 ring-[#967BB6]/15'
+                              : 'bg-white/60 border-[#EAE6DB] text-brand-muted hover:border-[#967BB6]/50 hover:bg-white'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="adminMainDepartment"
+                            value="jewellery"
+                            checked={productForm.mainCategory === 'jewellery'}
+                            onChange={() => setProductForm({ ...productForm, mainCategory: 'jewellery' })}
+                            className="w-4 h-4 text-[#967BB6] accent-[#967BB6] focus:ring-[#967BB6]"
+                          />
+                          <div>
+                            <div className="text-xs font-black uppercase tracking-wide text-brand-charcoal">JEWELLERY</div>
+                            <div className="text-[11px] text-brand-muted">18K Anti-Tarnish Necklaces, Earrings, Bracelets & Rings</div>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
 
                     {/* Row 1: 5 Input Fields */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -847,6 +1397,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           required
                           value={productForm.name}
                           onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+                          placeholder="e.g. Mulberry Silk Satin Set"
                           className="w-full px-4 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all"
                         />
                       </div>
@@ -859,6 +1410,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           type="text"
                           value={productForm.sku}
                           onChange={(e) => setProductForm({ ...productForm, sku: e.target.value })}
+                          placeholder="e.g. GT-SKU-102"
                           className="w-full px-4 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all"
                         />
                       </div>
@@ -872,6 +1424,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           required
                           value={productForm.price}
                           onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
+                          placeholder="e.g. 1899"
                           className="w-full px-4 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all"
                         />
                       </div>
@@ -884,6 +1437,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           type="number"
                           value={productForm.originalPrice}
                           onChange={(e) => setProductForm({ ...productForm, originalPrice: e.target.value })}
+                          placeholder="e.g. 2999"
                           className="w-full px-4 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all"
                         />
                       </div>
@@ -897,6 +1451,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           required
                           value={productForm.stockQuantity}
                           onChange={(e) => setProductForm({ ...productForm, stockQuantity: e.target.value })}
+                          placeholder="10"
                           className="w-full px-4 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all"
                         />
                       </div>
@@ -951,6 +1506,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                                   handleAddCustomCategory();
                                 }
                               }}
+                              placeholder="New tag..."
                               className="px-3.5 py-1 bg-[#FAF8F2] border border-[#967BB6] rounded-full text-xs text-brand-charcoal focus:outline-none w-32"
                               autoFocus
                             />
@@ -991,6 +1547,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           type="text"
                           value={productForm.badge}
                           onChange={(e) => setProductForm({ ...productForm, badge: e.target.value })}
+                          placeholder="e.g. Bestseller, Trending, New Arrival"
                           className="w-full px-4 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all"
                         />
                       </div>
@@ -1003,89 +1560,428 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           type="text"
                           value={productForm.variety}
                           onChange={(e) => setProductForm({ ...productForm, variety: e.target.value })}
+                          placeholder="e.g. Gold / Silver, S / M / L"
                           className="w-full px-4 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all"
                         />
                       </div>
                     </div>
                   </div>
 
-                  {/* SECTION 2: PRODUCT DETAILS */}
-                  <div className="space-y-5 pt-6 border-t border-[#EAE6DB]/70">
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-brand-muted">
-                      PRODUCT DETAILS
-                    </h3>
-
-                    {/* Row 4: Materials & Dimensions */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* SECTION 2: HIGHLIGHTS (KEY USPs BANNER) */}
+                  <div className="space-y-4 pt-6 border-t border-[#EAE6DB]/70">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div>
-                        <label className="block text-xs font-bold text-brand-charcoal mb-1.5">
-                          Materials *
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={productForm.materials}
-                          onChange={(e) => setProductForm({ ...productForm, materials: e.target.value })}
-                          className="w-full px-4 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-brand-charcoal mb-1.5">
-                          Dimensions *
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={productForm.dimensions}
-                          onChange={(e) => setProductForm({ ...productForm, dimensions: e.target.value })}
-                          className="w-full px-4 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all"
-                        />
+                        <h3 className="text-xs font-bold uppercase tracking-widest text-[#967BB6] flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-[#967BB6]" />
+                          <span>2. HIGHLIGHTS</span>
+                        </h3>
+                        <p className="text-xs text-brand-muted mt-0.5">
+                          Top selling points shown in the highlighted yellow banner below the Buy It Now button (1 point per line).
+                        </p>
                       </div>
                     </div>
 
-                    {/* Row 5: Description / Story * */}
-                    <div className="pt-2">
-                      <label className="block text-xs font-bold text-brand-charcoal mb-1.5">
-                        Description / Story *
-                      </label>
-                      <textarea
-                        rows={4}
-                        required
-                        value={productForm.description}
-                        onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
-                        className="w-full px-4 py-3 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all"
-                      />
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                      <div>
+                        <label className="block text-xs font-bold text-brand-charcoal mb-1.5">
+                          Highlights Bullet Points (1 per line) *
+                        </label>
+                        <textarea
+                          rows={4}
+                          value={productForm.highlights}
+                          onChange={(e) => setProductForm({ ...productForm, highlights: e.target.value })}
+                          placeholder="Free Delivery on all prepaid orders&#10;7-Day Hassle-Free Size Exchange&#10;100% Anti-Tarnish & Waterproof"
+                          className="w-full px-4 py-3 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all font-mono leading-relaxed"
+                        />
+                        <span className="text-[11px] text-brand-muted block mt-1">
+                          Tip: Each new line will be displayed with an icon on the live product page.
+                        </span>
+                      </div>
+
+                      {/* Live Highlight Banner Preview */}
+                      <div className="space-y-2 bg-[#FAF8F2] p-4 rounded-2xl border border-[#EAE6DB]">
+                        <span className="text-[11px] font-bold uppercase text-brand-muted block">
+                          Live Product Page Preview:
+                        </span>
+                        <div className="p-3.5 bg-[#FFFDD0] border border-[#EAE6DB] space-y-1.5 text-xs rounded-xl">
+                          {productForm.highlights
+                            .split('\n')
+                            .map((s) => s.trim())
+                            .filter(Boolean)
+                            .map((hl, idx) => {
+                              const IconComp = idx === 0 ? Truck : idx === 1 ? RefreshCw : Sparkles;
+                              return (
+                                <div key={idx} className="flex items-center gap-2 font-bold text-brand-charcoal">
+                                  <IconComp className="w-3.5 h-3.5 text-brand-lavender shrink-0" />
+                                  <span>{hl}</span>
+                                </div>
+                              );
+                            })}
+                          {productForm.highlights.split('\n').filter(Boolean).length === 0 && (
+                            <span className="text-brand-muted text-xs italic">No highlights entered yet.</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SECTION 3: PRODUCT DROPDOWN ACCORDIONS */}
+                  <div className="space-y-6 pt-6 border-t border-[#EAE6DB]/70">
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-brand-muted">
+                        3. PRODUCT DROPDOWN ACCORDIONS
+                      </h3>
+                      <p className="text-xs text-brand-muted mt-0.5">
+                        Customize what appears in each expandable dropdown on the product details page.
+                      </p>
                     </div>
 
-                    {/* Row 6: Image URL & Preview */}
-                    <div className="pt-2">
-                      <label className="block text-xs font-bold text-brand-charcoal mb-1.5">
-                        Product Image URL
-                      </label>
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                        <input
-                          type="url"
-                          value={productForm.image}
-                          onChange={(e) => setProductForm({ ...productForm, image: e.target.value })}
-                          className="flex-1 w-full px-4 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all"
-                        />
-                        {productForm.image && (
-                          <img
-                            src={productForm.image}
-                            alt="Preview"
-                            className="w-14 h-14 object-cover rounded-2xl border border-[#EAE6DB] shadow-xs shrink-0"
+                    {/* Accordion 1: Description & Fabric */}
+                    <div className="p-5 bg-[#FAF8F2]/70 rounded-2xl border border-[#EAE6DB] space-y-4">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-white border border-[#EAE6DB] flex items-center justify-center text-xs font-black text-brand-charcoal">
+                          1
+                        </span>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-brand-charcoal">
+                          Dropdown 1: Description &amp; Fabric
+                        </h4>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-bold text-brand-charcoal mb-1.5">
+                            Product Description / Story *
+                          </label>
+                          <textarea
+                            rows={3}
+                            required
+                            value={productForm.description}
+                            onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
+                            placeholder="The viral bulbous teardrop earrings you have seen on the runway, crafted for ultra-lightweight all-day comfort. Features a secure snap hinge and a high-shine mirrored finish."
+                            className="w-full px-4 py-3 bg-white border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] transition-all leading-relaxed"
                           />
-                        )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-bold text-brand-charcoal mb-1.5">
+                              Material &amp; Fabric *
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={productForm.materials}
+                              onChange={(e) => setProductForm({ ...productForm, materials: e.target.value })}
+                              placeholder="e.g. Hollow 316L Titanium Steel with 18K Gold PVD"
+                              className="w-full px-4 py-2.5 bg-white border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] transition-all"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-brand-charcoal mb-1.5">
+                              Dimensions (optional)
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.dimensions}
+                              onChange={(e) => setProductForm({ ...productForm, dimensions: e.target.value })}
+                              placeholder="e.g. 25mm x 15mm / Standard Fit"
+                              className="w-full px-4 py-2.5 bg-white border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] transition-all"
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
+
+                    {/* Accordion 2: Care Instructions */}
+                    <div className="p-5 bg-[#FAF8F2]/70 rounded-2xl border border-[#EAE6DB] space-y-4">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-white border border-[#EAE6DB] flex items-center justify-center text-xs font-black text-brand-charcoal">
+                          2
+                        </span>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-brand-charcoal">
+                          Dropdown 2: Care Instructions
+                        </h4>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-brand-charcoal mb-1.5">
+                          Care Bullet Points (1 per line) *
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={productForm.careInstructionsText}
+                          onChange={(e) => setProductForm({ ...productForm, careInstructionsText: e.target.value })}
+                          placeholder="Simply wipe clean with a dry cloth&#10;Avoid contact with harsh perfumes and water"
+                          className="w-full px-4 py-3 bg-white border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] transition-all leading-relaxed"
+                        />
+                        <span className="text-[11px] text-brand-muted block mt-1">
+                          Bullet points (•) will be automatically created for each line.
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Accordion 3: Delivery & Exchange Policy */}
+                    <div className="p-5 bg-[#FAF8F2]/70 rounded-2xl border border-[#EAE6DB] space-y-4">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-white border border-[#EAE6DB] flex items-center justify-center text-xs font-black text-brand-charcoal">
+                          3
+                        </span>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-brand-charcoal">
+                          Dropdown 3: Delivery &amp; Exchange Policy
+                        </h4>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-brand-charcoal mb-1.5">
+                          Delivery &amp; Exchange Policy Text *
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={productForm.deliveryPolicy}
+                          onChange={(e) => setProductForm({ ...productForm, deliveryPolicy: e.target.value })}
+                          placeholder="Dispatched within 24 hours. Delivered across India within 2 to 4 business days. Easy 7-day exchange support available on WhatsApp."
+                          className="w-full px-4 py-3 bg-white border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] transition-all leading-relaxed"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SECTION 4: PRODUCT MEDIA & IMAGES (LOCAL STORAGE UPLOAD & REORDER) */}
+                  <div className="space-y-5 pt-6 border-t border-[#EAE6DB]/70">
+                    {/* Hidden Native File Inputs */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      accept="image/png,image/jpeg,image/webp,image/jpg"
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                          handleUploadImagesFromFiles(e.target.files);
+                        }
+                      }}
+                    />
+                    <input
+                      ref={replaceFileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/jpg"
+                      className="hidden"
+                      onChange={handleReplaceImageFile}
+                    />
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <h3 className="text-xs font-bold uppercase tracking-widest text-[#967BB6] flex items-center gap-1.5">
+                          <ImageIcon className="w-3.5 h-3.5 text-[#967BB6]" />
+                          <span>4. PRODUCT MEDIA &amp; IMAGES</span>
+                        </h3>
+                        <p className="text-xs text-brand-muted mt-0.5">
+                          Upload 4–5 product images directly from your computer. Supabase Storage securely hosts the assets.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[11px] font-black px-3 py-1 rounded-full border ${
+                          productForm.images.length >= 4
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : productForm.images.length > 0
+                            ? 'bg-[#F3EEF9] text-[#967BB6] border-[#967BB6]/30'
+                            : 'bg-amber-50 text-amber-800 border-amber-200'
+                        }`}>
+                          {productForm.images.length} / 5 Images
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Drag & Drop Local Upload Box */}
+                    <div
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                          handleUploadImagesFromFiles(e.dataTransfer.files);
+                        }
+                      }}
+                      onClick={() => {
+                        if (!isUploadingMedia && fileInputRef.current) {
+                          fileInputRef.current.click();
+                        }
+                      }}
+                      className={`border-2 border-dashed rounded-3xl p-6 sm:p-8 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-3 ${
+                        isUploadingMedia
+                          ? 'border-[#967BB6] bg-[#F3EEF9]/50'
+                          : 'border-[#967BB6]/40 hover:border-[#967BB6] bg-[#FAF8F2]/60 hover:bg-[#F3EEF9]/20'
+                      }`}
+                    >
+                      {isUploadingMedia ? (
+                        <div className="flex flex-col items-center gap-2 py-2">
+                          <Loader2 className="w-8 h-8 text-[#967BB6] animate-spin" />
+                          <span className="text-xs font-bold text-brand-charcoal">{uploadProgressText || 'Optimizing & Uploading to Supabase Storage...'}</span>
+                          <span className="text-[11px] text-brand-muted">Please wait a moment.</span>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="w-12 h-12 rounded-2xl bg-white border border-[#EAE6DB] flex items-center justify-center text-[#967BB6] shadow-xs">
+                            <UploadCloud className="w-6 h-6 stroke-[1.8]" />
+                          </div>
+                          <div className="space-y-1 max-w-md">
+                            <p className="text-xs sm:text-sm font-bold text-brand-charcoal">
+                              Click to browse or drag &amp; drop 4–5 product photos
+                            </p>
+                            <p className="text-[11px] text-brand-muted">
+                              Supports JPG, PNG, WEBP (automatically optimized &amp; saved to Supabase Storage)
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            className="mt-1 px-5 py-2 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-2"
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>Choose Files from Computer</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Uploaded Images Gallery Grid (Add, Replace, Delete, Reorder) */}
+                    {productForm.images.length > 0 && (
+                      <div className="space-y-3 pt-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold uppercase tracking-wider text-brand-charcoal">
+                            Product Gallery ({productForm.images.length} Photos)
+                          </span>
+                          <span className="text-[11px] text-brand-muted">
+                            ✦ Image #1 is the Primary Cover Photo
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5 sm:gap-4">
+                          {productForm.images.map((imgUrl, index) => {
+                            const isCover = index === 0;
+                            return (
+                              <div
+                                key={index}
+                                className={`group relative bg-white rounded-2xl border-2 overflow-hidden shadow-xs transition-all flex flex-col justify-between ${
+                                  isCover
+                                    ? 'border-[#967BB6] ring-2 ring-[#967BB6]/20'
+                                    : 'border-[#EAE6DB] hover:border-[#967BB6]/60'
+                                }`}
+                              >
+                                {/* Thumbnail Container */}
+                                <div className="relative aspect-square w-full bg-[#FAF8F2] overflow-hidden">
+                                  <img
+                                    src={imgUrl}
+                                    alt={`Product preview ${index + 1}`}
+                                    className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
+                                  />
+
+                                  {/* Badge: Cover or Index */}
+                                  <div className="absolute top-2 left-2 z-10">
+                                    {isCover ? (
+                                      <span className="inline-flex items-center gap-1 bg-[#1A1821]/90 text-[#FFFDD0] text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-xs backdrop-blur-md">
+                                        <Star className="w-2.5 h-2.5 fill-[#FFFDD0] text-[#FFFDD0]" />
+                                        <span>Primary Cover</span>
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center bg-black/60 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-xs backdrop-blur-md">
+                                        #{index + 1}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Delete Button Top Right */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveImage(index)}
+                                    className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-rose-600/90 text-white hover:bg-rose-700 transition-colors flex items-center justify-center shadow-md opacity-90 hover:opacity-100"
+                                    title="Delete this image"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+
+                                {/* Bottom Controls Bar: Reorder & Replace */}
+                                <div className="p-2 bg-[#FAF8F2] border-t border-[#EAE6DB] space-y-1.5">
+                                  <div className="flex items-center justify-between gap-1">
+                                    {/* Move Left */}
+                                    <button
+                                      type="button"
+                                      disabled={index === 0}
+                                      onClick={() => handleMoveImage(index, 'left')}
+                                      className={`p-1 rounded-lg border text-xs transition-colors ${
+                                        index === 0
+                                          ? 'text-gray-300 border-gray-200 cursor-not-allowed'
+                                          : 'bg-white border-[#EAE6DB] text-brand-charcoal hover:border-[#967BB6] hover:bg-[#F3EEF9]'
+                                      }`}
+                                      title="Move earlier"
+                                    >
+                                      <MoveLeft className="w-3 h-3" />
+                                    </button>
+
+                                    {/* Replace Button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setReplacingImageIndex(index);
+                                        if (replaceFileInputRef.current) {
+                                          replaceFileInputRef.current.click();
+                                        }
+                                      }}
+                                      className="flex-1 py-1 px-1.5 bg-white border border-[#EAE6DB] hover:border-[#967BB6] hover:bg-[#F3EEF9] rounded-lg text-[10px] font-bold text-brand-charcoal text-center transition-colors flex items-center justify-center gap-1"
+                                      title="Replace with new photo"
+                                    >
+                                      <RefreshCw className="w-2.5 h-2.5 text-[#967BB6]" />
+                                      <span>Replace</span>
+                                    </button>
+
+                                    {/* Move Right */}
+                                    <button
+                                      type="button"
+                                      disabled={index === productForm.images.length - 1}
+                                      onClick={() => handleMoveImage(index, 'right')}
+                                      className={`p-1 rounded-lg border text-xs transition-colors ${
+                                        index === productForm.images.length - 1
+                                          ? 'text-gray-300 border-gray-200 cursor-not-allowed'
+                                          : 'bg-white border-[#EAE6DB] text-brand-charcoal hover:border-[#967BB6] hover:bg-[#F3EEF9]'
+                                      }`}
+                                      title="Move later"
+                                    >
+                                      <MoveRight className="w-3 h-3" />
+                                    </button>
+                                  </div>
+
+                                  {!isCover && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSetAsCover(index)}
+                                      className="w-full py-0.5 text-[9px] font-bold text-[#967BB6] hover:text-[#7F62A1] hover:bg-white rounded transition-colors text-center block"
+                                    >
+                                      ✦ Make Cover Photo
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Form Action Buttons */}
                   <div className="flex items-center justify-end gap-3 pt-6 border-t border-[#EAE6DB]/70">
                     <button
                       type="button"
-                      onClick={() => setIsCreatingProduct(false)}
+                      onClick={() => {
+                        setIsCreatingProduct(false);
+                        setEditingProductId(null);
+                        setProductForm(DEFAULT_PRODUCT_FORM);
+                      }}
                       className="px-6 py-3 bg-[#FAF8F2] hover:bg-[#FFFDD0] border border-[#EAE6DB] text-brand-charcoal text-xs font-bold uppercase rounded-2xl transition-all"
                     >
                       Cancel
@@ -1094,7 +1990,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                       type="submit"
                       className="px-8 py-3 bg-[#1A1821] hover:bg-[#967BB6] text-white text-xs font-bold uppercase tracking-wider rounded-2xl transition-all shadow-xs"
                     >
-                      Publish Product
+                      {editingProductId ? 'Update Product' : 'Publish Product'}
                     </button>
                   </div>
                 </form>
@@ -1111,6 +2007,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                         type="text"
                         value={productSearch}
                         onChange={(e) => setProductSearch(e.target.value)}
+                        placeholder="Search products..."
                         className="w-full pl-9 pr-4 py-2 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs focus:outline-none focus:border-[#967BB6]"
                       />
                     </div>
@@ -1133,7 +2030,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   </div>
 
                   <button
-                    onClick={() => setIsCreatingProduct(true)}
+                    onClick={() => {
+                      setEditingProductId(null);
+                      setProductForm(DEFAULT_PRODUCT_FORM);
+                      setIsCreatingProduct(true);
+                    }}
                     className="w-full sm:w-auto px-5 py-2.5 bg-[#1A1821] hover:bg-[#967BB6] text-white text-xs font-bold rounded-2xl transition-all shadow-xs flex items-center justify-center gap-2"
                   >
                     <Plus className="w-4 h-4" />
@@ -1202,6 +2103,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           <td className="py-3.5 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               <button
+                                onClick={() => handleStartEditProduct(prod)}
+                                className="p-1.5 rounded-lg text-brand-muted hover:text-[#967BB6] hover:bg-[#F3EEF9] transition-colors"
+                                title="Edit Product"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                              <button
                                 onClick={() => {
                                   setDeleteTarget({
                                     type: 'Product',
@@ -1231,7 +2139,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                       <Package className="w-8 h-8 mx-auto text-brand-muted-light" />
                       <p className="text-sm font-bold">No products found matching your filter.</p>
                       <button
-                        onClick={() => setIsCreatingProduct(true)}
+                        onClick={() => {
+                          setEditingProductId(null);
+                          setProductForm(DEFAULT_PRODUCT_FORM);
+                          setIsCreatingProduct(true);
+                        }}
                         className="mt-2 px-5 py-2 bg-[#967BB6] text-white text-xs font-bold rounded-xl"
                       >
                         Create First Product
@@ -1244,209 +2156,1073 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           </div>
         )}
 
-        {/* TAB 2: ORDERS (REAL DATABASE ORDERS) */}
+        {/* TAB 2: ORDERS (REAL DATABASE ORDERS & DETAILED VIEW) */}
         {activeTab === 'orders' && (
-          <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-6 animate-fade-in">
-            {/* Search and Filters */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="relative w-full sm:w-72">
-                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-muted" />
-                <input
-                  type="text"
-                  value={orderSearch}
-                  onChange={(e) => setOrderSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs focus:outline-none focus:border-[#967BB6]"
-                />
+          selectedOrderDetail ? (
+            /* ================= ORDER DETAILS VIEW ================= */
+            <div className="space-y-6 animate-fade-in">
+              {/* Top Bar Navigation */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white rounded-3xl border border-[#EAE6DB] p-5 sm:p-6 shadow-xs">
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrderDetail(null)}
+                  className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-brand-charcoal hover:text-[#967BB6] transition-colors cursor-pointer group w-fit"
+                >
+                  <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                  <span>Back to Orders</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeleteTarget({
+                      type: 'Order Record',
+                      name: `Order #${selectedOrderDetail.id} - ${selectedOrderDetail.customerName}`,
+                      id: selectedOrderDetail.id,
+                      description: `Amount: ₹${selectedOrderDetail.total} | Seller Status: ${selectedOrderDetail.sellerStatus} | Customer: ${selectedOrderDetail.customerName}`,
+                      onConfirm: async () => {
+                        await DatabaseService.deleteOrder(selectedOrderDetail.id);
+                        setOrders((prev) => prev.filter((o) => o.id !== selectedOrderDetail.id));
+                        setSelectedOrderDetail(null);
+                        triggerToast('Order Deleted', `Order #${selectedOrderDetail.id} removed from database.`, undefined, 'info');
+                      },
+                    });
+                    setDeleteConfirmInput('');
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 border border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer w-fit"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Delete Order</span>
+                </button>
               </div>
 
-              <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
-                {(['All', 'Processing', 'Shipped', 'Delivered', 'Cancelled'] as const).map((status) => (
+              {/* Order Header / Status Banner */}
+              <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h2 className="font-sans font-black text-2xl sm:text-3xl text-brand-charcoal tracking-tight">
+                    {selectedOrderDetail.id}
+                  </h2>
+                  <p className="text-xs text-brand-muted mt-1">
+                    {new Date(selectedOrderDetail.createdAt).toLocaleDateString('en-IN', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Seller Status Badge */}
+                  <div className="flex items-center gap-2 bg-[#FAF8F2] border border-[#EAE6DB] px-3.5 py-2 rounded-2xl">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-brand-muted">SELLER STATUS:</span>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${getSellerStatusBadgeClass(selectedOrderDetail.sellerStatus)}`}>
+                      {selectedOrderDetail.sellerStatus}
+                    </span>
+                  </div>
+
+                  {/* Customer Status Badge (READ ONLY) */}
+                  <div className="flex items-center gap-2 bg-[#FAF8F2] border border-[#EAE6DB] px-3.5 py-2 rounded-2xl">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-brand-muted">CUSTOMER STATUS:</span>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${getCustomerStatusBadgeClass(selectedOrderDetail.customerStatus)}`}>
+                      {selectedOrderDetail.customerStatus}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2-Column Responsive Layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* LEFT COLUMN: ORDERED ITEMS & PAYMENT DETAILS */}
+                <div className="lg:col-span-7 space-y-6">
+                  {/* Ordered Items Card */}
+                  <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-5">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-brand-charcoal border-b border-[#EAE6DB]/60 pb-3">
+                      Ordered Items ({normalizeOrderItems(selectedOrderDetail.items, productsList).length})
+                    </h3>
+
+                    <div className="divide-y divide-[#EAE6DB]/60">
+                      {normalizeOrderItems(selectedOrderDetail.items, productsList).map((item, idx) => (
+                        <div key={idx} className="py-4 first:pt-0 last:pb-0 flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3.5">
+                            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden bg-[#FAF8F2] border border-[#EAE6DB] shrink-0">
+                              <img
+                                src={item.image || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80'}
+                                alt={item.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80';
+                                }}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <h4 className="text-xs sm:text-sm font-bold text-brand-charcoal line-clamp-2">
+                                {item.name}
+                              </h4>
+                              <div className="flex items-center gap-2 text-[11px] text-brand-muted">
+                                <span>Quantity: <strong className="text-brand-charcoal">{item.quantity}</strong></span>
+                                {item.size && (
+                                  <>
+                                    <span>•</span>
+                                    <span>Size: <strong className="text-brand-charcoal">{item.size}</strong></span>
+                                  </>
+                                )}
+                                {item.variant && (
+                                  <>
+                                    <span>•</span>
+                                    <span>Variant: <strong className="text-brand-charcoal">{item.variant}</strong></span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <span className="text-sm font-black text-brand-charcoal block">
+                              ₹{item.price * item.quantity}
+                            </span>
+                            {item.quantity > 1 && (
+                              <span className="text-[10px] text-brand-muted">
+                                ₹{item.price} each
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Payment Details Box */}
+                  <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-4">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-brand-muted">
+                      Payment Details
+                    </h3>
+
+                    <div className="space-y-2.5 text-xs">
+                      <div className="flex items-center justify-between text-brand-muted">
+                        <span>Subtotal:</span>
+                        <span className="font-bold text-brand-charcoal">₹{selectedOrderDetail.subtotal}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-brand-muted">
+                        <span>Shipping:</span>
+                        <span className="font-bold text-emerald-600">
+                          {selectedOrderDetail.shippingFee === 0 ? 'Free' : `₹${selectedOrderDetail.shippingFee}`}
+                        </span>
+                      </div>
+                      {selectedOrderDetail.discountAmount > 0 && (
+                        <div className="flex items-center justify-between text-brand-muted">
+                          <span>Discount:</span>
+                          <span className="font-bold text-rose-600">-₹{selectedOrderDetail.discountAmount}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between text-brand-muted">
+                        <span>Payment Method:</span>
+                        <span className="font-medium text-brand-charcoal">{selectedOrderDetail.paymentMethod}</span>
+                      </div>
+                      <div className="border-t border-[#EAE6DB] pt-3 flex items-center justify-between text-sm sm:text-base font-black text-brand-charcoal">
+                        <span>Total Paid:</span>
+                        <span className="text-base sm:text-lg">₹{selectedOrderDetail.total}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* RIGHT COLUMN: CUSTOMER & SHIPPING DETAILS */}
+                <div className="lg:col-span-5 space-y-6">
+                  <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-6">
+                    <h3 className="font-serif text-xl text-brand-charcoal font-medium border-b border-[#EAE6DB]/60 pb-3">
+                      Customer &amp; Shipping Details
+                    </h3>
+
+                    {/* Customer Info */}
+                    <div className="space-y-4 text-xs">
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-brand-muted block">
+                          CUSTOMER NAME
+                        </span>
+                        <span className="font-bold text-brand-charcoal text-sm block mt-0.5">
+                          {selectedOrderDetail.customerName}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-brand-muted block">
+                          EMAIL ADDRESS
+                        </span>
+                        <span className="font-mono text-brand-charcoal block mt-0.5 break-all">
+                          {selectedOrderDetail.email}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-brand-muted block">
+                          PHONE NUMBER
+                        </span>
+                        <span className="font-mono font-bold text-brand-charcoal block mt-0.5">
+                          {selectedOrderDetail.phone || 'Not provided'}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-brand-muted block">
+                          SHIPPING ADDRESS
+                        </span>
+                        <p className="text-brand-charcoal mt-1 leading-relaxed bg-[#FAF8F2] border border-[#EAE6DB] p-3 rounded-2xl">
+                          {selectedOrderDetail.address}
+                          <br />
+                          {selectedOrderDetail.city}, {selectedOrderDetail.state} {selectedOrderDetail.pincode}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Quick Status Update (Admin Only Updates Seller Status) */}
+                    <div className="space-y-2 pt-2 border-t border-[#EAE6DB]/60">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-brand-muted block">
+                        QUICK STATUS UPDATE (SELLER STATUS)
+                      </span>
+                      <select
+                        value={selectedOrderDetail.sellerStatus}
+                        onChange={(e) => handleSellerStatusChange(selectedOrderDetail.id, e.target.value as SellerStatus)}
+                        className="w-full bg-[#FAF8F2] border-2 border-[#EAE6DB] focus:border-[#967BB6] rounded-2xl px-4 py-3 text-xs font-bold text-brand-charcoal focus:outline-none transition-colors cursor-pointer"
+                      >
+                        <option value="Pending">Pending</option>
+                        <option value="Shipped">Shipped</option>
+                        <option value="Out for Delivery">Out for Delivery</option>
+                        <option value="Delivered">Delivered</option>
+                        <option value="Cancelled by Seller">Cancelled by Seller</option>
+                      </select>
+                      <p className="text-[10px] text-brand-muted">
+                        Note: Customer Status is read-only and automatically managed by customer actions.
+                      </p>
+                    </div>
+
+                    {/* Courier & Tracking Fulfillment Info */}
+                    <div className="space-y-3 pt-2 border-t border-[#EAE6DB]/60">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-brand-muted block">
+                          COURIER &amp; TRACKING DETAILS
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShippingModalOrder(selectedOrderDetail);
+                            setShippingModalTargetStatus(
+                              selectedOrderDetail.sellerStatus === 'Pending' ? 'Shipped' : selectedOrderDetail.sellerStatus
+                            );
+                            setCourierInput(selectedOrderDetail.courierName || 'BlueDart Express');
+                            setTrackingInput(selectedOrderDetail.trackingNumber || '');
+                            setTrackingUrlInput(selectedOrderDetail.trackingUrl || '');
+                          }}
+                          className="text-[11px] font-bold text-[#967BB6] hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                          <span>{selectedOrderDetail.courierName || selectedOrderDetail.trackingNumber ? 'Edit Courier Info' : '+ Add Courier Info'}</span>
+                        </button>
+                      </div>
+
+                      {selectedOrderDetail.courierName || selectedOrderDetail.trackingNumber ? (
+                        <div className="bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl p-3.5 space-y-2.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-brand-muted">Courier Partner:</span>
+                            <span className="font-bold text-brand-charcoal flex items-center gap-1.5">
+                              <Truck className="w-3.5 h-3.5 text-[#967BB6]" />
+                              {selectedOrderDetail.courierName || 'Standard Express'}
+                            </span>
+                          </div>
+                          
+                          {selectedOrderDetail.trackingNumber && (
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-brand-muted">AWB / Tracking #:</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono font-bold text-brand-charcoal bg-white border border-[#EAE6DB] px-2 py-0.5 rounded-md">
+                                  {selectedOrderDetail.trackingNumber}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(selectedOrderDetail.trackingNumber || '');
+                                    triggerToast('Tracking # Copied! 📋', selectedOrderDetail.trackingNumber, undefined, 'success');
+                                  }}
+                                  className="p-1 hover:bg-white rounded text-brand-muted hover:text-brand-charcoal transition-colors cursor-pointer"
+                                  title="Copy Tracking #"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {selectedOrderDetail.trackingUrl && (
+                            <a
+                              href={selectedOrderDetail.trackingUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="w-full mt-1 py-2 px-3 bg-white hover:bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-[11px] font-bold text-[#967BB6] flex items-center justify-center gap-1.5 transition-colors"
+                            >
+                              <span>Open Live Tracking Page</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="bg-[#FAF8F2]/60 border border-dashed border-[#EAE6DB] rounded-2xl p-3 text-center text-xs text-brand-muted">
+                          No courier tracking details added yet. Marking status as <strong className="text-brand-charcoal">Shipped</strong> will prompt for courier and AWB.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Special Instruction / Message to Customer */}
+                    <div className="space-y-3 pt-2 border-t border-[#EAE6DB]/60">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-brand-muted block">
+                        SPECIAL INSTRUCTION / MESSAGE TO CUSTOMER
+                      </span>
+                      <textarea
+                        rows={3}
+                        value={specialInstructionDraft}
+                        onChange={(e) => setSpecialInstructionDraft(e.target.value)}
+                        placeholder="Enter any instructions or update message for the customer here..."
+                        className="w-full bg-[#FAF8F2] border border-[#EAE6DB] focus:border-[#967BB6] rounded-2xl p-3 text-xs text-brand-charcoal focus:outline-none resize-none transition-colors"
+                      />
+                      <button
+                        type="button"
+                        disabled={isSavingInstruction}
+                        onClick={() => handleSaveSpecialInstruction(selectedOrderDetail.id)}
+                        className="w-full py-3 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-black uppercase tracking-wider rounded-2xl transition-all shadow-xs active:scale-95 disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        {isSavingInstruction ? (
+                          <span>Saving...</span>
+                        ) : (
+                          <>
+                            <Send className="w-3.5 h-3.5" />
+                            <span>Send Instruction to Customer</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* ================= ORDER LIST VIEW ================= */
+            <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-6 animate-fade-in">
+              {/* Header Title & Search */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EAE6DB]/60 pb-5">
+                <div>
+                  <h2 className="font-serif text-2xl text-brand-charcoal font-medium">Order Management</h2>
+                  <p className="text-xs text-brand-muted mt-0.5">Fulfill orders, track shipping, and update statuses.</p>
+                </div>
+
+                <div className="relative w-full sm:w-80">
+                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-muted" />
+                  <input
+                    type="text"
+                    value={orderSearch}
+                    onChange={(e) => setOrderSearch(e.target.value)}
+                    placeholder="Search by order#, name, city..."
+                    className="w-full pl-9 pr-4 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs focus:outline-none focus:border-[#967BB6] transition-colors"
+                  />
+                </div>
+              </div>
+
+              {/* Status Quick Filters */}
+              <div className="flex flex-wrap items-center gap-2">
+                {(['All', 'Pending', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled by Seller'] as const).map((status) => (
                   <button
                     key={status}
+                    type="button"
                     onClick={() => setOrderStatusFilter(status)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       orderStatusFilter === status
-                        ? 'bg-[#1A1821] text-white'
-                        : 'bg-[#FAF8F2] text-brand-muted hover:text-brand-charcoal'
+                        ? 'bg-[#1A1821] text-white shadow-xs'
+                        : 'bg-[#FAF8F2] border border-[#EAE6DB] text-brand-muted hover:text-brand-charcoal'
                     }`}
                   >
                     {status}
                   </button>
                 ))}
               </div>
-            </div>
 
-            {/* Orders Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-[#EAE6DB] text-[11px] uppercase tracking-wider text-brand-muted font-bold">
-                    <th className="py-3 px-4">Order ID &amp; Date</th>
-                    <th className="py-3 px-4">Customer Details</th>
-                    <th className="py-3 px-4">Items Summary</th>
-                    <th className="py-3 px-4">Total</th>
-                    <th className="py-3 px-4">Payment</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Update Status in DB</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#EAE6DB]/60 text-xs">
-                  {filteredOrders.map((ord) => (
-                    <tr key={ord.id} className="hover:bg-[#FAF8F2]/60 transition-colors">
-                      <td className="py-4 px-4">
-                        <span className="font-bold text-brand-charcoal block">{ord.id}</span>
-                        <span className="text-[11px] text-brand-muted">
-                          {new Date(ord.createdAt).toLocaleDateString('en-IN', {
-                            day: 'numeric',
-                            month: 'short',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className="font-bold text-brand-charcoal block">{ord.customerName}</span>
-                        <span className="text-[11px] text-brand-muted">{ord.email}</span>
-                        <span className="text-[10px] text-brand-muted block">{ord.city} • {ord.phone}</span>
-                      </td>
-                      <td className="py-4 px-4 max-w-xs">
-                        <ul className="list-disc list-inside space-y-0.5 text-[11px] text-brand-charcoal">
-                          {ord.items.map((item, idx) => (
-                            <li key={idx} className="truncate">{item}</li>
-                          ))}
-                        </ul>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className="font-black text-brand-charcoal text-sm">₹{ord.total}</span>
-                      </td>
-                      <td className="py-4 px-4 text-brand-muted font-medium">
-                        {ord.paymentMethod}
-                      </td>
-                      <td className="py-4 px-4">
-                        <span
-                          className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full ${
-                            ord.status === 'Delivered'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : ord.status === 'Shipped'
-                              ? 'bg-blue-100 text-blue-800'
-                              : ord.status === 'Cancelled'
-                              ? 'bg-rose-100 text-rose-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}
-                        >
-                          {ord.status === 'Delivered' && <CheckCircle2 className="w-3 h-3" />}
-                          {ord.status === 'Shipped' && <Truck className="w-3 h-3" />}
-                          {ord.status === 'Processing' && <Clock className="w-3 h-3" />}
-                          <span>{ord.status}</span>
-                        </span>
-                      </td>
-                      <td className="py-4 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <select
-                            value={ord.status}
-                            onChange={(e) => handleOrderStatusChange(ord.id, e.target.value as RealOrder['status'])}
-                            className="bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl px-2.5 py-1 text-xs font-bold text-brand-charcoal focus:outline-none focus:border-[#967BB6]"
-                          >
-                            <option value="Processing">Processing</option>
-                            <option value="Shipped">Shipped</option>
-                            <option value="Delivered">Delivered</option>
-                            <option value="Cancelled">Cancelled</option>
-                          </select>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDeleteTarget({
-                                type: 'Order Record',
-                                name: `Order #${ord.id} - ${ord.customerName}`,
-                                id: ord.id,
-                                description: `Amount: ₹${ord.total} | Status: ${ord.status} | Payment: ${ord.paymentMethod}`,
-                                onConfirm: async () => {
-                                  await DatabaseService.deleteOrder(ord.id);
-                                  setOrders((prev) => prev.filter((o) => o.id !== ord.id));
-                                  triggerToast('Order Deleted', `Order #${ord.id} removed from database.`, undefined, 'info');
-                                },
-                              });
-                              setDeleteConfirmInput('');
-                            }}
-                            className="p-1.5 text-brand-muted hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
-                            title="Delete Order Record"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
+              {/* Orders Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-[#EAE6DB] text-[11px] uppercase tracking-wider text-brand-muted font-bold">
+                      <th className="py-3.5 px-4">Order #</th>
+                      <th className="py-3.5 px-4">Date</th>
+                      <th className="py-3.5 px-4">Customer</th>
+                      <th className="py-3.5 px-4">Items</th>
+                      <th className="py-3.5 px-4">Total</th>
+                      <th className="py-3.5 px-4">Location</th>
+                      <th className="py-3.5 px-4">Status</th>
+                      <th className="py-3.5 px-4 text-right">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-[#EAE6DB]/60 text-xs">
+                    {filteredOrders.map((ord) => {
+                      const normalizedItems = normalizeOrderItems(ord.items, productsList);
+                      return (
+                        <tr key={ord.id} className="hover:bg-[#FAF8F2]/60 transition-colors">
+                          {/* Order # */}
+                          <td className="py-4 px-4 align-top whitespace-nowrap">
+                            <span className="font-bold text-brand-charcoal block">{ord.id}</span>
+                          </td>
 
-              {filteredOrders.length === 0 && (
-                <div className="py-12 text-center text-brand-muted space-y-2">
-                  <ShoppingBag className="w-8 h-8 mx-auto text-brand-muted-light" />
-                  <p className="text-sm font-bold">No orders found matching this filter.</p>
-                </div>
-              )}
+                          {/* Date */}
+                          <td className="py-4 px-4 align-top text-brand-charcoal whitespace-nowrap">
+                            <span className="text-xs block font-medium">
+                              {new Date(ord.createdAt).toLocaleDateString('en-IN', {
+                                month: 'short',
+                                day: 'numeric',
+                              })},
+                            </span>
+                            <span className="text-[11px] text-brand-muted block">
+                              {new Date(ord.createdAt).toLocaleTimeString('en-IN', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          </td>
+
+                          {/* Customer */}
+                          <td className="py-4 px-4 align-top min-w-[170px]">
+                            <span className="font-bold text-brand-charcoal block">{ord.customerName}</span>
+                            <span className="text-[11px] text-brand-muted block truncate max-w-[200px]" title={ord.email}>
+                              {ord.email}
+                            </span>
+                          </td>
+
+                          {/* Items */}
+                          <td className="py-4 px-4 align-top whitespace-nowrap">
+                            <span className="text-xs text-brand-charcoal font-medium">
+                              {normalizedItems.length} {normalizedItems.length === 1 ? 'item' : 'items'}
+                            </span>
+                          </td>
+
+                          {/* Total */}
+                          <td className="py-4 px-4 align-top whitespace-nowrap">
+                            <span className="font-black text-brand-charcoal text-sm">₹{ord.total}</span>
+                          </td>
+
+                          {/* Location */}
+                          <td className="py-4 px-4 align-top min-w-[150px]">
+                            <div className="flex items-start gap-1 text-xs text-brand-charcoal">
+                              <MapPin className="w-3.5 h-3.5 text-brand-muted shrink-0 mt-0.5" />
+                              <span>{ord.city || 'Mumbai'}, {ord.state || 'Maharashtra'}</span>
+                            </div>
+                          </td>
+
+                          {/* Status */}
+                          <td className="py-4 px-4 align-top">
+                            <div className="space-y-1.5 min-w-[140px]">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[9px] font-black uppercase tracking-wider text-brand-muted w-14 shrink-0">SELLER:</span>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getSellerStatusBadgeClass(ord.sellerStatus)}`}>
+                                  {ord.sellerStatus}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[9px] font-black uppercase tracking-wider text-brand-muted w-14 shrink-0">CUSTOMER:</span>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getCustomerStatusBadgeClass(ord.customerStatus)}`}>
+                                  {ord.customerStatus}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-4 px-4 align-top text-right">
+                            <div className="flex items-center justify-end gap-2.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedOrderDetail(ord);
+                                  setSpecialInstructionDraft(ord.specialInstructions || '');
+                                }}
+                                className="text-xs font-bold text-brand-charcoal hover:text-[#967BB6] underline underline-offset-2 transition-colors cursor-pointer whitespace-nowrap"
+                              >
+                                View Details
+                              </button>
+
+                              {/* Seller Status Quick Dropdown */}
+                              <select
+                                value={ord.sellerStatus}
+                                onChange={(e) => handleSellerStatusChange(ord.id, e.target.value as SellerStatus)}
+                                className="bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl px-2.5 py-1.5 text-xs font-bold text-brand-charcoal focus:outline-none focus:border-[#967BB6] transition-colors cursor-pointer"
+                              >
+                                <option value="Pending">Pending</option>
+                                <option value="Shipped">Shipped</option>
+                                <option value="Out for Delivery">Out for Delivery</option>
+                                <option value="Delivered">Delivered</option>
+                                <option value="Cancelled by Seller">Cancelled by Seller</option>
+                              </select>
+
+                              {/* Delete button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDeleteTarget({
+                                    type: 'Order Record',
+                                    name: `Order #${ord.id} - ${ord.customerName}`,
+                                    id: ord.id,
+                                    description: `Amount: ₹${ord.total} | Seller Status: ${ord.sellerStatus} | Customer: ${ord.customerName}`,
+                                    onConfirm: async () => {
+                                      await DatabaseService.deleteOrder(ord.id);
+                                      setOrders((prev) => prev.filter((o) => o.id !== ord.id));
+                                      if (selectedOrderDetail?.id === ord.id) {
+                                        setSelectedOrderDetail(null);
+                                      }
+                                      triggerToast('Order Deleted', `Order #${ord.id} removed from database.`, undefined, 'info');
+                                    },
+                                  });
+                                  setDeleteConfirmInput('');
+                                }}
+                                className="p-1.5 text-brand-muted hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                                title="Delete Order Record"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                {filteredOrders.length === 0 && (
+                  <div className="py-12 text-center text-brand-muted space-y-2">
+                    <ShoppingBag className="w-8 h-8 mx-auto text-brand-muted-light" />
+                    <p className="text-sm font-bold">No orders found matching this filter.</p>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )
         )}
 
         {/* TAB 3: CUSTOMERS */}
         {activeTab === 'customers' && (
-          <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-6 animate-fade-in">
-            <div>
-              <h3 className="font-serif text-xl text-brand-charcoal font-medium">Customer Directory</h3>
-              <p className="text-xs text-brand-muted">Real customers derived from database purchases and member accounts.</p>
-            </div>
+          selectedCustomerDetail ? (
+            /* ========================================================================= */
+            /* 3A. CUSTOMER DETAILS VIEW (Matching Reference Structure & GT Luxury Theme) */
+            /* ========================================================================= */
+            <div className="space-y-6 animate-fade-in">
+              {/* Back to Customers Bar + UID */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#EAE6DB]">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCustomerDetail(null)}
+                  className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-brand-charcoal hover:text-[#967BB6] transition-colors cursor-pointer w-fit"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Back to Customers</span>
+                </button>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-[#EAE6DB] text-[11px] uppercase tracking-wider text-brand-muted font-bold">
-                    <th className="py-3 px-4">Customer Name</th>
-                    <th className="py-3 px-4">Contact Info</th>
-                    <th className="py-3 px-4">Location</th>
-                    <th className="py-3 px-4">Orders Placed</th>
-                    <th className="py-3 px-4">Lifetime Spend</th>
-                    <th className="py-3 px-4">VIP Tier</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#EAE6DB]/60 text-xs">
-                  {customers.map((c) => (
-                    <tr key={c.id} className="hover:bg-[#FAF8F2]/60 transition-colors">
-                      <td className="py-3.5 px-4 font-bold text-brand-charcoal">
-                        {c.name}
-                      </td>
-                      <td className="py-3.5 px-4 text-brand-muted">
-                        <div>{c.email}</div>
-                        <div className="text-[10px]">{c.phone || '—'}</div>
-                      </td>
-                      <td className="py-3.5 px-4 text-brand-charcoal">{c.city}</td>
-                      <td className="py-3.5 px-4 font-bold">{c.ordersCount} Orders</td>
-                      <td className="py-3.5 px-4 font-black text-brand-charcoal">₹{c.totalSpent}</td>
-                      <td className="py-3.5 px-4">
-                        <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
-                          c.tier === 'VIP Platinum'
-                            ? 'bg-[#1A1821] text-white'
-                            : c.tier === 'VIP Gold'
-                            ? 'bg-[#FFFDD0] text-[#967BB6] border border-[#EAE6DB]'
-                            : 'bg-gray-100 text-gray-700'
-                        }`}>
-                          {c.tier}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {customers.length === 0 && (
-                <div className="py-12 text-center text-brand-muted space-y-2">
-                  <Users className="w-8 h-8 mx-auto text-brand-muted-light" />
-                  <p className="text-sm font-bold">No customers in database yet.</p>
+                <div className="text-[11px] font-mono text-brand-muted truncate max-w-md" title={selectedCustomerDetail.supabaseUid || selectedCustomerDetail.id}>
+                  ID: <span className="font-bold text-brand-charcoal">{selectedCustomerDetail.supabaseUid || selectedCustomerDetail.id}</span>
                 </div>
-              )}
+              </div>
+
+              {/* Customer Profile Banner Card */}
+              <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 sm:p-8 shadow-xs flex flex-col md:flex-row md:items-center gap-6 justify-between">
+                <div className="flex items-center gap-5">
+                  {/* Avatar / Initials */}
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#FAF8F2] border-2 border-[#EAE6DB] text-[#967BB6] flex items-center justify-center font-serif text-xl sm:text-2xl font-bold shadow-xs shrink-0 overflow-hidden">
+                    {selectedCustomerDetail.avatarUrl ? (
+                      <img
+                        src={selectedCustomerDetail.avatarUrl}
+                        alt={selectedCustomerDetail.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span>{getInitials(selectedCustomerDetail.name, selectedCustomerDetail.email)}</span>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <h2 className="font-serif text-2xl sm:text-3xl text-brand-charcoal font-medium">
+                        {selectedCustomerDetail.name}
+                      </h2>
+
+                      {/* Account Type Badge */}
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
+                        selectedCustomerDetail.accountType === 'Registered'
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          : 'bg-amber-100 text-amber-800 border border-amber-200'
+                      }`}>
+                        {selectedCustomerDetail.accountType}
+                      </span>
+
+                      {/* Auth Provider Badge */}
+                      <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#FAF8F2] text-[#967BB6] border border-[#EAE6DB] flex items-center gap-1">
+                        <Mail className="w-3 h-3" />
+                        <span>{selectedCustomerDetail.authProvider || 'Email / Password'}</span>
+                      </span>
+                    </div>
+
+                    {/* Contact row */}
+                    <div className="flex flex-wrap items-center gap-4 text-xs text-brand-muted">
+                      <span className="flex items-center gap-1.5 text-brand-charcoal">
+                        <Mail className="w-3.5 h-3.5 text-brand-muted" />
+                        <span>{selectedCustomerDetail.email}</span>
+                      </span>
+
+                      {selectedCustomerDetail.phone && selectedCustomerDetail.phone !== '—' && (
+                        <span className="flex items-center gap-1.5 font-mono text-brand-charcoal">
+                          <Phone className="w-3.5 h-3.5 text-brand-muted" />
+                          <span>{selectedCustomerDetail.phone}</span>
+                        </span>
+                      )}
+
+                      <span className="flex items-center gap-1.5 text-brand-charcoal">
+                        <MapPin className="w-3.5 h-3.5 text-brand-muted" />
+                        <span>{selectedCustomerDetail.city}, {selectedCustomerDetail.state || 'India'}</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="shrink-0 flex items-center gap-2">
+                  <span className={`text-xs font-black uppercase px-3 py-1 rounded-full ${
+                    selectedCustomerDetail.tier === 'VIP Platinum'
+                      ? 'bg-[#1A1821] text-white'
+                      : selectedCustomerDetail.tier === 'VIP Gold'
+                      ? 'bg-[#FFFDD0] text-[#967BB6] border border-[#EAE6DB]'
+                      : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {selectedCustomerDetail.tier} Member
+                  </span>
+                </div>
+              </div>
+
+              {/* 4 Summary Metric Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* 1. Lifetime Spent */}
+                <div className="bg-white rounded-3xl border border-[#EAE6DB] p-5 shadow-xs space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-brand-muted block">
+                    LIFETIME SPENT
+                  </span>
+                  <div className="font-sans text-2xl font-black text-emerald-700">
+                    ₹{selectedCustomerDetail.totalSpent.toLocaleString('en-IN')}
+                  </div>
+                  <p className="text-[11px] text-brand-muted">Total revenue including tax</p>
+                </div>
+
+                {/* 2. Total Orders */}
+                <div className="bg-white rounded-3xl border border-[#EAE6DB] p-5 shadow-xs space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-brand-muted block">
+                    TOTAL ORDERS
+                  </span>
+                  <div className="font-serif text-2xl font-bold text-[#967BB6]">
+                    {selectedCustomerDetail.ordersCount} <span className="font-sans text-sm font-normal text-brand-muted">{selectedCustomerDetail.ordersCount === 1 ? 'order' : 'orders'}</span>
+                  </div>
+                  <p className="text-[11px] text-brand-muted">Successful or pending orders</p>
+                </div>
+
+                {/* 3. Avg Order Value (AOV) */}
+                <div className="bg-white rounded-3xl border border-[#EAE6DB] p-5 shadow-xs space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-brand-muted block">
+                    AVG. ORDER VALUE (AOV)
+                  </span>
+                  <div className="font-sans text-2xl font-black text-amber-700">
+                    ₹{selectedCustomerDetail.avgOrderValue.toLocaleString('en-IN')}
+                  </div>
+                  <p className="text-[11px] text-brand-muted">LTV divided by total orders</p>
+                </div>
+
+                {/* 4. Delivery Location */}
+                <div className="bg-white rounded-3xl border border-[#EAE6DB] p-5 shadow-xs space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-brand-muted block">
+                    DELIVERY LOCATION
+                  </span>
+                  <div className="font-bold text-sm text-brand-charcoal line-clamp-1">
+                    {selectedCustomerDetail.address || `${selectedCustomerDetail.city}, ${selectedCustomerDetail.state}`}
+                  </div>
+                  <p className="text-[11px] text-brand-muted line-clamp-1">
+                    {selectedCustomerDetail.city}, {selectedCustomerDetail.state} {selectedCustomerDetail.pincode}
+                  </p>
+                </div>
+              </div>
+
+              {/* 2-Column Responsive Layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* LEFT COLUMN: PRODUCTS PURCHASED & ORDERS LOG */}
+                <div className="lg:col-span-7 space-y-6">
+                  {/* Card 1: Products Purchased */}
+                  <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-4">
+                    <div className="flex items-center gap-2 pb-3 border-b border-[#EAE6DB]/60">
+                      <ShoppingBag className="w-4 h-4 text-[#967BB6]" />
+                      <h3 className="font-serif text-lg text-brand-charcoal font-medium">
+                        Products Purchased ({selectedCustomerDetail.purchasedProducts.length})
+                      </h3>
+                    </div>
+
+                    {selectedCustomerDetail.purchasedProducts.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="border-b border-[#EAE6DB] text-[10px] font-black uppercase tracking-wider text-brand-muted">
+                              <th className="py-2.5 px-3">Product</th>
+                              <th className="py-2.5 px-3 text-center">Quantity</th>
+                              <th className="py-2.5 px-3 text-right">Unit Price</th>
+                              <th className="py-2.5 px-3 text-right">Total Spent</th>
+                              <th className="py-2.5 px-3 text-right">Last Ordered</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#EAE6DB]/60">
+                            {selectedCustomerDetail.purchasedProducts.map((prod, idx) => (
+                              <tr key={idx} className="hover:bg-[#FAF8F2]/60 transition-colors">
+                                <td className="py-3 px-3">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl overflow-hidden bg-[#FAF8F2] border border-[#EAE6DB] shrink-0">
+                                      <img
+                                        src={prod.image}
+                                        alt={prod.name}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80';
+                                        }}
+                                      />
+                                    </div>
+                                    <span className="font-bold text-brand-charcoal line-clamp-1">{prod.name}</span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-3 text-center font-bold text-brand-charcoal">
+                                  {prod.quantity}
+                                </td>
+                                <td className="py-3 px-3 text-right text-brand-muted">
+                                  ₹{prod.unitPrice}
+                                </td>
+                                <td className="py-3 px-3 text-right font-black text-brand-charcoal">
+                                  ₹{prod.totalSpent}
+                                </td>
+                                <td className="py-3 px-3 text-right text-[11px] text-brand-muted whitespace-nowrap">
+                                  {new Date(prod.lastOrderedDate).toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                  })}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="py-8 text-center text-brand-muted space-y-1">
+                        <Package className="w-6 h-6 mx-auto text-brand-muted-light" />
+                        <p className="text-xs">No products purchased yet.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Card 2: Orders Log */}
+                  <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-4">
+                    <div className="flex items-center gap-2 pb-3 border-b border-[#EAE6DB]/60">
+                      <Layers className="w-4 h-4 text-[#967BB6]" />
+                      <h3 className="font-serif text-lg text-brand-charcoal font-medium">
+                        Orders Log ({selectedCustomerDetail.orders.length})
+                      </h3>
+                    </div>
+
+                    {selectedCustomerDetail.orders.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="border-b border-[#EAE6DB] text-[10px] font-black uppercase tracking-wider text-brand-muted">
+                              <th className="py-2.5 px-3">Order #</th>
+                              <th className="py-2.5 px-3">Date</th>
+                              <th className="py-2.5 px-3">Status</th>
+                              <th className="py-2.5 px-3 text-right">Total</th>
+                              <th className="py-2.5 px-3 text-right">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#EAE6DB]/60">
+                            {selectedCustomerDetail.orders.map((ord) => (
+                              <tr key={ord.id} className="hover:bg-[#FAF8F2]/60 transition-colors">
+                                <td className="py-3 px-3 font-bold text-brand-charcoal font-mono whitespace-nowrap">
+                                  {ord.id}
+                                </td>
+                                <td className="py-3 px-3 text-brand-muted whitespace-nowrap">
+                                  {new Date(ord.createdAt).toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                  })}
+                                </td>
+                                <td className="py-3 px-3">
+                                  <div className="space-y-1">
+                                    <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded-full ${getSellerStatusBadgeClass(ord.sellerStatus)}`}>
+                                      {ord.sellerStatus}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-3 text-right font-black text-brand-charcoal">
+                                  ₹{ord.total}
+                                </td>
+                                <td className="py-3 px-3 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveTab('orders');
+                                      setSelectedOrderDetail(ord);
+                                      setSpecialInstructionDraft(ord.specialInstructions || '');
+                                    }}
+                                    className="text-xs font-bold text-[#967BB6] hover:underline cursor-pointer"
+                                  >
+                                    View Order
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="py-8 text-center text-brand-muted space-y-1">
+                        <ShoppingBag className="w-6 h-6 mx-auto text-brand-muted-light" />
+                        <p className="text-xs">No orders placed yet.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* RIGHT COLUMN: LIVE CART & WISHLIST ITEMS */}
+                <div className="lg:col-span-5 space-y-6">
+                  {/* Shopping Cart Card */}
+                  <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-[#EAE6DB]/60">
+                      <div className="flex items-center gap-2">
+                        <ShoppingCart className="w-4 h-4 text-[#967BB6]" />
+                        <h3 className="font-serif text-lg text-brand-charcoal font-medium">Shopping Cart</h3>
+                      </div>
+                      <span className="text-[11px] font-black bg-[#FAF8F2] border border-[#EAE6DB] px-2.5 py-0.5 rounded-full text-brand-muted">
+                        {customerCartItems.length} items
+                      </span>
+                    </div>
+
+                    {isLoadingCustomerActivity ? (
+                      <div className="py-8 text-center text-brand-muted space-y-2">
+                        <Loader2 className="w-5 h-5 animate-spin mx-auto text-[#967BB6]" />
+                        <p className="text-xs">Syncing cart from Supabase...</p>
+                      </div>
+                    ) : customerCartItems.length > 0 ? (
+                      <div className="divide-y divide-[#EAE6DB]/60">
+                        {customerCartItems.map((cItem) => (
+                          <div key={cItem.id} className="py-3 first:pt-0 last:pb-0 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 rounded-xl overflow-hidden bg-[#FAF8F2] border border-[#EAE6DB] shrink-0">
+                                <img
+                                  src={cItem.image}
+                                  alt={cItem.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <div className="space-y-0.5">
+                                <h4 className="text-xs font-bold text-brand-charcoal line-clamp-1">{cItem.name}</h4>
+                                <div className="text-[10px] text-brand-muted flex items-center gap-1.5">
+                                  <span>Qty: <strong className="text-brand-charcoal">{cItem.quantity}</strong></span>
+                                  {cItem.selectedSize && <span>• Size: {cItem.selectedSize}</span>}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="text-xs font-black text-brand-charcoal block">₹{cItem.price * cItem.quantity}</span>
+                              <span className="text-[10px] text-brand-muted">₹{cItem.price} each</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="py-8 text-center text-brand-muted space-y-1">
+                        <ShoppingCart className="w-6 h-6 mx-auto text-brand-muted-light" />
+                        <p className="text-xs">Shopping cart is empty.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Wishlist Card */}
+                  <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-[#EAE6DB]/60">
+                      <div className="flex items-center gap-2">
+                        <Heart className="w-4 h-4 text-rose-500" />
+                        <h3 className="font-serif text-lg text-brand-charcoal font-medium">Wishlist</h3>
+                      </div>
+                      <span className="text-[11px] font-black bg-[#FAF8F2] border border-[#EAE6DB] px-2.5 py-0.5 rounded-full text-brand-muted">
+                        {customerWishlistItems.length} items
+                      </span>
+                    </div>
+
+                    {isLoadingCustomerActivity ? (
+                      <div className="py-8 text-center text-brand-muted space-y-2">
+                        <Loader2 className="w-5 h-5 animate-spin mx-auto text-[#967BB6]" />
+                        <p className="text-xs">Syncing wishlist from Supabase...</p>
+                      </div>
+                    ) : customerWishlistItems.length > 0 ? (
+                      <div className="divide-y divide-[#EAE6DB]/60">
+                        {customerWishlistItems.map((wItem) => (
+                          <div key={wItem.id} className="py-3 first:pt-0 last:pb-0 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 rounded-xl overflow-hidden bg-[#FAF8F2] border border-[#EAE6DB] shrink-0">
+                                <img
+                                  src={wItem.image}
+                                  alt={wItem.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <div className="space-y-0.5">
+                                <h4 className="text-xs font-bold text-brand-charcoal line-clamp-1">{wItem.name}</h4>
+                                <span className="text-[10px] text-brand-muted block">Saved in wishlist</span>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="text-xs font-black text-brand-charcoal block">₹{wItem.price}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="py-8 text-center text-brand-muted space-y-1">
+                        <Heart className="w-6 h-6 mx-auto text-brand-muted-light" />
+                        <p className="text-xs">Wishlist is empty.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            /* ========================================================================= */
+            /* 3B. CUSTOMER DIRECTORY LIST VIEW (Matching Reference Structure & GT Luxury Theme) */
+            /* ========================================================================= */
+            <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-6 animate-fade-in">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EAE6DB]/60 pb-5">
+                <div>
+                  <h3 className="font-serif text-2xl text-brand-charcoal font-medium">Customer Directory</h3>
+                  <p className="text-xs text-brand-muted mt-0.5">
+                    Registered members and guest accounts who completed checkout. Click any customer to view details.
+                  </p>
+                </div>
+
+                {/* Search Bar */}
+                <div className="relative w-full sm:w-80">
+                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-muted" />
+                  <input
+                    type="text"
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    placeholder="Search by name, email, city..."
+                    className="w-full pl-9 pr-4 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs focus:outline-none focus:border-[#967BB6] transition-colors"
+                  />
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-[#EAE6DB] text-[11px] uppercase tracking-wider text-brand-muted font-bold">
+                      <th className="py-3.5 px-4">Customer</th>
+                      <th className="py-3.5 px-4">Phone</th>
+                      <th className="py-3.5 px-4">Primary Location</th>
+                      <th className="py-3.5 px-4">Type</th>
+                      <th className="py-3.5 px-4 text-center">Total Orders</th>
+                      <th className="py-3.5 px-4">Total Spent</th>
+                      <th className="py-3.5 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#EAE6DB]/60 text-xs">
+                    {customers
+                      .filter((c) => {
+                        if (!customerSearch.trim()) return true;
+                        const q = customerSearch.toLowerCase().trim();
+                        return (
+                          c.name.toLowerCase().includes(q) ||
+                          c.email.toLowerCase().includes(q) ||
+                          (c.phone && c.phone.toLowerCase().includes(q)) ||
+                          (c.city && c.city.toLowerCase().includes(q)) ||
+                          (c.state && c.state.toLowerCase().includes(q))
+                        );
+                      })
+                      .map((c) => (
+                        <tr key={c.id} className="hover:bg-[#FAF8F2]/60 transition-colors">
+                          {/* Customer */}
+                          <td className="py-3.5 px-4 font-bold text-brand-charcoal">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-[#FAF8F2] border border-[#EAE6DB] text-[#967BB6] flex items-center justify-center font-serif text-xs font-bold shrink-0 overflow-hidden">
+                                {c.avatarUrl ? (
+                                  <img src={c.avatarUrl} alt={c.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <span>{getInitials(c.name, c.email)}</span>
+                                )}
+                              </div>
+                              <div>
+                                <span className="font-bold text-brand-charcoal block">{c.name}</span>
+                                <span className="text-[11px] text-brand-muted block">{c.email}</span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Phone */}
+                          <td className="py-3.5 px-4 font-mono text-brand-muted">
+                            {c.phone || '—'}
+                          </td>
+
+                          {/* Location */}
+                          <td className="py-3.5 px-4 text-brand-charcoal">
+                            <div className="flex items-center gap-1.5">
+                              <MapPin className="w-3.5 h-3.5 text-brand-muted shrink-0" />
+                              <span>{c.city}{c.state ? `, ${c.state}` : ''}</span>
+                            </div>
+                          </td>
+
+                          {/* Type */}
+                          <td className="py-3.5 px-4">
+                            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                              c.accountType === 'Registered'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-amber-50 text-amber-700 border border-amber-200'
+                            }`}>
+                              {c.accountType}
+                            </span>
+                          </td>
+
+                          {/* Total Orders */}
+                          <td className="py-3.5 px-4 text-center font-bold text-brand-charcoal">
+                            {c.ordersCount}
+                          </td>
+
+                          {/* Total Spent */}
+                          <td className="py-3.5 px-4 font-black text-brand-charcoal">
+                            ₹{c.totalSpent.toLocaleString('en-IN')}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3.5 px-4 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleViewCustomerDetails(c)}
+                              className="text-xs font-bold text-brand-charcoal hover:text-[#967BB6] underline underline-offset-2 transition-colors cursor-pointer whitespace-nowrap"
+                            >
+                              View Details
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+
+                {customers.length === 0 && (
+                  <div className="py-12 text-center text-brand-muted space-y-2">
+                    <Users className="w-8 h-8 mx-auto text-brand-muted-light" />
+                    <p className="text-sm font-bold">No customers in database yet.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
         )}
 
         {/* TAB 4: REVIEWS */}
@@ -2199,6 +3975,180 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         </div>
       )}
 
+      {/* ================= MODAL: DISPATCH & COURIER TRACKING DETAILS ================= */}
+      {shippingModalOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-[#EAE6DB] relative animate-scale-in space-y-6 max-h-[90vh] overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => setShippingModalOrder(null)}
+              className="absolute top-5 right-5 p-1.5 rounded-full hover:bg-gray-100 text-brand-muted transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Header */}
+            <div className="flex items-start gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-[#FAF8F2] text-[#967BB6] border border-[#EAE6DB] flex items-center justify-center shrink-0 shadow-xs">
+                <Truck className="w-6 h-6 stroke-[2]" />
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#967BB6] bg-[#FAF8F2] border border-[#EAE6DB] px-2.5 py-0.5 rounded-full">
+                  Fulfillment &amp; Shipping
+                </span>
+                <h3 className="font-serif text-xl font-bold text-brand-charcoal">
+                  Dispatch Order #{shippingModalOrder.id}
+                </h3>
+                <p className="text-xs text-brand-muted">
+                  Customer: <strong className="text-brand-charcoal">{shippingModalOrder.customerName}</strong> ({shippingModalOrder.city}, {shippingModalOrder.state})
+                </p>
+              </div>
+            </div>
+
+            {/* Target Status Switcher */}
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-black uppercase tracking-wider text-brand-muted">
+                Status to Apply
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {(['Shipped', 'Out for Delivery'] as const).map((st) => (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => setShippingModalTargetStatus(st)}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                      shippingModalTargetStatus === st
+                        ? 'bg-[#1A1821] text-white border-[#1A1821] shadow-xs'
+                        : 'bg-[#FAF8F2] border-[#EAE6DB] text-brand-charcoal hover:bg-[#FFFDD0]'
+                    }`}
+                  >
+                    {st === 'Shipped' ? '📦 Mark Shipped' : '🚚 Out for Delivery'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Quick Courier Preset Chips */}
+            <div className="space-y-2">
+              <label className="block text-[11px] font-black uppercase tracking-wider text-brand-muted">
+                Quick Select Courier Partner
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  'BlueDart Express',
+                  'Delhivery Surface',
+                  'DTDC Prime',
+                  'Shadowfax',
+                  'India Post Speed',
+                  'Ekart Express',
+                ].map((cName) => (
+                  <button
+                    key={cName}
+                    type="button"
+                    onClick={() => setCourierInput(cName)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                      courierInput === cName
+                        ? 'bg-[#967BB6] text-white font-bold shadow-xs'
+                        : 'bg-[#FAF8F2] border border-[#EAE6DB] text-brand-charcoal hover:bg-[#FFFDD0]'
+                    }`}
+                  >
+                    {cName}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Input Form */}
+            <form onSubmit={handleConfirmShippingModal} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-brand-charcoal mb-1.5">
+                  Courier Partner Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={courierInput}
+                  onChange={(e) => setCourierInput(e.target.value)}
+                  placeholder="e.g. BlueDart, Delhivery, DTDC..."
+                  className="w-full bg-[#FAF8F2] border border-[#EAE6DB] focus:border-[#967BB6] rounded-2xl px-4 py-2.5 text-xs text-brand-charcoal font-medium focus:outline-none transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-brand-charcoal mb-1.5">
+                  Tracking / AWB Number <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={trackingInput}
+                  onChange={(e) => setTrackingInput(e.target.value)}
+                  placeholder="e.g. BD-982401824 or DEL-88129031"
+                  className="w-full bg-[#FAF8F2] border border-[#EAE6DB] focus:border-[#967BB6] rounded-2xl px-4 py-2.5 text-xs font-mono font-bold text-brand-charcoal focus:outline-none transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-brand-charcoal mb-1.5">
+                  Live Tracking URL <span className="text-brand-muted text-[10px] font-normal">(Optional)</span>
+                </label>
+                <input
+                  type="url"
+                  value={trackingUrlInput}
+                  onChange={(e) => setTrackingUrlInput(e.target.value)}
+                  placeholder="https://www.bluedart.com/tracking?awb=..."
+                  className="w-full bg-[#FAF8F2] border border-[#EAE6DB] focus:border-[#967BB6] rounded-2xl px-4 py-2.5 text-xs font-mono text-brand-charcoal focus:outline-none transition-colors"
+                />
+              </div>
+
+              {/* Destination Summary */}
+              <div className="bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl p-3 text-xs space-y-1 text-brand-muted">
+                <div className="font-bold text-brand-charcoal flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-[#967BB6]" />
+                  <span>Ship to: {shippingModalOrder.customerName}</span>
+                </div>
+                <p className="pl-4 leading-relaxed">
+                  {shippingModalOrder.address}, {shippingModalOrder.city}, {shippingModalOrder.state} - {shippingModalOrder.pincode}
+                </p>
+                {shippingModalOrder.phone && (
+                  <p className="pl-4 font-mono font-bold text-brand-charcoal">
+                    Phone: {shippingModalOrder.phone}
+                  </p>
+                )}
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShippingModalOrder(null)}
+                  className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-brand-charcoal text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingShipping || !courierInput.trim() || !trackingInput.trim()}
+                  className="px-6 py-2.5 bg-[#967BB6] hover:bg-[#7F62A1] active:bg-[#6D528F] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 disabled:opacity-60 flex items-center gap-2 cursor-pointer"
+                >
+                  {isSavingShipping ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Truck className="w-3.5 h-3.5" />
+                      <span>Confirm &amp; Mark as {shippingModalTargetStatus}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* ================= MODAL: STRICT TYPED DELETE CONFIRMATION ================= */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop animate-fade-in">
@@ -2226,6 +4176,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   Delete "{deleteTarget.name}"?
                 </h3>
               </div>
+            </div>
+
+            {/* Deletion Details */}
+            <div className="bg-rose-50/60 border border-rose-200/60 rounded-2xl p-4 text-xs space-y-1">
+              <p className="font-bold text-rose-950">This action cannot be undone.</p>
+              <p className="text-rose-800/90">{deleteTarget.description || `Target ID: ${deleteTarget.id}`}</p>
             </div>
 
             {/* Type-box instruction & Live validation */}

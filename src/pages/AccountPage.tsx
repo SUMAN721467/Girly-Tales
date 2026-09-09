@@ -29,6 +29,7 @@ import {
   Copy,
   Check,
   MessageSquare,
+  ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -1385,6 +1386,40 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                         <p className="text-brand-muted font-mono font-bold">+91 {selectedOrderForDetail.phone}</p>
                       </div>
                     </div>
+
+                    {/* Courier & Tracking Info (if dispatched) */}
+                    {(selectedOrderForDetail.courierName || selectedOrderForDetail.trackingNumber) && (
+                      <div className="pt-3 border-t border-[#EAE6DB] space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-brand-muted font-medium">Courier Partner:</span>
+                          <span className="font-bold text-brand-charcoal flex items-center gap-1.5">
+                            <Truck className="w-3.5 h-3.5 text-[#967BB6]" />
+                            {selectedOrderForDetail.courierName || 'Standard Express'}
+                          </span>
+                        </div>
+
+                        {selectedOrderForDetail.trackingNumber && (
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-brand-muted font-medium">AWB / Tracking #:</span>
+                            <span className="font-mono font-bold text-brand-charcoal bg-[#FAF8F2] border border-[#EAE6DB] px-2 py-0.5 rounded-md">
+                              {selectedOrderForDetail.trackingNumber}
+                            </span>
+                          </div>
+                        )}
+
+                        {selectedOrderForDetail.trackingUrl && (
+                          <a
+                            href={selectedOrderForDetail.trackingUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="w-full mt-1 py-2 px-3 bg-[#FAF8F2] hover:bg-[#FFFDD0] border border-[#EAE6DB] rounded-xl text-[11px] font-bold text-[#967BB6] flex items-center justify-center gap-1.5 transition-colors"
+                          >
+                            <span>Track Package Online</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Card 2: Price details */}

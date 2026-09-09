@@ -77,14 +77,28 @@ CREATE TABLE IF NOT EXISTS public.orders (
     subtotal NUMERIC NOT NULL DEFAULT 0,
     shipping_fee NUMERIC NOT NULL DEFAULT 0,
     discount_amount NUMERIC NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'Processing',
+    seller_status TEXT NOT NULL DEFAULT 'Pending',
+    customer_status TEXT NOT NULL DEFAULT 'Paid',
+    status TEXT NOT NULL DEFAULT 'Pending',
     payment_method TEXT NOT NULL DEFAULT 'UPI / Prepaid',
     address TEXT DEFAULT '',
     city TEXT DEFAULT '',
     state TEXT DEFAULT '',
     pincode TEXT DEFAULT '',
+    special_instructions TEXT DEFAULT '',
+    courier_name TEXT DEFAULT '',
+    tracking_number TEXT DEFAULT '',
+    tracking_url TEXT DEFAULT '',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Migration safety for existing orders table
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS seller_status TEXT DEFAULT 'Pending';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS customer_status TEXT DEFAULT 'Paid';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS special_instructions TEXT DEFAULT '';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS courier_name TEXT DEFAULT '';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS tracking_number TEXT DEFAULT '';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS tracking_url TEXT DEFAULT '';
 
 CREATE INDEX IF NOT EXISTS idx_orders_email ON public.orders(email);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON public.orders(created_at DESC);
@@ -181,12 +195,16 @@ CREATE POLICY "Public Read Products" ON public.products FOR SELECT USING (true);
 CREATE POLICY "Public Write Products" ON public.products FOR ALL USING (true) WITH CHECK (true);
 
 CREATE POLICY "Public Read Orders" ON public.orders FOR SELECT USING (true);
+CREATE POLICY "Public Write Orders" ON public.orders FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public Insert Orders" ON public.orders FOR INSERT WITH CHECK (true);
 CREATE POLICY "Public Update Orders" ON public.orders FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Public Delete Orders" ON public.orders FOR DELETE USING (true);
 
 CREATE POLICY "Public Read Reviews" ON public.reviews FOR SELECT USING (true);
+CREATE POLICY "Public Write Reviews" ON public.reviews FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public Insert Reviews" ON public.reviews FOR INSERT WITH CHECK (true);
 CREATE POLICY "Public Update Reviews" ON public.reviews FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Public Delete Reviews" ON public.reviews FOR DELETE USING (true);
 
 CREATE POLICY "Public Read Coupons" ON public.coupons FOR SELECT USING (true);
 CREATE POLICY "Public Write Coupons" ON public.coupons FOR ALL USING (true) WITH CHECK (true);

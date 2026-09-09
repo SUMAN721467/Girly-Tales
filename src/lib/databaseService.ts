@@ -32,23 +32,107 @@ export const notifyDatabaseChange = (type: 'categories' | 'products' | 'orders' 
   }
 };
 
+export type SellerStatus = 'Pending' | 'Shipped' | 'Out for Delivery' | 'Delivered' | 'Cancelled by Seller';
+export type CustomerStatus = 'Paid' | 'Pending' | 'Cancelled by Customer' | 'Payment Failed';
+
+export interface RealOrderItem {
+  productId?: string;
+  name: string;
+  price: number;
+  quantity: number;
+  size?: string;
+  variant?: string;
+  image?: string;
+}
+
 export interface RealOrder {
   id: string;
   customerName: string;
   email: string;
   phone: string;
-  items: string[];
+  items: (string | RealOrderItem)[];
   total: number;
   subtotal: number;
   shippingFee: number;
   discountAmount: number;
-  status: 'Pending' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled';
-  paymentMethod: 'UPI / Prepaid' | 'Cash on Delivery' | 'Credit / Debit Card';
+  sellerStatus: SellerStatus;
+  customerStatus: CustomerStatus;
+  status: 'Pending' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled' | SellerStatus;
+  paymentMethod: 'UPI / Prepaid' | 'Cash on Delivery' | 'Credit / Debit Card' | string;
   address: string;
   city: string;
   state: string;
   pincode: string;
+  courierName?: string;
+  trackingNumber?: string;
+  trackingUrl?: string;
+  specialInstructions?: string;
   createdAt: string;
+}
+
+export function normalizeOrderItems(items: (string | RealOrderItem)[] | undefined, allProducts?: Product[]): RealOrderItem[] {
+  if (!items || !Array.isArray(items)) return [];
+  return items.map((it, idx) => {
+    if (typeof it === 'object' && it !== null && 'name' in it) {
+      let img = (it as RealOrderItem).image;
+      if (!img && allProducts) {
+        const found = allProducts.find((p) => p.name.toLowerCase() === (it as RealOrderItem).name.toLowerCase());
+        if (found && found.images?.[0]) img = found.images[0];
+      }
+      return {
+        productId: (it as RealOrderItem).productId || `item-${idx}`,
+        name: (it as RealOrderItem).name || 'Product Item',
+        price: Number((it as RealOrderItem).price) || 0,
+        quantity: Number((it as RealOrderItem).quantity) || 1,
+        size: (it as RealOrderItem).size || '',
+        variant: (it as RealOrderItem).variant || '',
+        image: img || (allProducts?.[0]?.images?.[0] || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80'),
+      };
+    }
+
+    const str = String(it || '').trim();
+    let qty = 1;
+    let size = '';
+    let name = str;
+
+    const qtyMatch = str.match(/x\s*(\d+)$/i);
+    if (qtyMatch) {
+      qty = parseInt(qtyMatch[1], 10) || 1;
+      name = name.replace(/x\s*\d+$/i, '').trim();
+    }
+
+    const sizeMatch = name.match(/\(([A-Za-z0-9\s]+)\)$/);
+    if (sizeMatch) {
+      size = sizeMatch[1].trim();
+      name = name.replace(/\([A-Za-z0-9\s]+\)$/, '').trim();
+    }
+
+    let price = 1299;
+    let img = '';
+    if (allProducts) {
+      const matchProd = allProducts.find(
+        (p) =>
+          p.name.toLowerCase().includes(name.toLowerCase()) ||
+          name.toLowerCase().includes(p.name.toLowerCase())
+      );
+      if (matchProd) {
+        price = matchProd.price;
+        img = matchProd.images?.[0] || '';
+      }
+    }
+    if (!img) {
+      img = 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80';
+    }
+
+    return {
+      productId: `item-${idx}`,
+      name: name || str || 'Girly Tales Item',
+      price,
+      quantity: qty,
+      size,
+      image: img,
+    };
+  });
 }
 
 export interface RealReview {
@@ -74,17 +158,59 @@ export interface RealCoupon {
   expires: string;
 }
 
+export interface CustomerPurchasedProduct {
+  productId: string;
+  name: string;
+  image: string;
+  quantity: number;
+  unitPrice: number;
+  totalSpent: number;
+  lastOrderedDate: string;
+}
+
+export interface CustomerCartItem {
+  id: string;
+  productId: string;
+  name: string;
+  image: string;
+  price: number;
+  quantity: number;
+  selectedSize?: string;
+  selectedColor?: string;
+  addedAt?: string;
+}
+
+export interface CustomerWishlistItem {
+  id: string;
+  productId: string;
+  name: string;
+  image: string;
+  price: number;
+  addedAt?: string;
+}
+
 export interface RealCustomer {
   id: string;
+  supabaseUid?: string;
   name: string;
   email: string;
   phone: string;
+  avatarUrl?: string;
   city: string;
+  state?: string;
+  address?: string;
+  pincode?: string;
+  accountType: 'Registered' | 'Guest';
+  authProvider?: string;
   ordersCount: number;
   totalSpent: number;
+  avgOrderValue: number;
   tier: 'VIP Platinum' | 'VIP Gold' | 'Member';
   joinedDate: string;
-  lastOrderDate: string;
+  lastOrderDate?: string;
+  lastActivityDate?: string;
+  orders: RealOrder[];
+  purchasedProducts: CustomerPurchasedProduct[];
 }
 
 export interface RealCategory {
@@ -106,59 +232,137 @@ export const SEED_CATEGORIES: RealCategory[] = [
 
 const SEED_ORDERS: RealOrder[] = [
   {
-    id: 'GT-849201',
-    customerName: 'Sabara Khan',
-    email: 'contact.sabara@gmail.com',
-    phone: '+91 98201 45982',
-    items: ['Mulberry Silk Pajama Set - Blossom Pink (M)', '18K Gold Clover Pendant Necklace'],
-    total: 2998,
-    subtotal: 2998,
+    id: 'LW-2026-0078',
+    customerName: 'Kartick Sau',
+    email: 'karticksau701@gmail.com',
+    phone: '+91 62972 91512',
+    items: [
+      {
+        productId: 'prod-1',
+        name: 'Mulberry Silk Satin Notch Collar Pajama Set',
+        price: 1899,
+        quantity: 1,
+        size: 'M',
+        variant: 'Blossom Pink',
+        image: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80',
+      },
+      {
+        productId: 'prod-2',
+        name: '18K Gold Plated Clover Pendant Chain',
+        price: 999,
+        quantity: 1,
+        variant: '18K Gold',
+        image: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=400&q=80',
+      },
+    ],
+    total: 2898,
+    subtotal: 2898,
     shippingFee: 0,
     discountAmount: 0,
-    status: 'Processing',
+    sellerStatus: 'Pending',
+    customerStatus: 'Pending',
+    status: 'Pending',
     paymentMethod: 'UPI / Prepaid',
-    address: 'Flat 402, Sea View Apartments, Bandra West',
-    city: 'Mumbai',
-    state: 'Maharashtra',
-    pincode: '400050',
+    address: 'Barchahara, Sabang, Paschim Medinipur',
+    city: 'Kharagpur',
+    state: 'West Bengal',
+    pincode: '721467',
+    specialInstructions: 'Please deliver between 2 PM to 6 PM if possible.',
     createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
   },
   {
-    id: 'GT-849188',
-    customerName: 'Priya Sharma',
-    email: 'priya.s@gmail.com',
-    phone: '+91 98112 34567',
-    items: ['Celestial Constellation 18K Chain (Gold)'],
-    total: 899,
-    subtotal: 899,
+    id: 'LW-2026-0077',
+    customerName: 'Kartick Sau',
+    email: 'karticksau701@gmail.com',
+    phone: '+91 62972 91512',
+    items: [
+      {
+        productId: 'prod-3',
+        name: '18K Chunky Croissant Dome Ring',
+        price: 1299,
+        quantity: 1,
+        size: 'Adjustable',
+        image: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=400&q=80',
+      },
+    ],
+    total: 1299,
+    subtotal: 1299,
     shippingFee: 0,
     discountAmount: 0,
-    status: 'Shipped',
+    sellerStatus: 'Cancelled by Seller',
+    customerStatus: 'Cancelled by Customer',
+    status: 'Cancelled',
     paymentMethod: 'UPI / Prepaid',
-    address: 'House 14, Greater Kailash 1',
-    city: 'Delhi',
-    state: 'Delhi',
-    pincode: '110048',
-    createdAt: new Date(Date.now() - 3600000 * 6).toISOString(),
+    address: 'Barchahara, Sabang, Paschim Medinipur',
+    city: 'Kharagpur',
+    state: 'West Bengal',
+    pincode: '721467',
+    createdAt: new Date(Date.now() - 3600000 * 16).toISOString(),
   },
   {
-    id: 'GT-849140',
-    customerName: 'Ananya Verma',
-    email: 'ananya.v@yahoo.com',
-    phone: '+91 97234 56789',
-    items: ['Cloud Soft Modal Nightshirt - Lavender Mist (L)', 'Pearl Aura Huggie Earrings'],
-    total: 1998,
-    subtotal: 1998,
+    id: 'LW-2026-0076',
+    customerName: 'Suman Samanta',
+    email: 'sumansamanta721467@gmail.com',
+    phone: '+91 98112 34567',
+    items: [
+      {
+        productId: 'prod-4',
+        name: 'Celestial Constellation 18K Chain (Gold)',
+        price: 1359,
+        quantity: 1,
+        image: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=400&q=80',
+      },
+    ],
+    total: 1359,
+    subtotal: 1359,
     shippingFee: 0,
     discountAmount: 0,
-    status: 'Delivered',
-    paymentMethod: 'Cash on Delivery',
-    address: 'B-104, Palm Meadows, Whitefield',
-    city: 'Bengaluru',
-    state: 'Karnataka',
-    pincode: '560066',
-    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-  }
+    sellerStatus: 'Pending',
+    customerStatus: 'Paid',
+    status: 'Pending',
+    paymentMethod: 'UPI / Prepaid',
+    address: 'GT Road, Model Town',
+    city: 'Jalandhar',
+    state: 'Punjab',
+    pincode: '144003',
+    createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+  },
+  {
+    id: 'LW-2026-0075',
+    customerName: 'Sabara Admin',
+    email: 'contact.sabara@gmail.com',
+    phone: '+91 98201 45982',
+    items: [
+      {
+        productId: 'prod-5',
+        name: 'Cloud Soft Modal Nightshirt - Lavender Mist',
+        price: 1564,
+        quantity: 1,
+        size: 'L',
+        image: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80',
+      },
+      {
+        productId: 'prod-6',
+        name: 'Pearl Aura Huggie Earrings',
+        price: 899,
+        quantity: 1,
+        image: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=400&q=80',
+      },
+    ],
+    total: 2463,
+    subtotal: 2463,
+    shippingFee: 0,
+    discountAmount: 0,
+    sellerStatus: 'Pending',
+    customerStatus: 'Paid',
+    status: 'Pending',
+    paymentMethod: 'UPI / Prepaid',
+    address: 'Urban Estate Phase 2',
+    city: 'Jalandhar',
+    state: 'Punjab',
+    pincode: '144022',
+    createdAt: new Date(Date.now() - 86400000 * 12).toISOString(),
+  },
 ];
 
 const SEED_REVIEWS: RealReview[] = [
@@ -201,6 +405,96 @@ const SEED_COUPONS: RealCoupon[] = [
   { id: 'cp-4', code: 'FREESHIP', discount: 'Free Express Delivery', description: 'Prepaid Orders Across All Pincodes', minSpend: 0, usedCount: 22, status: 'Active', expires: 'Unlimited' },
 ];
 
+// Persistent tracking for deleted orders so deleted orders never reappear/restore
+const DELETED_ORDERS_KEY = 'gt_deleted_orders_ids_v2';
+
+function getDeletedOrderIds(): Set<string> {
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(DELETED_ORDERS_KEY) : null;
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        return new Set(arr.map((id) => String(id).trim()));
+      }
+    }
+  } catch (e) {
+    // Ignore error
+  }
+  return new Set();
+}
+
+function persistDeletedOrderId(id: string): void {
+  try {
+    const cleanId = String(id).trim();
+    if (!cleanId || typeof window === 'undefined') return;
+    const set = getDeletedOrderIds();
+    set.add(cleanId);
+    localStorage.setItem(DELETED_ORDERS_KEY, JSON.stringify(Array.from(set)));
+  } catch (e) {
+    // Ignore error
+  }
+}
+
+function removeDeletedOrderId(id: string): void {
+  try {
+    const cleanId = String(id).trim();
+    if (!cleanId || typeof window === 'undefined') return;
+    const set = getDeletedOrderIds();
+    set.delete(cleanId);
+    localStorage.setItem(DELETED_ORDERS_KEY, JSON.stringify(Array.from(set)));
+  } catch (e) {
+    // Ignore error
+  }
+}
+
+const STATUS_OVERRIDES_KEY = 'gt_order_status_overrides_v2';
+
+interface StatusOverride {
+  sellerStatus: SellerStatus;
+  courierName?: string;
+  trackingNumber?: string;
+  trackingUrl?: string;
+}
+
+function getStatusOverrides(): Record<string, StatusOverride> {
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(STATUS_OVERRIDES_KEY) : null;
+    if (raw) {
+      return JSON.parse(raw) || {};
+    }
+  } catch (e) {}
+  return {};
+}
+
+function persistStatusOverride(
+  id: string,
+  sellerStatus: SellerStatus,
+  shippingInfo?: { courierName?: string; trackingNumber?: string; trackingUrl?: string }
+): void {
+  try {
+    if (!id || typeof window === 'undefined') return;
+    const cleanId = String(id).trim();
+    const map = getStatusOverrides();
+    map[cleanId] = {
+      sellerStatus,
+      courierName: shippingInfo?.courierName !== undefined ? shippingInfo.courierName : map[cleanId]?.courierName,
+      trackingNumber: shippingInfo?.trackingNumber !== undefined ? shippingInfo.trackingNumber : map[cleanId]?.trackingNumber,
+      trackingUrl: shippingInfo?.trackingUrl !== undefined ? shippingInfo.trackingUrl : map[cleanId]?.trackingUrl,
+    };
+    localStorage.setItem(STATUS_OVERRIDES_KEY, JSON.stringify(map));
+  } catch (e) {}
+}
+
+function removeStatusOverride(id: string): void {
+  try {
+    if (!id || typeof window === 'undefined') return;
+    const cleanId = String(id).trim();
+    const map = getStatusOverrides();
+    delete map[cleanId];
+    localStorage.setItem(STATUS_OVERRIDES_KEY, JSON.stringify(map));
+  } catch (e) {}
+}
+
 // Pure In-Memory Runtime fallback state (Direct Supabase data is primary source)
 let inMemoryCategories: RealCategory[] = [...SEED_CATEGORIES];
 let inMemoryProducts: Product[] = [...MOCK_PRODUCTS];
@@ -211,6 +505,9 @@ let inMemoryCoupons: RealCoupon[] = [...SEED_COUPONS];
 export const DatabaseService = {
   // ==================== 1. ORDERS ====================
   async getOrders(): Promise<RealOrder[]> {
+    const deletedIds = getDeletedOrderIds();
+    const statusOverrides = getStatusOverrides();
+
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase
@@ -219,24 +516,67 @@ export const DatabaseService = {
           .order('created_at', { ascending: false });
 
         if (!error && Array.isArray(data)) {
-          const mapped: RealOrder[] = data.map((d: any) => ({
-            id: d.id || d.order_id,
-            customerName: d.customer_name || d.customerName || 'Customer',
-            email: d.email || '',
-            phone: d.phone || '',
-            items: Array.isArray(d.items) ? d.items : typeof d.items === 'string' ? JSON.parse(d.items) : [],
-            total: Number(d.total) || 0,
-            subtotal: Number(d.subtotal) || Number(d.total) || 0,
-            shippingFee: Number(d.shipping_fee) || 0,
-            discountAmount: Number(d.discount_amount) || 0,
-            status: d.status || 'Processing',
-            paymentMethod: d.payment_method || d.paymentMethod || 'UPI / Prepaid',
-            address: d.address || '',
-            city: d.city || 'Mumbai',
-            state: d.state || 'Maharashtra',
-            pincode: d.pincode || '',
-            createdAt: d.created_at || new Date().toISOString(),
-          }));
+          const mapped: RealOrder[] = data
+            .map((d: any) => {
+              const cleanId = String(d.id || d.order_id || '').trim();
+              const override = statusOverrides[cleanId];
+
+              let sellerStatus: SellerStatus = override?.sellerStatus || 'Pending';
+              if (!override) {
+                const rawSeller = d.seller_status || d.sellerStatus || d.status || 'Pending';
+                if (['Pending', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled by Seller'].includes(rawSeller)) {
+                  sellerStatus = rawSeller as SellerStatus;
+                } else if (rawSeller === 'Processing') {
+                  sellerStatus = 'Pending';
+                } else if (rawSeller === 'Cancelled') {
+                  sellerStatus = 'Cancelled by Seller';
+                }
+              }
+
+              const rawCustomer = d.customer_status || d.customerStatus || (d.payment_method?.includes('Cash') ? 'Pending' : 'Paid');
+              let customerStatus: CustomerStatus = 'Paid';
+              if (['Paid', 'Pending', 'Cancelled by Customer', 'Payment Failed'].includes(rawCustomer)) {
+                customerStatus = rawCustomer as CustomerStatus;
+              }
+
+              let parsedItems: any[] = [];
+              if (Array.isArray(d.items)) {
+                parsedItems = d.items;
+              } else if (typeof d.items === 'string') {
+                try {
+                  parsedItems = JSON.parse(d.items);
+                } catch {
+                  parsedItems = [d.items];
+                }
+              }
+
+              return {
+                id: cleanId,
+                customerName: d.customer_name || d.customerName || 'Customer',
+                email: d.email || '',
+                phone: d.phone || '',
+                items: parsedItems,
+                total: Number(d.total) || 0,
+                subtotal: Number(d.subtotal) || Number(d.total) || 0,
+                shippingFee: Number(d.shipping_fee) || 0,
+                discountAmount: Number(d.discount_amount) || 0,
+                sellerStatus,
+                customerStatus,
+                status: sellerStatus,
+                paymentMethod: d.payment_method || d.paymentMethod || 'UPI / Prepaid',
+                address: d.address || '',
+                city: d.city || 'Mumbai',
+                state: d.state || 'Maharashtra',
+                pincode: d.pincode || '',
+                courierName: override?.courierName || d.courier_name || d.courierName || '',
+                trackingNumber: override?.trackingNumber || d.tracking_number || d.trackingNumber || '',
+                trackingUrl: override?.trackingUrl || d.tracking_url || d.trackingUrl || '',
+                specialInstructions: d.special_instructions || d.specialInstructions || '',
+                createdAt: d.created_at || new Date().toISOString(),
+              };
+            })
+            .filter((ord) => ord.id && !deletedIds.has(ord.id));
+
           inMemoryOrders = mapped;
           return mapped;
         }
@@ -244,35 +584,103 @@ export const DatabaseService = {
         console.warn('Supabase fetch orders error:', err);
       }
     }
+
+    inMemoryOrders = inMemoryOrders
+      .map((ord) => {
+        const cleanId = String(ord.id).trim();
+        const override = statusOverrides[cleanId];
+        if (override) {
+          return {
+            ...ord,
+            sellerStatus: override.sellerStatus,
+            status: override.sellerStatus,
+            courierName: override.courierName || ord.courierName,
+            trackingNumber: override.trackingNumber || ord.trackingNumber,
+            trackingUrl: override.trackingUrl || ord.trackingUrl,
+          };
+        }
+        return ord;
+      })
+      .filter((ord) => ord.id && !deletedIds.has(String(ord.id).trim()));
     return inMemoryOrders;
   },
 
-  async createOrder(order: Omit<RealOrder, 'createdAt'> & { createdAt?: string }): Promise<RealOrder> {
+  async createOrder(order: Omit<RealOrder, 'createdAt' | 'sellerStatus' | 'customerStatus'> & { 
+    createdAt?: string; 
+    sellerStatus?: SellerStatus; 
+    customerStatus?: CustomerStatus; 
+  }): Promise<RealOrder> {
     const fullOrder: RealOrder = {
       ...order,
+      id: String(order.id).trim(),
+      sellerStatus: order.sellerStatus || 'Pending',
+      customerStatus: order.customerStatus || (order.paymentMethod?.includes('Cash') ? 'Pending' : 'Paid'),
+      status: order.sellerStatus || order.status || 'Pending',
+      courierName: order.courierName || '',
+      trackingNumber: order.trackingNumber || '',
+      trackingUrl: order.trackingUrl || '',
+      specialInstructions: order.specialInstructions || '',
       createdAt: order.createdAt || new Date().toISOString(),
     };
 
+    // Remove from deleted set if re-creating
+    removeDeletedOrderId(fullOrder.id);
+    removeStatusOverride(fullOrder.id);
+
     if (isSupabaseConfigured) {
       try {
-        await supabase.from('orders').insert({
-          id: fullOrder.id,
-          customer_name: fullOrder.customerName,
-          email: fullOrder.email,
-          phone: fullOrder.phone,
-          items: fullOrder.items,
-          total: fullOrder.total,
-          subtotal: fullOrder.subtotal,
-          shipping_fee: fullOrder.shippingFee,
-          discount_amount: fullOrder.discountAmount,
-          status: fullOrder.status,
-          payment_method: fullOrder.paymentMethod,
-          address: fullOrder.address,
-          city: fullOrder.city,
-          state: fullOrder.state,
-          pincode: fullOrder.pincode,
-          created_at: fullOrder.createdAt,
-        });
+        const { error } = await supabase.from('orders').upsert(
+          {
+            id: fullOrder.id,
+            customer_name: fullOrder.customerName,
+            email: fullOrder.email,
+            phone: fullOrder.phone,
+            items: fullOrder.items,
+            total: fullOrder.total,
+            subtotal: fullOrder.subtotal,
+            shipping_fee: fullOrder.shippingFee,
+            discount_amount: fullOrder.discountAmount,
+            seller_status: fullOrder.sellerStatus,
+            customer_status: fullOrder.customerStatus,
+            status: fullOrder.sellerStatus,
+            payment_method: fullOrder.paymentMethod,
+            address: fullOrder.address,
+            city: fullOrder.city,
+            state: fullOrder.state,
+            pincode: fullOrder.pincode,
+            courier_name: fullOrder.courierName,
+            tracking_number: fullOrder.trackingNumber,
+            tracking_url: fullOrder.trackingUrl,
+            special_instructions: fullOrder.specialInstructions,
+            created_at: fullOrder.createdAt,
+          },
+          { onConflict: 'id' }
+        );
+        if (error) {
+          console.warn('Supabase order insert fallback note:', error.message);
+          // Fallback if courier columns don't exist yet
+          await supabase.from('orders').upsert(
+            {
+              id: fullOrder.id,
+              customer_name: fullOrder.customerName,
+              email: fullOrder.email,
+              phone: fullOrder.phone,
+              items: fullOrder.items,
+              total: fullOrder.total,
+              subtotal: fullOrder.subtotal,
+              shipping_fee: fullOrder.shippingFee,
+              discount_amount: fullOrder.discountAmount,
+              status: fullOrder.sellerStatus,
+              payment_method: fullOrder.paymentMethod,
+              address: fullOrder.address,
+              city: fullOrder.city,
+              state: fullOrder.state,
+              pincode: fullOrder.pincode,
+              created_at: fullOrder.createdAt,
+            },
+            { onConflict: 'id' }
+          );
+        }
       } catch (e) {
         console.warn('Supabase order insert note:', e);
       }
@@ -283,30 +691,122 @@ export const DatabaseService = {
     return fullOrder;
   },
 
-  async updateOrderStatus(orderId: string, status: RealOrder['status']): Promise<void> {
+  async updateSellerStatus(
+    orderId: string,
+    sellerStatus: SellerStatus,
+    shippingInfo?: { courierName?: string; trackingNumber?: string; trackingUrl?: string }
+  ): Promise<void> {
+    const cleanId = String(orderId).trim();
+    if (!cleanId) return;
+
+    persistStatusOverride(cleanId, sellerStatus, shippingInfo);
+
     if (isSupabaseConfigured) {
       try {
-        await supabase.from('orders').update({ status }).eq('id', orderId);
+        const updatePayload: any = { 
+          seller_status: sellerStatus,
+          status: sellerStatus,
+        };
+        if (shippingInfo?.courierName !== undefined) updatePayload.courier_name = shippingInfo.courierName;
+        if (shippingInfo?.trackingNumber !== undefined) updatePayload.tracking_number = shippingInfo.trackingNumber;
+        if (shippingInfo?.trackingUrl !== undefined) updatePayload.tracking_url = shippingInfo.trackingUrl;
+
+        const { error } = await supabase
+          .from('orders')
+          .update(updatePayload)
+          .eq('id', cleanId);
+
+        if (error) {
+          console.warn('Supabase primary status update failed, fallback to status:', error.message);
+          await supabase
+            .from('orders')
+            .update({ status: sellerStatus })
+            .eq('id', cleanId);
+        }
       } catch (e) {
-        console.warn('Supabase order status update note:', e);
+        console.warn('Supabase seller status update note:', e);
       }
     }
 
-    inMemoryOrders = inMemoryOrders.map((o) => (o.id === orderId ? { ...o, status } : o));
+    inMemoryOrders = inMemoryOrders.map((o) =>
+      o.id === cleanId
+        ? { 
+            ...o, 
+            sellerStatus, 
+            status: sellerStatus,
+            ...(shippingInfo?.courierName !== undefined ? { courierName: shippingInfo.courierName } : {}),
+            ...(shippingInfo?.trackingNumber !== undefined ? { trackingNumber: shippingInfo.trackingNumber } : {}),
+            ...(shippingInfo?.trackingUrl !== undefined ? { trackingUrl: shippingInfo.trackingUrl } : {}),
+          }
+        : o
+    );
     notifyDatabaseChange('orders');
   },
 
-  async deleteOrder(orderId: string): Promise<void> {
+  async updateSpecialInstructions(orderId: string, specialInstructions: string): Promise<void> {
+    const cleanId = String(orderId).trim();
     if (isSupabaseConfigured) {
       try {
-        await supabase.from('orders').delete().eq('id', orderId);
+        const { error } = await supabase
+          .from('orders')
+          .update({ special_instructions: specialInstructions })
+          .eq('id', cleanId);
+        if (error) {
+          console.warn('Supabase instructions update error:', error.message);
+        }
       } catch (e) {
-        console.warn('Supabase delete order note:', e);
+        console.warn('Supabase instructions update note:', e);
       }
     }
 
-    inMemoryOrders = inMemoryOrders.filter((o) => o.id !== orderId);
+    inMemoryOrders = inMemoryOrders.map((o) =>
+      o.id === cleanId ? { ...o, specialInstructions } : o
+    );
     notifyDatabaseChange('orders');
+  },
+
+  async updateOrderStatus(orderId: string, status: RealOrder['status']): Promise<void> {
+    const validSellerStatus: SellerStatus = 
+      status === 'Processing' ? 'Pending' :
+      status === 'Cancelled' ? 'Cancelled by Seller' : 
+      (status as SellerStatus);
+    await this.updateSellerStatus(orderId, validSellerStatus);
+  },
+
+  async deleteOrder(orderId: string): Promise<boolean> {
+    const cleanId = String(orderId).trim();
+    if (!cleanId) return false;
+
+    // 1. Permanently track in deleted orders storage so it is never revived
+    persistDeletedOrderId(cleanId);
+    removeStatusOverride(cleanId);
+
+    // 2. Remove immediately from runtime in-memory array
+    inMemoryOrders = inMemoryOrders.filter((o) => o.id !== cleanId);
+
+    // 3. Delete directly from Supabase orders table
+    let supabaseSuccess = true;
+    if (isSupabaseConfigured) {
+      try {
+        const { error, count } = await supabase
+          .from('orders')
+          .delete()
+          .eq('id', cleanId);
+
+        if (error) {
+          console.error('Supabase delete order failed (Check RLS DELETE policy):', error.message);
+          supabaseSuccess = false;
+        } else {
+          console.log(`Supabase order #${cleanId} deleted successfully. Affected rows:`, count);
+        }
+      } catch (e) {
+        console.error('Supabase delete order exception:', e);
+        supabaseSuccess = false;
+      }
+    }
+
+    notifyDatabaseChange('orders');
+    return supabaseSuccess;
   },
 
   // ==================== 2. PRODUCTS ====================
@@ -338,7 +838,9 @@ export const DatabaseService = {
             tag: d.tag || '',
             sizes: d.sizes || (d.category === 'nightwear' ? ['XS', 'S', 'M', 'L', 'XL'] : undefined),
             features: d.features || ['Premium Finish', 'Anti-Tarnish'],
+            highlights: d.highlights || [],
             careInstructions: d.care_instructions || d.careInstructions || [],
+            deliveryPolicy: d.delivery_policy || d.deliveryPolicy || '',
             specs: d.specs || {},
           }));
           inMemoryProducts = mapped;
@@ -375,6 +877,10 @@ export const DatabaseService = {
           dimensions: product.dimensions,
           variety: product.variety,
           tag: product.tag,
+          highlights: product.highlights || [],
+          care_instructions: product.careInstructions || [],
+          delivery_policy: product.deliveryPolicy || '',
+          features: product.features || [],
         });
       } catch (e) {
         console.warn('Supabase add product note:', e);
@@ -384,6 +890,124 @@ export const DatabaseService = {
     inMemoryProducts = [product, ...inMemoryProducts.filter((p) => p.id !== product.id)];
     notifyDatabaseChange('products');
     return product;
+  },
+
+  async updateProduct(id: string, updates: Partial<Product>): Promise<Product | null> {
+    if (isSupabaseConfigured) {
+      try {
+        const payload: any = { ...updates };
+        if (updates.subCategory !== undefined) payload.sub_category = updates.subCategory;
+        if (updates.originalPrice !== undefined) payload.original_price = updates.originalPrice;
+        if (updates.shortDescription !== undefined) payload.short_description = updates.shortDescription;
+        if (updates.stockQuantity !== undefined) payload.stock_quantity = updates.stockQuantity;
+        if (updates.careInstructions !== undefined) payload.care_instructions = updates.careInstructions;
+        if (updates.deliveryPolicy !== undefined) payload.delivery_policy = updates.deliveryPolicy;
+        delete payload.subCategory;
+        delete payload.originalPrice;
+        delete payload.shortDescription;
+        delete payload.stockQuantity;
+        delete payload.careInstructions;
+        delete payload.deliveryPolicy;
+
+        await supabase.from('products').update(payload).eq('id', id);
+      } catch (e) {
+        console.warn('Supabase update product note:', e);
+      }
+    }
+
+    inMemoryProducts = inMemoryProducts.map((p) => (p.id === id ? { ...p, ...updates } : p));
+    notifyDatabaseChange('products');
+    return inMemoryProducts.find((p) => p.id === id) || null;
+  },
+
+  async uploadProductImage(file: File): Promise<string> {
+    try {
+      const optimizedBlob = await this.optimizeImageFile(file);
+      const cleanExt = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+      const fileName = `prod_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${cleanExt}`;
+      const filePath = `products/${fileName}`;
+
+      if (isSupabaseConfigured) {
+        try {
+          const { error: uploadError } = await supabase.storage
+            .from('product-images')
+            .upload(filePath, optimizedBlob, {
+              contentType: file.type || 'image/jpeg',
+              cacheControl: '3600',
+              upsert: true,
+            });
+
+          if (!uploadError) {
+            const { data: publicData } = supabase.storage
+              .from('product-images')
+              .getPublicUrl(filePath);
+            if (publicData?.publicUrl) {
+              return publicData.publicUrl;
+            }
+          } else {
+            console.warn('Supabase storage upload note:', uploadError.message);
+          }
+        } catch (err) {
+          console.warn('Supabase storage exception:', err);
+        }
+      }
+
+      // Fallback data URL if storage bucket is not configured or in local offline mode
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          resolve(reader.result as string);
+        };
+        reader.readAsDataURL(optimizedBlob);
+      });
+    } catch (err) {
+      console.error('Error optimizing/uploading image:', err);
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          resolve(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  },
+
+  async optimizeImageFile(file: File, maxWidth = 1600, quality = 0.88): Promise<Blob> {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = document.createElement('img');
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(file);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (blob) resolve(blob);
+              else resolve(file);
+            },
+            'image/webp',
+            quality
+          );
+        };
+        img.onerror = () => resolve(file);
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => resolve(file);
+      reader.readAsDataURL(file);
+    });
   },
 
   async updateProductStock(productId: string, inStock: boolean): Promise<void> {
@@ -408,40 +1032,326 @@ export const DatabaseService = {
     notifyDatabaseChange('products');
   },
 
-  // ==================== 3. CUSTOMERS (DERIVED FROM ORDERS) ====================
-  async getCustomers(orders?: RealOrder[]): Promise<RealCustomer[]> {
+  // ==================== 3. CUSTOMERS (SUPABASE PROFILES + AUTH + ORDERS) ====================
+  async getCustomers(orders?: RealOrder[], activeUser?: any): Promise<RealCustomer[]> {
     const allOrders = orders || (await this.getOrders());
+    const allProducts = await this.getProducts();
     const customerMap = new Map<string, RealCustomer>();
 
+    // 1. Fetch registered user profiles from Supabase
+    let remoteProfiles: any[] = [];
+    let remoteAddresses: any[] = [];
+    if (isSupabaseConfigured) {
+      try {
+        const [profRes, addrRes, authUserRes] = await Promise.all([
+          supabase.from('profiles').select('*'),
+          supabase.from('shipping_addresses').select('*'),
+          supabase.auth.getUser(),
+        ]);
+        if (!profRes.error && Array.isArray(profRes.data)) {
+          remoteProfiles = profRes.data;
+        }
+        if (!addrRes.error && Array.isArray(addrRes.data)) {
+          remoteAddresses = addrRes.data;
+        }
+
+        // If authenticated user is logged in, ensure their profile is in remoteProfiles
+        const authUser = authUserRes.data?.user;
+        if (authUser && authUser.email) {
+          const authEmail = authUser.email.toLowerCase().trim();
+          const existingProf = remoteProfiles.find((p) => (p.email || '').toLowerCase().trim() === authEmail);
+          if (!existingProf) {
+            const userMeta = authUser.user_metadata || {};
+            const newProf = {
+              id: authUser.id,
+              email: authUser.email,
+              name: userMeta.name || userMeta.full_name || authEmail.split('@')[0],
+              phone: userMeta.phone || '',
+              role: userMeta.role || (authUser.email.includes('admin') || authUser.email.includes('mallick') || authUser.email.includes('suman') ? 'admin' : 'customer'),
+              avatar_url: userMeta.avatar_url || userMeta.avatarUrl || '',
+              created_at: authUser.created_at || new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            };
+            remoteProfiles.push(newProf);
+
+            // Auto-persist to profiles table in Supabase
+            supabase.from('profiles').upsert(newProf, { onConflict: 'id' }).then();
+          }
+        }
+      } catch (e) {
+        console.warn('Supabase profiles/addresses fetch note:', e);
+      }
+    }
+
+    // Also check local activeUser if passed from context or storage
+    if (activeUser && activeUser.email) {
+      const activeEmail = activeUser.email.toLowerCase().trim();
+      if (!remoteProfiles.some((p) => (p.email || '').toLowerCase().trim() === activeEmail)) {
+        remoteProfiles.push({
+          id: activeUser.id || `user-${activeEmail}`,
+          email: activeUser.email,
+          name: activeUser.name || activeEmail.split('@')[0],
+          phone: activeUser.phone || '',
+          role: activeUser.role || 'customer',
+          avatar_url: activeUser.avatarUrl || '',
+          created_at: activeUser.createdAt || new Date().toISOString(),
+        });
+      }
+    }
+
+    // Helper to aggregate products purchased from a list of orders
+    const computePurchasedProducts = (custOrders: RealOrder[]): CustomerPurchasedProduct[] => {
+      const prodMap = new Map<string, CustomerPurchasedProduct>();
+      custOrders.forEach((ord) => {
+        const normalized = normalizeOrderItems(ord.items, allProducts);
+        normalized.forEach((item) => {
+          const key = item.productId || item.name;
+          const existing = prodMap.get(key);
+          if (existing) {
+            existing.quantity += item.quantity;
+            existing.totalSpent += item.price * item.quantity;
+            if (new Date(ord.createdAt) > new Date(existing.lastOrderedDate)) {
+              existing.lastOrderedDate = ord.createdAt;
+            }
+          } else {
+            prodMap.set(key, {
+              productId: item.productId || key,
+              name: item.name,
+              image: item.image || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80',
+              quantity: item.quantity,
+              unitPrice: item.price,
+              totalSpent: item.price * item.quantity,
+              lastOrderedDate: ord.createdAt,
+            });
+          }
+        });
+      });
+      return Array.from(prodMap.values()).sort(
+        (a, b) => new Date(b.lastOrderedDate).getTime() - new Date(a.lastOrderedDate).getTime()
+      );
+    };
+
+    // 2. Populate registered members from Supabase profiles
+    remoteProfiles.forEach((prof: any) => {
+      const email = (prof.email || '').toLowerCase().trim();
+      if (!email) return;
+
+      const userOrders = allOrders.filter(
+        (o) => o.email.toLowerCase().trim() === email || (prof.id && o.id.includes(prof.id))
+      );
+
+      const userAddress = remoteAddresses.find(
+        (a: any) =>
+          (a.user_email && a.user_email.toLowerCase().trim() === email) ||
+          (a.user_id && a.user_id === prof.id)
+      );
+
+      const totalSpent = userOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+      const ordersCount = userOrders.length;
+      const avgOrderValue = ordersCount > 0 ? Math.round(totalSpent / ordersCount) : 0;
+      const tier = totalSpent >= 5000 ? 'VIP Platinum' : totalSpent >= 2000 ? 'VIP Gold' : 'Member';
+
+      const latestOrder = userOrders[0];
+      const city = prof.city || userAddress?.city || latestOrder?.city || 'Jalandhar';
+      const state = prof.state || userAddress?.state || latestOrder?.state || 'Punjab';
+      const address = prof.address || userAddress?.address_line || latestOrder?.address || '';
+      const pincode = prof.pincode || userAddress?.pincode || latestOrder?.pincode || '';
+      const phone = prof.phone || userAddress?.phone || latestOrder?.phone || '';
+
+      const joinedFormatted = prof.created_at
+        ? new Date(prof.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : 'Registered Member';
+
+      customerMap.set(email, {
+        id: prof.id || `cust-${email}`,
+        supabaseUid: prof.id || undefined,
+        name: prof.name || (email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())),
+        email: prof.email,
+        phone,
+        avatarUrl: prof.avatar_url || undefined,
+        city,
+        state,
+        address,
+        pincode,
+        accountType: 'Registered',
+        authProvider: prof.role === 'admin' ? 'Administrator' : 'Email / Password',
+        ordersCount,
+        totalSpent,
+        avgOrderValue,
+        tier,
+        joinedDate: joinedFormatted,
+        lastOrderDate: latestOrder?.createdAt,
+        lastActivityDate: prof.updated_at || prof.created_at || latestOrder?.createdAt,
+        orders: userOrders,
+        purchasedProducts: computePurchasedProducts(userOrders),
+      });
+    });
+
+    // 3. Populate or augment with customers from Orders
     allOrders.forEach((ord) => {
-      const email = ord.email.toLowerCase().trim();
+      const email = (ord.email || '').toLowerCase().trim();
       if (!email) return;
 
       const existing = customerMap.get(email);
       if (existing) {
-        existing.ordersCount += 1;
-        existing.totalSpent += ord.total;
-        if (existing.totalSpent >= 5000) existing.tier = 'VIP Platinum';
-        else if (existing.totalSpent >= 2000) existing.tier = 'VIP Gold';
+        // Already registered, ensure orders list is complete
+        if (!existing.orders.some((o) => o.id === ord.id)) {
+          existing.orders.push(ord);
+          existing.ordersCount = existing.orders.length;
+          existing.totalSpent += ord.total;
+          existing.avgOrderValue = Math.round(existing.totalSpent / existing.ordersCount);
+          if (existing.totalSpent >= 5000) existing.tier = 'VIP Platinum';
+          else if (existing.totalSpent >= 2000) existing.tier = 'VIP Gold';
+          existing.purchasedProducts = computePurchasedProducts(existing.orders);
+          if (!existing.lastOrderDate || new Date(ord.createdAt) > new Date(existing.lastOrderDate)) {
+            existing.lastOrderDate = ord.createdAt;
+          }
+        }
       } else {
-        const tier = ord.total >= 5000 ? 'VIP Platinum' : ord.total >= 2000 ? 'VIP Gold' : 'Member';
-        const formattedDate = new Date(ord.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        // Guest customer from checkout
+        const userOrders = allOrders.filter((o) => (o.email || '').toLowerCase().trim() === email);
+        const totalSpent = userOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+        const ordersCount = userOrders.length;
+        const avgOrderValue = ordersCount > 0 ? Math.round(totalSpent / ordersCount) : 0;
+        const tier = totalSpent >= 5000 ? 'VIP Platinum' : totalSpent >= 2000 ? 'VIP Gold' : 'Member';
+        const formattedDate = new Date(ord.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
         customerMap.set(email, {
           id: `cust-${email}`,
           name: ord.customerName || 'Customer',
           email: ord.email,
-          phone: ord.phone,
+          phone: ord.phone || '—',
           city: ord.city || 'India',
-          ordersCount: 1,
-          totalSpent: ord.total,
+          state: ord.state || '',
+          address: ord.address || '',
+          pincode: ord.pincode || '',
+          accountType: 'Guest',
+          authProvider: 'Guest Checkout',
+          ordersCount,
+          totalSpent,
+          avgOrderValue,
           tier,
           joinedDate: formattedDate,
           lastOrderDate: ord.createdAt,
+          lastActivityDate: ord.createdAt,
+          orders: userOrders,
+          purchasedProducts: computePurchasedProducts(userOrders),
         });
       }
     });
 
     return Array.from(customerMap.values());
+  },
+
+  // ==================== 3B. CUSTOMER ACTIVITY (CART & WISHLIST) ====================
+  async getCustomerActivity(
+    userId?: string,
+    userEmail?: string
+  ): Promise<{ cartItems: CustomerCartItem[]; wishlistItems: CustomerWishlistItem[] }> {
+    const cleanId = userId?.trim();
+    const cleanEmail = userEmail?.toLowerCase().trim();
+    const allProducts = await this.getProducts();
+
+    const resolveProduct = (productId: string, fallbackData?: any): Product | null => {
+      let matched = allProducts.find((p) => p.id === productId || p.slug === productId);
+      if (!matched && fallbackData && fallbackData.name && fallbackData.price) {
+        matched = fallbackData as Product;
+      }
+      if (!matched) {
+        matched = MOCK_PRODUCTS.find((p) => p.id === productId || p.slug === productId) || null;
+      }
+      return matched;
+    };
+
+    const result: { cartItems: CustomerCartItem[]; wishlistItems: CustomerWishlistItem[] } = {
+      cartItems: [],
+      wishlistItems: [],
+    };
+
+    if (isSupabaseConfigured && (cleanId || cleanEmail)) {
+      // 1. Fetch Cart Items from Supabase (multi-layer: cart_items table + user_metadata + local cache)
+      try {
+        const remoteCart = await CartService.fetchUserCart(cleanId, cleanEmail);
+        if (remoteCart && remoteCart.length > 0) {
+          result.cartItems = remoteCart.map((item) => ({
+            id: item.id,
+            productId: item.product.id,
+            name: item.product.name,
+            image: item.product.images?.[0] || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80',
+            price: item.product.price,
+            quantity: item.quantity,
+            selectedSize: item.selectedSize,
+            selectedColor: item.selectedColor,
+            addedAt: new Date().toISOString(),
+          }));
+        } else {
+          // Direct table query fallback
+          let cartQuery = supabase.from('cart_items').select('*');
+          if (cleanId && cleanEmail && cleanId !== cleanEmail) {
+            cartQuery = cartQuery.or(`user_id.eq.${cleanId},user_id.eq.${cleanEmail}`);
+          } else if (cleanEmail) {
+            cartQuery = cartQuery.eq('user_id', cleanEmail);
+          } else if (cleanId) {
+            cartQuery = cartQuery.eq('user_id', cleanId);
+          }
+
+          const { data: cartData } = await cartQuery;
+          if (Array.isArray(cartData) && cartData.length > 0) {
+            cartData.forEach((row: any) => {
+              const prod = resolveProduct(row.product_id || row.productId, row.product_data);
+              if (prod) {
+                result.cartItems.push({
+                  id: row.id || `${prod.id}-${row.selected_size || 'default'}`,
+                  productId: prod.id,
+                  name: prod.name,
+                  image: prod.images?.[0] || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80',
+                  price: prod.price,
+                  quantity: Number(row.quantity) || 1,
+                  selectedSize: row.selected_size || row.selectedSize || undefined,
+                  selectedColor: row.selected_color || row.selectedColor || undefined,
+                  addedAt: row.created_at || new Date().toISOString(),
+                });
+              }
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Fetch customer cart note:', e);
+      }
+
+      // 2. Fetch Wishlist Items from Supabase
+      try {
+        let wishQuery = supabase.from('wishlist').select('*');
+        if (cleanId && cleanEmail && cleanId !== cleanEmail) {
+          wishQuery = wishQuery.or(`user_id.eq.${cleanId},user_id.eq.${cleanEmail}`);
+        } else if (cleanEmail) {
+          wishQuery = wishQuery.eq('user_id', cleanEmail);
+        } else if (cleanId) {
+          wishQuery = wishQuery.eq('user_id', cleanId);
+        }
+
+        const { data: wishData } = await wishQuery;
+        if (Array.isArray(wishData)) {
+          wishData.forEach((row: any) => {
+            const prod = resolveProduct(row.product_id || row.productId);
+            if (prod) {
+              result.wishlistItems.push({
+                id: row.id || `${prod.id}`,
+                productId: prod.id,
+                name: prod.name,
+                image: prod.images?.[0] || 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=400&q=80',
+                price: prod.price,
+                addedAt: row.created_at || new Date().toISOString(),
+              });
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('Fetch customer wishlist note:', e);
+      }
+    }
+
+    return result;
   },
 
   // ==================== 4. REVIEWS ====================

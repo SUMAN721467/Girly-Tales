@@ -479,8 +479,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               avatarUrl: updatedUser.avatarUrl,
             },
           });
+
+          await supabase.from('profiles').upsert({
+            id: updatedUser.id,
+            email: updatedUser.email,
+            name: updatedUser.name,
+            phone: updatedUser.phone,
+            role: updatedUser.role || (checkIsAdmin(updatedUser.email) ? 'admin' : 'customer'),
+            avatar_url: updatedUser.avatarUrl,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'id' });
         } catch (err) {
-          console.warn('Supabase auth metadata update note:', err);
+          console.warn('Supabase auth/profiles metadata update note:', err);
         }
       }
 

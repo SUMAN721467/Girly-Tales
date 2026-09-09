@@ -49,7 +49,9 @@ CREATE TABLE IF NOT EXISTS public.products (
     tag TEXT DEFAULT '',
     sizes JSONB DEFAULT '[]'::jsonb,
     features JSONB DEFAULT '[]'::jsonb,
+    highlights JSONB DEFAULT '[]'::jsonb,
     care_instructions JSONB DEFAULT '[]'::jsonb,
+    delivery_policy TEXT DEFAULT '',
     specs JSONB DEFAULT '{}'::jsonb,
     colors JSONB DEFAULT '[]'::jsonb,
     anti_tarnish_guarantee TEXT DEFAULT '',
@@ -76,14 +78,28 @@ CREATE TABLE IF NOT EXISTS public.orders (
     subtotal NUMERIC NOT NULL DEFAULT 0,
     shipping_fee NUMERIC NOT NULL DEFAULT 0,
     discount_amount NUMERIC NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'Processing',
+    seller_status TEXT NOT NULL DEFAULT 'Pending',
+    customer_status TEXT NOT NULL DEFAULT 'Paid',
+    status TEXT NOT NULL DEFAULT 'Pending',
     payment_method TEXT NOT NULL DEFAULT 'UPI / Prepaid',
     address TEXT DEFAULT '',
     city TEXT DEFAULT '',
     state TEXT DEFAULT '',
     pincode TEXT DEFAULT '',
+    special_instructions TEXT DEFAULT '',
+    courier_name TEXT DEFAULT '',
+    tracking_number TEXT DEFAULT '',
+    tracking_url TEXT DEFAULT '',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Migration safety for existing orders table
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS seller_status TEXT DEFAULT 'Pending';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS customer_status TEXT DEFAULT 'Paid';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS special_instructions TEXT DEFAULT '';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS courier_name TEXT DEFAULT '';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS tracking_number TEXT DEFAULT '';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS tracking_url TEXT DEFAULT '';
 
 CREATE INDEX IF NOT EXISTS idx_orders_email ON public.orders(email);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON public.orders(created_at DESC);
@@ -201,12 +217,16 @@ CREATE POLICY "Public Read Products" ON public.products FOR SELECT USING (true);
 CREATE POLICY "Public Write Products" ON public.products FOR ALL USING (true) WITH CHECK (true);
 
 CREATE POLICY "Public Read Orders" ON public.orders FOR SELECT USING (true);
+CREATE POLICY "Public Write Orders" ON public.orders FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public Insert Orders" ON public.orders FOR INSERT WITH CHECK (true);
 CREATE POLICY "Public Update Orders" ON public.orders FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Public Delete Orders" ON public.orders FOR DELETE USING (true);
 
 CREATE POLICY "Public Read Reviews" ON public.reviews FOR SELECT USING (true);
+CREATE POLICY "Public Write Reviews" ON public.reviews FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public Insert Reviews" ON public.reviews FOR INSERT WITH CHECK (true);
 CREATE POLICY "Public Update Reviews" ON public.reviews FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Public Delete Reviews" ON public.reviews FOR DELETE USING (true);
 
 CREATE POLICY "Public Read Coupons" ON public.coupons FOR SELECT USING (true);
 CREATE POLICY "Public Write Coupons" ON public.coupons FOR ALL USING (true) WITH CHECK (true);
@@ -456,4 +476,50 @@ ON CONFLICT (id) DO UPDATE SET
     original_price = EXCLUDED.original_price,
     images = EXCLUDED.images,
     in_stock = EXCLUDED.in_stock;
+
+-- ==============================================================================
+-- 7. SUPABASE STORAGE BUCKET: PRODUCT-IMAGES
+-- ==============================================================================
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('product-images', 'product-images', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+-- Policy: Anyone can read/view product images
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'objects' AND policyname = 'Public Access for Product Images'
+    ) THEN
+        CREATE POLICY "Public Access for Product Images"
+        ON storage.objects FOR SELECT
+        USING (bucket_id = 'product-images');
+    END IF;
+END $$;
+
+-- Policy: Anyone/Admin can upload product images
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'objects' AND policyname = 'Public Upload for Product Images'
+    ) THEN
+        CREATE POLICY "Public Upload for Product Images"
+        ON storage.objects FOR INSERT
+        WITH CHECK (bucket_id = 'product-images');
+    END IF;
+END $$;
+
+-- Policy: Allow update and delete on product images
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'objects' AND policyname = 'Public Modify for Product Images'
+    ) THEN
+        CREATE POLICY "Public Modify for Product Images"
+        ON storage.objects FOR UPDATE
+        USING (bucket_id = 'product-images');
+    END IF;
+END $$;
 `;

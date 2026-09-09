@@ -333,9 +333,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
 
     const generatedId = 'GT-' + Math.floor(100000 + Math.random() * 900000);
-    const orderItems = items.map(
-      (item) => `${item.product.name}${item.selectedSize ? ` (${item.selectedSize})` : ''} x${item.quantity}`
-    );
+    const structuredOrderItems = items.map((item) => ({
+      productId: item.product.id,
+      name: item.product.name,
+      price: item.product.price,
+      quantity: item.quantity,
+      size: item.selectedSize || '',
+      variant: item.product.category === 'jewellery' ? '18K Gold' : 'Standard',
+      image: item.product.images?.[0] || '',
+    }));
+
+    const isCod = paymentMethod === 'cod';
 
     try {
       await DatabaseService.createOrder({
@@ -343,17 +351,29 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         customerName: formData.name || 'Customer',
         email: formData.email || user?.email || '',
         phone: formData.phone || '',
-        items: orderItems.length > 0 ? orderItems : ['Mulberry Silk Lounge Set x1'],
+        items: structuredOrderItems.length > 0 ? structuredOrderItems : [
+          {
+            productId: 'prod-default',
+            name: 'Mulberry Silk Lounge Set',
+            price: finalTotal,
+            quantity: 1,
+            size: 'Free Size',
+            image: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80',
+          },
+        ],
         total: finalTotal,
         subtotal: subtotal,
         shippingFee: shippingFee,
         discountAmount: discountAmount,
-        status: 'Processing',
-        paymentMethod: 'UPI / Prepaid',
+        sellerStatus: 'Pending',
+        customerStatus: isCod ? 'Pending' : 'Paid',
+        status: 'Pending',
+        paymentMethod: isCod ? 'Cash on Delivery' : 'UPI / Prepaid',
         address: formData.address || '',
         city: formData.city || 'Mumbai',
         state: formData.state || 'Maharashtra',
         pincode: formData.pincode || '',
+        specialInstructions: '',
       });
     } catch (err) {
       console.warn('Order save note:', err);
