@@ -161,7 +161,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
 
   // Sync profileForm with logged-in user
   useEffect(() => {
-    if (user) {
+    if (user && isLoggedIn) {
       setProfileForm({
         name: user.name || '',
         email: user.email || '',
@@ -172,38 +172,42 @@ export const AccountPage: React.FC<AccountPageProps> = ({
       });
     } else {
       setProfileForm({
-        name: 'Ananya Verma',
-        email: 'ananya@girlytales.com',
-        phone: '9876543210',
+        name: '',
+        email: '',
+        phone: '',
         gender: 'Female',
-        age: '24',
+        age: '',
         avatarUrl: '',
       });
     }
-  }, [user]);
+  }, [user, isLoggedIn]);
 
   // Load Addresses & Orders
   const loadAddresses = async () => {
-    const list = await AddressService.getAddresses(user?.email);
-    setAddresses(list);
+    if (user?.email && isLoggedIn) {
+      const list = await AddressService.getAddresses(user.email);
+      setAddresses(list);
+    } else {
+      setAddresses([]);
+    }
   };
 
   useEffect(() => {
     loadAddresses();
     window.addEventListener('gt_addresses_sync', loadAddresses);
     return () => window.removeEventListener('gt_addresses_sync', loadAddresses);
-  }, [user]);
+  }, [user, isLoggedIn]);
 
   useEffect(() => {
     const fetchOrders = async () => {
-      const allOrders = await DatabaseService.getOrders();
-      if (user?.email) {
+      if (user?.email && isLoggedIn) {
+        const allOrders = await DatabaseService.getOrders();
         const matching = allOrders.filter(
           (o) => o.email.toLowerCase() === user.email.toLowerCase()
         );
-        setUserOrders(matching.length > 0 ? matching : allOrders);
+        setUserOrders(matching);
       } else {
-        setUserOrders(allOrders);
+        setUserOrders([]);
       }
     };
     fetchOrders();
@@ -211,7 +215,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
     const handleSync = () => fetchOrders();
     window.addEventListener('gt_db_sync', handleSync);
     return () => window.removeEventListener('gt_db_sync', handleSync);
-  }, [user]);
+  }, [user, isLoggedIn]);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -336,6 +340,11 @@ export const AccountPage: React.FC<AccountPageProps> = ({
   };
 
   const handleOpenAddAddress = () => {
+    if (!isLoggedIn) {
+      triggerToast('Sign in required', 'Please sign in to save addresses to your account.', undefined, 'info');
+      openAuthModal('login');
+      return;
+    }
     setEditingAddressId(null);
     setAddressForm({
       fullName: user?.name || profileForm.name || '',
@@ -456,10 +465,10 @@ export const AccountPage: React.FC<AccountPageProps> = ({
       {/* 1. TOP HERO / PROFILE HEADER */}
       <div className="bg-white border border-[#EAE6DB] rounded-3xl p-6 sm:p-8 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left z-10">
-          {/* Avatar with photo preview */}
-          <div className="relative group">
+          {/* Avatar with photo */}
+          <div className="relative">
             <div className="w-20 h-20 min-w-[80px] min-h-[80px] aspect-square rounded-full bg-[#FAF8F2] border-2 border-[#EAE6DB] p-1 shadow-md flex items-center justify-center overflow-hidden shrink-0">
-              {profileForm.avatarUrl || user?.avatarUrl ? (
+              {isLoggedIn && (profileForm.avatarUrl || user?.avatarUrl) ? (
                 <img
                   src={profileForm.avatarUrl || user?.avatarUrl}
                   alt={profileForm.name || 'Profile'}
@@ -467,43 +476,53 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                 />
               ) : (
                 <div className="w-full h-full aspect-square rounded-full bg-gradient-to-br from-[#967BB6] to-[#7F62A1] text-white font-serif font-black text-2xl flex items-center justify-center shadow-xs select-none">
-                  {profileForm.name ? profileForm.name.charAt(0).toUpperCase() : 'U'}
+                  {isLoggedIn && profileForm.name ? profileForm.name.charAt(0).toUpperCase() : 'G'}
                 </div>
               )}
             </div>
-            <button
-              onClick={() => {
-                setActiveTab('profile');
-                setIsEditingProfile(true);
-                setTimeout(() => fileInputRef.current?.click(), 100);
-              }}
-              className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-[#967BB6] hover:bg-[#7F62A1] text-white flex items-center justify-center shadow-md transition-transform active:scale-90 cursor-pointer"
-              title="Change Profile Photo"
-            >
-              <Camera className="w-4 h-4" />
-            </button>
+            {isLoggedIn && (
+              <button
+                onClick={() => {
+                  setActiveTab('profile');
+                  setIsEditingProfile(true);
+                  setTimeout(() => fileInputRef.current?.click(), 100);
+                }}
+                className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-[#967BB6] hover:bg-[#7F62A1] text-white flex items-center justify-center shadow-md transition-transform active:scale-90 cursor-pointer"
+                title="Change Profile Photo"
+              >
+                <Camera className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           <div className="space-y-1">
             <div className="flex items-center gap-2 justify-center sm:justify-start flex-wrap">
               <h1 className="font-serif text-2xl sm:text-3xl text-brand-charcoal font-semibold">
-                {profileForm.name || (isLoggedIn ? user?.name : 'Valued Member')}
+                {isLoggedIn ? (profileForm.name || user?.name || 'Valued Member') : 'Guest Account'}
               </h1>
-              {isAdmin ? (
-                <span className="bg-[#967BB6] text-white text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-xs tracking-wider flex items-center gap-1">
-                  <ShieldCheck className="w-2.5 h-2.5" />
-                  ADMIN
-                </span>
+              {isLoggedIn ? (
+                isAdmin ? (
+                  <span className="bg-[#967BB6] text-white text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-xs tracking-wider flex items-center gap-1">
+                    <ShieldCheck className="w-2.5 h-2.5" />
+                    ADMIN
+                  </span>
+                ) : (
+                  <span className="bg-[#FFFDD0] text-[#967BB6] border border-[#EAE6DB] text-[10px] font-black uppercase px-2 py-0.5 rounded">
+                    VIP Club Member
+                  </span>
+                )
               ) : (
-                <span className="bg-[#FFFDD0] text-[#967BB6] border border-[#EAE6DB] text-[10px] font-black uppercase px-2 py-0.5 rounded">
-                  VIP Club Member
+                <span className="bg-[#FAF8F2] text-brand-muted border border-[#EAE6DB] text-[10px] font-black uppercase px-2 py-0.5 rounded">
+                  Guest
                 </span>
               )}
             </div>
             <p className="text-xs sm:text-sm text-brand-muted">
-              {profileForm.email || (isLoggedIn ? user?.email : 'Sign in to sync your saved items & addresses')}
+              {isLoggedIn
+                ? (profileForm.email || user?.email)
+                : 'Sign in to sync your saved items & addresses'}
             </p>
-            {profileForm.phone && (
+            {isLoggedIn && profileForm.phone && (
               <p className="text-xs text-brand-muted font-mono flex items-center justify-center sm:justify-start gap-1">
                 <span>📱</span> +91 {profileForm.phone}
               </p>
@@ -527,7 +546,10 @@ export const AccountPage: React.FC<AccountPageProps> = ({
 
           {isLoggedIn ? (
             <button
-              onClick={logout}
+              onClick={() => {
+                AddressService.clearCache();
+                logout();
+              }}
               className="flex items-center gap-1.5 px-3.5 py-2.5 border border-[#EAE6DB] hover:bg-rose-50 hover:border-rose-200 text-brand-charcoal hover:text-rose-600 text-xs font-bold uppercase transition-colors rounded-2xl cursor-pointer"
               title="Sign Out"
             >
@@ -595,8 +617,28 @@ export const AccountPage: React.FC<AccountPageProps> = ({
       {/* ========================================================= */}
       {activeTab === 'profile' && (
         <>
-          {/* 1A. READ-ONLY SAVED PROFILE VIEW */}
-          {!isEditingProfile ? (
+          {!isLoggedIn ? (
+            <div className="bg-white border border-[#EAE6DB] rounded-3xl p-8 sm:p-12 text-center shadow-xs space-y-4 animate-fade-in">
+              <div className="w-16 h-16 rounded-3xl bg-[#FAF8F2] border border-[#EAE6DB] text-[#967BB6] mx-auto flex items-center justify-center shadow-xs">
+                <UserIcon className="w-8 h-8" />
+              </div>
+              <div className="space-y-1 max-w-md mx-auto">
+                <h3 className="font-sans font-black text-xl text-brand-charcoal uppercase tracking-tight">
+                  Guest Account
+                </h3>
+                <p className="text-xs text-brand-muted leading-relaxed">
+                  Sign in or create a Girly Tales account with Email OTP or Google to unlock saved profile details, 1-click checkout, and VIP club perks.
+                </p>
+              </div>
+              <button
+                onClick={() => openAuthModal('login')}
+                className="px-8 py-3.5 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-black uppercase tracking-wider rounded-2xl shadow-md transition-all active:scale-95 cursor-pointer inline-flex items-center gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Sign In / Register</span>
+              </button>
+            </div>
+          ) : !isEditingProfile ? (
             <div className="bg-white border border-[#EAE6DB] rounded-3xl p-6 sm:p-8 shadow-xs space-y-6 animate-fade-in">
               {/* Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#EAE6DB]">
@@ -1057,13 +1099,19 @@ export const AccountPage: React.FC<AccountPageProps> = ({
           {addresses.length === 0 && (
             <div className="py-14 text-center text-brand-muted space-y-3 bg-white rounded-3xl border border-[#EAE6DB]">
               <MapPin className="w-12 h-12 mx-auto text-brand-muted-light" />
-              <p className="text-sm font-bold text-brand-charcoal">No shipping addresses saved yet.</p>
-              <p className="text-xs text-brand-muted">Add your home or office address to speed up checkout.</p>
+              <p className="text-sm font-bold text-brand-charcoal">
+                {isLoggedIn ? 'No shipping addresses saved yet.' : 'Sign in to access your saved addresses.'}
+              </p>
+              <p className="text-xs text-brand-muted">
+                {isLoggedIn
+                  ? 'Add your home or office address to speed up checkout.'
+                  : 'Your saved delivery addresses will appear here once you sign in.'}
+              </p>
               <button
-                onClick={handleOpenAddAddress}
+                onClick={isLoggedIn ? handleOpenAddAddress : () => openAuthModal('login')}
                 className="mt-2 px-6 py-2.5 bg-[#967BB6] text-white text-xs font-bold uppercase rounded-2xl shadow-xs cursor-pointer"
               >
-                + Add Address Now
+                {isLoggedIn ? '+ Add Address Now' : 'Sign In / Register'}
               </button>
             </div>
           )}
@@ -1576,14 +1624,30 @@ export const AccountPage: React.FC<AccountPageProps> = ({
               {userOrders.length === 0 && (
                 <div className="py-14 text-center text-brand-muted space-y-3 bg-white rounded-3xl border border-[#EAE6DB]">
                   <ShoppingBag className="w-10 h-10 mx-auto text-brand-muted-light" />
-                  <p className="text-sm font-bold text-brand-charcoal">No orders found in your account.</p>
-                  <p className="text-xs text-brand-muted">Your purchase history will appear here once you place an order.</p>
-                  <button
-                    onClick={() => onNavigate('shop')}
-                    className="mt-2 px-6 py-2.5 bg-[#967BB6] text-white text-xs font-bold rounded-2xl shadow-xs cursor-pointer"
-                  >
-                    Explore Shop
-                  </button>
+                  <p className="text-sm font-bold text-brand-charcoal">
+                    {isLoggedIn ? 'No orders found in your account.' : 'Sign in to view your account orders.'}
+                  </p>
+                  <p className="text-xs text-brand-muted max-w-md mx-auto">
+                    {isLoggedIn
+                      ? 'Your purchase history will appear here once you place an order.'
+                      : 'You can track individual orders above using your Order ID, or sign in to sync all personal orders.'}
+                  </p>
+                  <div className="pt-2 flex items-center justify-center gap-3 flex-wrap">
+                    <button
+                      onClick={() => onNavigate('shop')}
+                      className="px-6 py-2.5 bg-[#FAF8F2] hover:bg-[#FFFDD0] border border-[#EAE6DB] text-brand-charcoal text-xs font-bold uppercase rounded-2xl shadow-xs cursor-pointer"
+                    >
+                      Explore Shop
+                    </button>
+                    {!isLoggedIn && (
+                      <button
+                        onClick={() => openAuthModal('login')}
+                        className="px-6 py-2.5 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-black uppercase tracking-wider rounded-2xl shadow-xs cursor-pointer"
+                      >
+                        Sign In / Register
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

@@ -12,19 +12,7 @@ if (typeof window !== 'undefined') {
 }
 
 // In-memory runtime cache for seamless UI reactivity (never written to browser storage)
-let inMemoryAddresses: ShippingAddress[] = [
-  {
-    id: 'addr-default-1',
-    fullName: 'Ananya Verma',
-    phone: '9876543210',
-    pincode: '400050',
-    city: 'Mumbai',
-    state: 'Maharashtra',
-    addressLine: 'B-402, Sea Green Heights, Bandra West',
-    type: 'Home',
-    isDefault: true,
-  },
-];
+let inMemoryAddresses: ShippingAddress[] = [];
 
 export const notifyAddressChange = () => {
   if (typeof window !== 'undefined') {
@@ -33,21 +21,29 @@ export const notifyAddressChange = () => {
 };
 
 export const AddressService = {
-  // Fetch shipping addresses directly from Supabase Database
+  // Clear runtime cache on logout
+  clearCache() {
+    inMemoryAddresses = [];
+    notifyAddressChange();
+  },
+
+  // Fetch shipping addresses directly from Supabase Database for a specific user
   async getAddresses(userEmail?: string): Promise<ShippingAddress[]> {
+    if (!userEmail) {
+      inMemoryAddresses = [];
+      return [];
+    }
+
+    const normalizedEmail = userEmail.toLowerCase().trim();
+
     if (isSupabaseConfigured) {
       try {
-        let query = supabase
+        const { data, error } = await supabase
           .from('shipping_addresses')
           .select('*')
+          .eq('user_email', normalizedEmail)
           .order('is_default', { ascending: false })
           .order('created_at', { ascending: false });
-
-        if (userEmail) {
-          query = query.or(`user_email.eq.${userEmail.toLowerCase().trim()},user_email.is.null,user_email.eq.`);
-        }
-
-        const { data, error } = await query;
 
         if (!error && Array.isArray(data)) {
           const mapped: ShippingAddress[] = data.map((d: any) => ({

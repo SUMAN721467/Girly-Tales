@@ -46,37 +46,88 @@ export const AppContent: React.FC = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
-  // Handle URL hash routing and browser back button
-  useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash.replace('#', '');
-      if (hash.startsWith('product/')) {
-        const slug = hash.replace('product/', '');
+  // Helper to parse route from current window pathname & legacy hash
+  const parseCurrentRoute = () => {
+    // 1. Check if URL contains legacy hash (e.g. #orders, #/orders, #product/xyz)
+    const rawHash = window.location.hash.replace(/^#\/?/, '').trim();
+    if (rawHash) {
+      if (rawHash.startsWith('product/')) {
+        const slug = rawHash.replace('product/', '');
         const found = MOCK_PRODUCTS.find((p) => p.slug === slug || p.id === slug);
         if (found) {
           setSelectedProduct(found);
           setCurrentPage('product');
+          window.history.replaceState(null, '', `/product/${found.slug}`);
+          return;
         }
-      } else if (hash === 'nightwear' || hash === 'jewellery') {
-        setSelectedCategory(hash);
+      } else if (rawHash === 'nightwear' || rawHash === 'jewellery') {
+        setSelectedCategory(rawHash);
         setCurrentPage('shop');
-      } else if (['home', 'shop', 'cart', 'wishlist', 'about', 'contact', 'login', 'account', 'orders', 'admin'].includes(hash)) {
-        setCurrentPage(hash);
+        window.history.replaceState(null, '', `/${rawHash}`);
+        return;
+      } else if (['home', 'shop', 'cart', 'wishlist', 'about', 'contact', 'login', 'account', 'orders', 'admin'].includes(rawHash)) {
+        setCurrentPage(rawHash);
+        const cleanPath = rawHash === 'home' ? '/' : `/${rawHash}`;
+        window.history.replaceState(null, '', cleanPath);
+        return;
       }
+    }
+
+    // 2. Parse from window.location.pathname (clean URLs like /orders, /shop, /product/slug)
+    const pathname = window.location.pathname.replace(/^\/+|\/+$/g, '');
+    if (!pathname || pathname === 'home') {
+      setCurrentPage('home');
+      setSelectedCategory('all');
+    } else if (pathname.startsWith('product/')) {
+      const slug = pathname.replace('product/', '');
+      const found = MOCK_PRODUCTS.find((p) => p.slug === slug || p.id === slug);
+      if (found) {
+        setSelectedProduct(found);
+        setCurrentPage('product');
+      } else {
+        setCurrentPage('shop');
+      }
+    } else if (pathname === 'nightwear' || pathname === 'jewellery') {
+      setSelectedCategory(pathname);
+      setCurrentPage('shop');
+    } else if (['shop', 'cart', 'wishlist', 'about', 'contact', 'login', 'account', 'orders', 'admin'].includes(pathname)) {
+      setCurrentPage(pathname);
+    }
+  };
+
+  useEffect(() => {
+    parseCurrentRoute();
+
+    const handlePopState = () => {
+      parseCurrentRoute();
     };
 
+    const handleHashChange = () => {
+      parseCurrentRoute();
+    };
+
+    window.addEventListener('popstate', handlePopState);
     window.addEventListener('hashchange', handleHashChange);
-    if (window.location.hash) {
-      handleHashChange();
-    }
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handleHashChange);
+    };
   }, []);
 
   const navigateTo = (page: string, category: string = 'all') => {
     setCurrentPage(page);
     setSelectedCategory(category);
-    if (page !== 'product') {
-      window.location.hash = category !== 'all' ? category : page;
+    let targetPath = '/';
+    if (page === 'home') {
+      targetPath = '/';
+    } else if (page === 'shop' && category !== 'all') {
+      targetPath = `/${category}`;
+    } else {
+      targetPath = `/${page}`;
+    }
+
+    if (window.location.pathname !== targetPath || window.location.hash) {
+      window.history.pushState(null, '', targetPath);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -84,7 +135,10 @@ export const AppContent: React.FC = () => {
   const handleSelectProduct = (product: Product) => {
     setSelectedProduct(product);
     setCurrentPage('product');
-    window.location.hash = `product/${product.slug}`;
+    const targetPath = `/product/${product.slug}`;
+    if (window.location.pathname !== targetPath || window.location.hash) {
+      window.history.pushState(null, '', targetPath);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
