@@ -220,6 +220,10 @@ CREATE POLICY "Public Write Wishlist" ON public.wishlist FOR ALL USING (true) WI
 CREATE POLICY "Public Read Cart" ON public.cart_items FOR SELECT USING (true);
 CREATE POLICY "Public Write Cart" ON public.cart_items FOR ALL USING (true) WITH CHECK (true);
 
+CREATE INDEX IF NOT EXISTS idx_cart_items_user_id ON public.cart_items(user_id);
+CREATE INDEX IF NOT EXISTS idx_wishlist_user_id ON public.wishlist(user_id);
+CREATE INDEX IF NOT EXISTS idx_shipping_addresses_user ON public.shipping_addresses(user_email, user_id);
+
 -- ==============================================================================
 -- 10. REALTIME REPLICATION SETUP
 -- ==============================================================================
@@ -235,6 +239,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.products;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.orders;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.reviews;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.coupons;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.cart_items;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.wishlist;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.shipping_addresses;
 
 -- ==============================================================================
 -- 11. AUTOMATIC PROFILE TRIGGER ON AUTH.USERS SIGNUP

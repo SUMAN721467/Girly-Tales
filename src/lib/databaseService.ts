@@ -771,11 +771,14 @@ export const DatabaseService = {
           { name: 'orders', count: inMemoryOrders.length, status: 'missing', message: 'Using in-memory seed fallback' },
           { name: 'reviews', count: inMemoryReviews.length, status: 'missing', message: 'Using in-memory seed fallback' },
           { name: 'coupons', count: inMemoryCoupons.length, status: 'missing', message: 'Using in-memory seed fallback' },
+          { name: 'cart_items', count: 0, status: 'missing', message: 'Local storage fallback active' },
+          { name: 'wishlist', count: 0, status: 'missing', message: 'Local storage fallback active' },
+          { name: 'shipping_addresses', count: 0, status: 'missing', message: 'Local storage fallback active' },
         ],
       };
     }
 
-    const tableNames = ['categories', 'products', 'orders', 'reviews', 'coupons'];
+    const tableNames = ['categories', 'products', 'orders', 'reviews', 'coupons', 'cart_items', 'wishlist', 'shipping_addresses'];
     const results: { name: string; count: number; status: 'ready' | 'missing' | 'error'; message?: string }[] = [];
 
     for (const tableName of tableNames) {

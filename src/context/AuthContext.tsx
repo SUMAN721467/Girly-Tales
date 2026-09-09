@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '../types/product';
-import { useCart } from './CartContext';
+import { useToast } from './ToastContext';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 // Admin Emails from environment variable + defaults
@@ -61,7 +61,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<'login' | 'signup'>('login');
-  const { triggerToast } = useCart();
+  const { triggerToast } = useToast();
 
   // Listen to Supabase auth state changes if configured
   useEffect(() => {

@@ -28,6 +28,7 @@ export const CartPage: React.FC<CartPageProps> = ({
     applyCoupon,
     removeCoupon,
     clearCart,
+    isCartSyncing,
   } = useCart();
 
   const [couponCode, setCouponCode] = useState('');
@@ -79,9 +80,17 @@ export const CartPage: React.FC<CartPageProps> = ({
       <div className="flex items-center justify-between pb-4 border-b border-brand-border">
         <div>
           <span className="font-script text-2xl text-brand-lilac font-semibold">Your Selection</span>
-          <h1 className="font-serif text-3xl sm:text-4xl text-brand-charcoal font-medium">
-            Shopping Cart ({totalItems} items)
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="font-serif text-3xl sm:text-4xl text-brand-charcoal font-medium">
+              Shopping Cart ({totalItems} items)
+            </h1>
+            {isCartSyncing && (
+              <span className="text-[10px] text-[#967BB6] animate-pulse flex items-center gap-1 font-bold bg-[#FAF8F2] px-2.5 py-1 rounded-full border border-[#967BB6]/30">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#967BB6] animate-ping" />
+                Syncing
+              </span>
+            )}
+          </div>
         </div>
         <button
           onClick={clearCart}

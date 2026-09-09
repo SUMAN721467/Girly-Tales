@@ -29,6 +29,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     removeCoupon,
     updateQuantity,
     removeFromCart,
+    isCartSyncing,
   } = useCart();
 
   const [couponInput, setCouponInput] = useState('');
@@ -64,6 +65,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               <h3 className="font-sans font-black text-base uppercase text-brand-charcoal">
                 Your Bag ({totalItems})
               </h3>
+              {isCartSyncing && (
+                <span className="text-[10px] text-[#967BB6] animate-pulse flex items-center gap-1 font-bold bg-white/80 px-2 py-0.5 rounded-full border border-[#967BB6]/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#967BB6] animate-ping" />
+                  Syncing
+                </span>
+              )}
             </div>
             <button
               onClick={closeCart}

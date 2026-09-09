@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Product } from './types/product';
 import { MOCK_PRODUCTS } from './data/products';
+import { ToastProvider } from './context/ToastContext';
+import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { WishlistProvider } from './context/WishlistContext';
-import { AuthProvider } from './context/AuthContext';
 
 // Layout Components
 import { AnnouncementBar } from './components/layout/AnnouncementBar';
@@ -272,13 +273,15 @@ export const AppContent: React.FC = () => {
 
 export const App: React.FC = () => {
   return (
-    <CartProvider>
-      <WishlistProvider>
-        <AuthProvider>
-          <AppContent />
-        </AuthProvider>
-      </WishlistProvider>
-    </CartProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <CartProvider>
+          <WishlistProvider>
+            <AppContent />
+          </WishlistProvider>
+        </CartProvider>
+      </AuthProvider>
+    </ToastProvider>
   );
 };
 
