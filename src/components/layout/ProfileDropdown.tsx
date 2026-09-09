@@ -141,36 +141,63 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
               </button>
             )}
 
-            {/* My Account */}
+            {/* 1. Profile Details */}
             <button
-              onClick={() => handleMenuClick(() => onNavigate('account'))}
+              onClick={() => handleMenuClick(() => onNavigate('account', 'profile'))}
               className="w-full flex items-center justify-between p-2.5 rounded-2xl hover:bg-[#FFFDD0]/50 transition-all group text-left"
             >
               <div className="flex items-center gap-3.5">
-                <div className="w-10 h-10 rounded-xl bg-[#EEF4F0] flex items-center justify-center text-brand-charcoal group-hover:bg-[#E2ECE5] group-hover:scale-105 transition-all shadow-xs">
-                  <UserIcon className="w-5 h-5 stroke-[1.8]" />
+                <div className="w-10 h-10 rounded-xl bg-[#FAF8F2] flex items-center justify-center text-brand-charcoal group-hover:bg-[#FFFDD0] group-hover:scale-105 transition-all shadow-xs">
+                  <UserIcon className="w-5 h-5 stroke-[1.8] text-[#967BB6]" />
                 </div>
                 <div>
-                  <span className="text-sm font-semibold text-brand-charcoal block group-hover:text-brand-charcoal">
-                    My Account
+                  <span className="text-sm font-semibold text-brand-charcoal block">
+                    Profile Details
+                  </span>
+                  <span className="text-[10px] text-brand-muted block">
+                    Name, mobile, age, gender &amp; photo
                   </span>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-brand-muted-light group-hover:text-brand-charcoal group-hover:translate-x-0.5 transition-all" />
             </button>
 
-            {/* My Orders */}
+            {/* 2. Shipping Address */}
             <button
-              onClick={() => handleMenuClick(() => onNavigate('orders'))}
+              onClick={() => handleMenuClick(() => onNavigate('account', 'addresses'))}
               className="w-full flex items-center justify-between p-2.5 rounded-2xl hover:bg-[#FFFDD0]/50 transition-all group text-left"
             >
               <div className="flex items-center gap-3.5">
-                <div className="w-10 h-10 rounded-xl bg-[#EEF4F0] flex items-center justify-center text-brand-charcoal group-hover:bg-[#E2ECE5] group-hover:scale-105 transition-all shadow-xs">
-                  <ShoppingBag className="w-5 h-5 stroke-[1.8]" />
+                <div className="w-10 h-10 rounded-xl bg-[#FAF8F2] flex items-center justify-center text-brand-charcoal group-hover:bg-[#FFFDD0] group-hover:scale-105 transition-all shadow-xs">
+                  <span className="text-base">📍</span>
+                </div>
+                <div>
+                  <span className="text-sm font-semibold text-brand-charcoal block">
+                    Shipping Address
+                  </span>
+                  <span className="text-[10px] text-brand-muted block">
+                    Manage multiple delivery addresses
+                  </span>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-brand-muted-light group-hover:text-brand-charcoal group-hover:translate-x-0.5 transition-all" />
+            </button>
+
+            {/* 3. My Orders */}
+            <button
+              onClick={() => handleMenuClick(() => onNavigate('account', 'orders'))}
+              className="w-full flex items-center justify-between p-2.5 rounded-2xl hover:bg-[#FFFDD0]/50 transition-all group text-left"
+            >
+              <div className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-[#FAF8F2] flex items-center justify-center text-brand-charcoal group-hover:bg-[#FFFDD0] group-hover:scale-105 transition-all shadow-xs">
+                  <ShoppingBag className="w-5 h-5 stroke-[1.8] text-[#967BB6]" />
                 </div>
                 <div>
                   <span className="text-sm font-semibold text-brand-charcoal block">
                     My Orders
+                  </span>
+                  <span className="text-[10px] text-brand-muted block">
+                    Track shipments &amp; purchase history
                   </span>
                 </div>
               </div>

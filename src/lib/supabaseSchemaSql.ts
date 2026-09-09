@@ -147,6 +147,7 @@ CREATE TABLE IF NOT EXISTS public.wishlist (
 );
 
 -- ==============================================================================
+-- ==============================================================================
 -- 8. TABLE: CART_ITEMS
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.cart_items (
@@ -160,7 +161,25 @@ CREATE TABLE IF NOT EXISTS public.cart_items (
 );
 
 -- ==============================================================================
--- 9. ROW LEVEL SECURITY (RLS) POLICIES
+-- 9. TABLE: SHIPPING_ADDRESSES
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.shipping_addresses (
+    id TEXT PRIMARY KEY,
+    user_email TEXT,
+    user_id TEXT,
+    full_name TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    pincode TEXT NOT NULL,
+    city TEXT NOT NULL,
+    state TEXT NOT NULL,
+    address_line TEXT NOT NULL,
+    type TEXT DEFAULT 'Home',
+    is_default BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- ==============================================================================
+-- 10. ROW LEVEL SECURITY (RLS) POLICIES
 -- ==============================================================================
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
@@ -170,6 +189,10 @@ ALTER TABLE public.coupons ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.wishlist ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cart_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.shipping_addresses ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public Read Shipping Addresses" ON public.shipping_addresses FOR SELECT USING (true);
+CREATE POLICY "Public Write Shipping Addresses" ON public.shipping_addresses FOR ALL USING (true) WITH CHECK (true);
 
 CREATE POLICY "Public Read Categories" ON public.categories FOR SELECT USING (true);
 CREATE POLICY "Public Write Categories" ON public.categories FOR ALL USING (true) WITH CHECK (true);

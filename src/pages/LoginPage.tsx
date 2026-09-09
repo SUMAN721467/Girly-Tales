@@ -154,7 +154,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               onClick={() => setAccountTab('overview')}
               className={`px-4 py-2 rounded-xl text-xs font-bold uppercase transition-all ${
                 accountTab === 'overview'
-                  ? 'bg-[#1A1821] text-white shadow-xs'
+                  ? 'bg-[#967BB6] text-white shadow-md shadow-[#967BB6]/25 hover:bg-[#7F62A1]'
                   : 'bg-[#FAF8F2] text-brand-charcoal hover:bg-[#FFFDD0]'
               }`}
             >
@@ -164,7 +164,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               onClick={() => setAccountTab('orders')}
               className={`px-4 py-2 rounded-xl text-xs font-bold uppercase transition-all flex items-center gap-1.5 ${
                 accountTab === 'orders'
-                  ? 'bg-[#1A1821] text-white shadow-xs'
+                  ? 'bg-[#967BB6] text-white shadow-md shadow-[#967BB6]/25 hover:bg-[#7F62A1]'
                   : 'bg-[#FAF8F2] text-brand-charcoal hover:bg-[#FFFDD0]'
               }`}
             >

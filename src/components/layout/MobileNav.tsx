@@ -86,22 +86,33 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onNavigat
             {isLoggedIn && user ? (
               <>
                 <button
-                  onClick={() => handleLinkClick('account')}
+                  onClick={() => handleLinkClick('account', 'profile')}
                   className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#FFFDD0] flex items-center justify-between transition-colors"
                 >
                   <span className="flex items-center gap-2">
                     <UserIcon className="w-4 h-4 text-[#967BB6]" />
-                    <span>My Account ({user.name})</span>
+                    <span>Profile Details</span>
                   </span>
                   <ArrowRight className="w-4 h-4 text-brand-muted-light" />
                 </button>
 
                 <button
-                  onClick={() => handleLinkClick('orders')}
+                  onClick={() => handleLinkClick('account', 'addresses')}
                   className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#FFFDD0] flex items-center justify-between transition-colors"
                 >
                   <span className="flex items-center gap-2">
-                    <UserIcon className="w-4 h-4 text-brand-muted" />
+                    <span className="text-sm">📍</span>
+                    <span>Shipping Address</span>
+                  </span>
+                  <ArrowRight className="w-4 h-4 text-brand-muted-light" />
+                </button>
+
+                <button
+                  onClick={() => handleLinkClick('account', 'orders')}
+                  className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#FFFDD0] flex items-center justify-between transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <ShoppingBag className="w-4 h-4 text-[#967BB6]" />
                     <span>My Orders</span>
                   </span>
                   <ArrowRight className="w-4 h-4 text-brand-muted-light" />

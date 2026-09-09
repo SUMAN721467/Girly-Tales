@@ -28,6 +28,7 @@ import { WishlistPage } from './pages/WishlistPage';
 import { AboutPage } from './pages/AboutPage';
 import { ContactPage } from './pages/ContactPage';
 import { LoginPage } from './pages/LoginPage';
+import { AccountPage } from './pages/AccountPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 
 import { useAuth } from './context/AuthContext';
@@ -152,12 +153,25 @@ export const AppContent: React.FC = () => {
 
         {currentPage === 'contact' && <ContactPage />}
 
-        {(currentPage === 'login' || currentPage === 'account') && (
-          <LoginPage onNavigate={navigateTo} initialSection="overview" />
+        {currentPage === 'login' && (
+          <LoginPage onNavigate={navigateTo} />
+        )}
+
+        {currentPage === 'account' && (
+          <AccountPage
+            onNavigate={navigateTo}
+            initialTab={
+              selectedCategory === 'addresses'
+                ? 'addresses'
+                : selectedCategory === 'orders'
+                ? 'orders'
+                : 'profile'
+            }
+          />
         )}
 
         {currentPage === 'orders' && (
-          <LoginPage onNavigate={navigateTo} initialSection="orders" />
+          <AccountPage onNavigate={navigateTo} initialTab="orders" />
         )}
 
         {currentPage === 'admin' && (

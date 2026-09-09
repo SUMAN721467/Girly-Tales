@@ -41,6 +41,7 @@ interface AuthContextType {
   signup: (name: string, email: string, password?: string, phone?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
+  updateUserProfile: (data: Partial<User>) => Promise<{ success: boolean; error?: string }>;
 }
 
 const USER_STORAGE_KEY = 'girly_tales_user_v1';
@@ -84,10 +85,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             email: userEmail,
             name: fallbackName.charAt(0).toUpperCase() + fallbackName.slice(1),
             phone: userMeta.phone,
+            gender: userMeta.gender || undefined,
+            age: userMeta.age !== undefined && userMeta.age !== null ? userMeta.age : undefined,
             isLoggedIn: true,
             isAdmin: userIsAdmin,
             role: userIsAdmin ? 'admin' : 'customer',
-            avatarUrl: userMeta.avatar_url,
+            avatarUrl: userMeta.avatar_url || userMeta.avatarUrl,
             createdAt: u.created_at,
           };
           setUser(newUser);
@@ -111,10 +114,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: userEmail,
           name: fallbackName.charAt(0).toUpperCase() + fallbackName.slice(1),
           phone: userMeta.phone,
+          gender: userMeta.gender || undefined,
+          age: userMeta.age !== undefined && userMeta.age !== null ? userMeta.age : undefined,
           isLoggedIn: true,
           isAdmin: userIsAdmin,
           role: userIsAdmin ? 'admin' : 'customer',
-          avatarUrl: userMeta.avatar_url,
+          avatarUrl: userMeta.avatar_url || userMeta.avatarUrl,
           createdAt: u.created_at,
         };
         setUser(newUser);
@@ -200,9 +205,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             email: u.email || email,
             name: capitalized,
             phone: userMeta.phone,
+            gender: userMeta.gender || undefined,
+            age: userMeta.age !== undefined && userMeta.age !== null ? userMeta.age : undefined,
             isLoggedIn: true,
             isAdmin: userIsAdmin,
             role: userIsAdmin ? 'admin' : 'customer',
+            avatarUrl: userMeta.avatar_url || userMeta.avatarUrl,
             createdAt: u.created_at,
           };
           setUser(newUser);
@@ -306,9 +314,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             id: u.id,
             email: userEmail,
             name: capitalized,
+            phone: userMeta.phone,
+            gender: userMeta.gender || undefined,
+            age: userMeta.age !== undefined && userMeta.age !== null ? userMeta.age : undefined,
             isLoggedIn: true,
             isAdmin: userIsAdmin,
             role: userIsAdmin ? 'admin' : 'customer',
+            avatarUrl: userMeta.avatar_url || userMeta.avatarUrl,
             createdAt: u.created_at,
           };
           setUser(newUser);
@@ -432,6 +444,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     triggerToast('Logged out successfully', 'See you again soon!', undefined, 'info');
   };
 
+  const updateUserProfile = async (data: Partial<User>): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const updatedUser: User = {
+        ...(user || {
+          id: 'user-' + Date.now(),
+          name: data.name || 'Member',
+          email: data.email || 'member@girlytales.com',
+          isLoggedIn: true,
+          role: 'customer',
+        }),
+        ...data,
+      };
+
+      setUser(updatedUser);
+      try {
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updatedUser));
+      } catch (e) {}
+
+      if (isSupabaseConfigured && user?.id) {
+        try {
+          await supabase.auth.updateUser({
+            data: {
+              name: updatedUser.name,
+              full_name: updatedUser.name,
+              phone: updatedUser.phone,
+              gender: updatedUser.gender,
+              age: updatedUser.age,
+              avatar_url: updatedUser.avatarUrl,
+              avatarUrl: updatedUser.avatarUrl,
+            },
+          });
+        } catch (err) {
+          console.warn('Supabase auth metadata update note:', err);
+        }
+      }
+
+      triggerToast('Profile Updated! ✨', 'Your account details have been saved.', undefined, 'success');
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Failed to update profile' };
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -451,6 +506,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signup,
         logout,
         resetPassword,
+        updateUserProfile,
       }}
     >
       {children}

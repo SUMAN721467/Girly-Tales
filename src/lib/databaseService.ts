@@ -15,8 +15,13 @@ if (typeof window !== 'undefined') {
       'girly_tales_db_promotions_v1',
       'girly_tales_db_shipping_v1',
       'girly_tales_db_faqs_v1',
+      'girly_tales_shipping_addresses_v1',
+      'girly_tales_saved_addresses_v1',
     ];
-    keysToRemove.forEach((k) => localStorage.removeItem(k));
+    keysToRemove.forEach((k) => {
+      localStorage.removeItem(k);
+      sessionStorage.removeItem(k);
+    });
   } catch (e) {}
 }
 

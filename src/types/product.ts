@@ -72,10 +72,24 @@ export interface User {
   name: string;
   email: string;
   phone?: string;
+  gender?: 'Female' | 'Male' | 'Non-binary' | 'Prefer not to say' | string;
+  age?: number | string;
   isLoggedIn: boolean;
   isAdmin?: boolean;
   role?: 'admin' | 'customer';
   avatarUrl?: string;
   createdAt?: string;
+}
+
+export interface ShippingAddress {
+  id: string;
+  fullName: string;
+  phone: string;
+  pincode: string;
+  city: string;
+  state: string;
+  addressLine: string;
+  type?: 'Home' | 'Work' | 'Other';
+  isDefault?: boolean;
 }
 
