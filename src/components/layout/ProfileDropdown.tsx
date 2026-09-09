@@ -74,15 +74,15 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
           {/* Header Profile Section */}
           <div className="bg-[#FAF8F2] px-5 py-4.5 border-b border-[#EAE6DB]/70 flex items-center gap-3.5">
             <div className="relative shrink-0">
-              <div className="w-13 h-13 rounded-full bg-white p-0.5 border border-[#EAE6DB] shadow-xs flex items-center justify-center overflow-hidden">
+              <div className="w-12 h-12 min-w-[48px] min-h-[48px] aspect-square rounded-full bg-white p-0.5 border border-[#EAE6DB] shadow-xs flex items-center justify-center overflow-hidden">
                 {user.avatarUrl ? (
                   <img
                     src={user.avatarUrl}
                     alt={user.name}
-                    className="w-full h-full object-cover rounded-full"
+                    className="w-full h-full aspect-square object-cover rounded-full"
                   />
                 ) : (
-                  <div className={`w-full h-full rounded-full flex items-center justify-center font-serif font-black text-lg ${
+                  <div className={`w-full h-full aspect-square rounded-full flex items-center justify-center font-serif font-black text-lg select-none ${
                     isAdmin 
                       ? 'bg-gradient-to-br from-[#967BB6] to-[#7F62A1] text-white shadow-sm'
                       : 'bg-gradient-to-br from-[#FFFDD0] to-[#E8DCF3] text-brand-charcoal'
@@ -91,7 +91,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
                   </div>
                 )}
               </div>
-              <span className="absolute bottom-0 right-0 w-3 h-3 bg-[#10B981] border-2 border-white rounded-full shadow-xs" />
+              <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#10B981] border-2 border-white rounded-full shadow-xs" />
             </div>
 
             <div className="min-w-0 flex-1">

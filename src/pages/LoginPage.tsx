@@ -121,7 +121,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           {/* Member Card */}
           <div className="bg-white border border-[#EAE6DB] rounded-3xl p-6 sm:p-8 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-4 text-center sm:text-left">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#967BB6] to-[#7F62A1] text-white font-serif font-black text-2xl flex items-center justify-center shadow-xs">
+              <div className="w-16 h-16 min-w-[64px] min-h-[64px] aspect-square shrink-0 rounded-full bg-gradient-to-br from-[#967BB6] to-[#7F62A1] text-white font-serif font-black text-2xl flex items-center justify-center shadow-xs select-none">
                 {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
               </div>
               <div className="space-y-0.5">

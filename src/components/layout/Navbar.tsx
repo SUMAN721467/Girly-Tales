@@ -137,11 +137,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 title={isLoggedIn && user ? (isAdmin ? `Admin (${user.name || user.email})` : `Account (${user.name})`) : 'Profile Menu'}
               >
                 {isLoggedIn && user ? (
-                  <div className="w-6 h-6 rounded-full bg-[#967BB6] text-white text-[10px] font-black flex items-center justify-center shadow-xs">
+                  <div className="w-6 h-6 min-w-[24px] min-h-[24px] aspect-square shrink-0 rounded-full bg-[#967BB6] text-white text-[10px] font-black flex items-center justify-center shadow-xs select-none">
                     {user.name.charAt(0).toUpperCase()}
                   </div>
                 ) : (
-                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#FFFDD0] to-[#E8DCF3] flex items-center justify-center text-brand-charcoal text-[10px] font-black">
+                  <div className="w-6 h-6 min-w-[24px] min-h-[24px] aspect-square shrink-0 rounded-full bg-gradient-to-br from-[#FFFDD0] to-[#E8DCF3] flex items-center justify-center text-brand-charcoal text-[10px] font-black select-none">
                     <UserIcon className="w-3.5 h-3.5 stroke-[2.2]" />
                   </div>
                 )}

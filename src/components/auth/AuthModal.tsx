@@ -227,7 +227,7 @@ export const AuthModal: React.FC = () => {
             {/* If user is already logged in: Profile Quick Card */}
             {isLoggedIn && user ? (
               <div className="text-center py-2 space-y-4 animate-fade-in">
-                <div className="w-16 h-16 rounded-full bg-[#967BB6] text-white font-serif font-bold text-2xl flex items-center justify-center mx-auto shadow-md">
+                <div className="w-16 h-16 min-w-[64px] min-h-[64px] aspect-square shrink-0 rounded-full bg-[#967BB6] text-white font-serif font-bold text-2xl flex items-center justify-center mx-auto shadow-md select-none">
                   {user.name ? user.name.charAt(0).toUpperCase() : 'G'}
                 </div>
                 <div>

@@ -8,20 +8,35 @@ export default {
     extend: {
       colors: {
         brand: {
-          // User-requested colors
-          yellow: '#FFFDD0',         // Light Yellow
-          'yellow-light': '#FFFEE8',
-          'yellow-dark': '#EDEAB0',
-          'yellow-card': '#FEFDEB',
-          lavender: '#967BB6',       // Grey Lavender
+          // Lavender / Lilac shades
+          lavender: '#967BB6',
           'lavender-light': '#B59ECC',
           'lavender-dark': '#7F62A1',
           'lavender-subtle': '#F5EEFA',
           'lavender-tint': '#E8DCF3',
           'lavender-pill': '#967BB6',
+          lilac: '#967BB6',
+          'lilac-light': '#B59ECC',
+          'lilac-dark': '#7F62A1',
+          'lilac-subtle': '#F5EEFA',
+          'lilac-tint': '#E8DCF3',
+
+          // Yellow / Butter / Ivory shades
+          yellow: '#FFFDD0',
+          'yellow-light': '#FFFEE8',
+          'yellow-dark': '#EDEAB0',
+          'yellow-card': '#FEFDEB',
+          butter: '#FFFDD0',
+          'butter-light': '#FFFEE8',
+          'butter-dark': '#EDEAB0',
+          ivory: '#FAF8F2',
+          'ivory-dark': '#EDEAE0',
+
+          // Blush & Neutrals
           blush: '#FCE7ED',
           'blush-btn': '#FBB6CE',
           charcoal: '#1A1821',
+          night: '#1A1821',
           muted: '#6B6678',
           'muted-light': '#9B96A8',
           border: '#E8E4D8',
@@ -36,6 +51,9 @@ export default {
       },
       boxShadow: {
         'nap': '0 4px 20px rgba(150, 123, 182, 0.08)',
+        'soft': '0 4px 20px rgba(150, 123, 182, 0.15)',
+        'glow': '0 0 25px rgba(150, 123, 182, 0.4)',
+        'gold-glow': '0 0 25px rgba(212, 175, 55, 0.4)',
         'card': '0 8px 30px rgba(0, 0, 0, 0.05)',
         'drawer': '-10px 0 35px rgba(0, 0, 0, 0.12)'
       },

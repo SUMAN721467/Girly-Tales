@@ -34,17 +34,17 @@ export const Button: React.FC<ButtonProps> = ({
 
   const variantStyles = {
     primary:
-      'bg-brand-lilac hover:bg-brand-lilac-dark text-white shadow-soft hover:shadow-glow hover:-translate-y-0.5',
+      'bg-[#967BB6] hover:bg-[#7F62A1] active:bg-[#6D528F] text-white font-bold shadow-md hover:shadow-lg shadow-[#967BB6]/30 hover:-translate-y-0.5',
     secondary:
-      'bg-brand-butter hover:bg-brand-butter-dark text-brand-charcoal font-semibold shadow-soft hover:-translate-y-0.5',
+      'bg-[#FFFDD0] hover:bg-[#EDEAB0] text-brand-charcoal font-semibold shadow-soft hover:-translate-y-0.5 border border-brand-border',
     outline:
-      'border border-brand-lilac/40 text-brand-charcoal hover:bg-brand-lilac-subtle hover:border-brand-lilac',
+      'border border-[#967BB6]/50 text-brand-charcoal hover:bg-[#F5EEFA] hover:border-[#967BB6]',
     gold:
-      'bg-gradient-to-r from-[#D4AF37] to-[#E9CB74] hover:from-[#C5A028] hover:to-[#DFC169] text-brand-night font-semibold shadow-gold-glow hover:-translate-y-0.5',
+      'bg-gradient-to-r from-[#D4AF37] to-[#E9CB74] hover:from-[#C5A028] hover:to-[#DFC169] text-[#1A1821] font-semibold shadow-gold-glow hover:-translate-y-0.5',
     dark:
-      'bg-brand-charcoal hover:bg-black text-white shadow-md hover:-translate-y-0.5',
+      'bg-[#1A1821] hover:bg-black text-white shadow-md hover:-translate-y-0.5',
     ghost:
-      'bg-transparent hover:bg-brand-lilac-subtle text-brand-charcoal',
+      'bg-transparent hover:bg-[#F5EEFA] text-brand-charcoal',
   };
 
   return (

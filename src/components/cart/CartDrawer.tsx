@@ -205,7 +205,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   />
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-[#1A1821] text-white text-xs font-bold uppercase"
+                    className="px-4 py-2 bg-[#967BB6] hover:bg-[#7F62A1] active:bg-[#6D528F] text-white text-xs font-bold uppercase transition-all shadow-sm cursor-pointer"
                   >
                     Apply
                   </button>

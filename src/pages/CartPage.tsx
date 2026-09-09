@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShoppingBag, ArrowRight, Truck, Tag, ShieldCheck, ArrowLeft, Trash2 } from 'lucide-react';
+import { ShoppingBag, ArrowRight, Truck, Tag, ArrowLeft, Trash2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { CartItemRow } from '../components/cart/CartItemRow';
 import { Button } from '../components/common/Button';
@@ -179,7 +179,7 @@ export const CartPage: React.FC<CartPageProps> = ({
                   />
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-brand-charcoal text-white rounded-xl text-xs font-semibold hover:bg-black transition-colors"
+                    className="px-4 py-2 bg-[#967BB6] hover:bg-[#7F62A1] active:bg-[#6D528F] text-white rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow-md cursor-pointer"
                   >
                     Apply
                   </button>
@@ -214,19 +214,13 @@ export const CartPage: React.FC<CartPageProps> = ({
             </div>
           </div>
 
-          <Button
-            variant="primary"
-            fullWidth
-            size="lg"
+          <button
             onClick={onOpenCheckout}
+            className="w-full py-4 px-6 bg-[#967BB6] hover:bg-[#7F62A1] active:bg-[#6D528F] text-white font-bold text-sm uppercase tracking-wider rounded-2xl shadow-lg shadow-[#967BB6]/30 flex items-center justify-center gap-2 transition-all cursor-pointer hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 select-none"
           >
-            Proceed to Checkout
-          </Button>
-
-          <div className="flex items-center justify-center gap-2 text-[11px] text-brand-muted pt-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Encrypted 256-bit Secure Checkout</span>
-          </div>
+            <span>Proceed to Checkout</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </div>

@@ -396,7 +396,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   Complete Your Order
                 </h3>
                 <p className="text-xs text-brand-muted">
-                  Safe &amp; Secure 256-bit Encrypted Checkout
+                  Fast Pan-India Delivery &amp; Safe Checkout
                 </p>
               </div>
             </div>
@@ -688,7 +688,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       <button
                         type="button"
                         onClick={handleApplyCoupon}
-                        className="px-5 py-2 bg-[#1A1821] hover:bg-[#967BB6] text-white font-bold text-xs uppercase rounded-xl transition-colors cursor-pointer"
+                        className="px-5 py-2 bg-[#967BB6] hover:bg-[#7F62A1] active:bg-[#6D528F] text-white font-bold text-xs uppercase rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer"
                       >
                         Apply
                       </button>
@@ -786,7 +786,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <p className="font-bold text-brand-charcoal">Estimated Delivery:</p>
               <p className="text-brand-muted">2 - 4 Business Days with Premium Express Shipping 🚚</p>
               <p className="text-brand-muted">Delivery to: <strong>{formData.address}, {formData.city} ({formData.pincode})</strong></p>
-              <p className="text-brand-muted">Payment: SAFE &amp; ENCRYPTED ONLINE</p>
+              <p className="text-brand-muted">Payment: ONLINE PREPAID</p>
             </div>
 
             <Button

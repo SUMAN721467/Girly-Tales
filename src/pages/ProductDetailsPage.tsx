@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Heart, Sparkles, Truck, RefreshCw, ChevronDown, ChevronUp, Ruler, ArrowLeft } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Heart, Sparkles, Truck, RefreshCw, ChevronDown, ChevronUp, Ruler, ArrowLeft, ZoomIn } from 'lucide-react';
 import { Product } from '../types/product';
 import { MOCK_PRODUCTS } from '../data/products';
 import { ProductCard } from '../components/product/ProductCard';
@@ -26,6 +26,48 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   );
   const [quantity, setQuantity] = useState(1);
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
+
+  // Amazon-style Side Zoom State
+  const imageContainerRef = useRef<HTMLDivElement>(null);
+  const [zoomState, setZoomState] = useState({
+    isHovering: false,
+    xPercent: 50,
+    yPercent: 50,
+    lensX: 0,
+    lensY: 0,
+  });
+
+  const handleImageMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!imageContainerRef.current) return;
+    const rect = imageContainerRef.current.getBoundingClientRect();
+    const rawX = e.clientX - rect.left;
+    const rawY = e.clientY - rect.top;
+
+    // Calculate percentage for high-def backgroundPosition in zoom window
+    const xPercent = Math.max(0, Math.min(100, (rawX / rect.width) * 100));
+    const yPercent = Math.max(0, Math.min(100, (rawY / rect.height) * 100));
+
+    // Vertical Portrait Rectangular Lens dimensions
+    const lensWidth = 85;
+    const lensHeight = 130;
+    const halfW = lensWidth / 2;
+    const halfH = lensHeight / 2;
+
+    const lensX = Math.max(0, Math.min(rect.width - lensWidth, rawX - halfW));
+    const lensY = Math.max(0, Math.min(rect.height - lensHeight, rawY - halfH));
+
+    setZoomState({
+      isHovering: true,
+      xPercent,
+      yPercent,
+      lensX,
+      lensY,
+    });
+  };
+
+  const handleImageMouseLeave = () => {
+    setZoomState((prev) => ({ ...prev, isHovering: false }));
+  };
 
   const [openAccordions, setOpenAccordions] = useState<{ [key: string]: boolean }>({
     description: true,
@@ -69,43 +111,91 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
         </button>
       </div>
 
-      {/* Main Product Layout: Stacks on mobile, 2-col on lg+ */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-start">
-        {/* Left: Product Images (7 Cols) */}
-        <div className="lg:col-span-7 space-y-3">
-          <div className="aspect-[3/4] sm:aspect-[4/5] bg-white border border-[#EAE6DB] overflow-hidden relative w-full">
+      {/* Main Product Layout: Balanced 2-col layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start relative">
+        {/* Left: Product Images (5 Cols with max-height & sticky) */}
+        <div className="lg:col-span-5 lg:sticky lg:top-24 space-y-3 relative">
+          {/* Main Image Frame with Amazon-style Zoom Lens */}
+          <div
+            ref={imageContainerRef}
+            onMouseMove={handleImageMouseMove}
+            onMouseEnter={handleImageMouseMove}
+            onMouseLeave={handleImageMouseLeave}
+            className="relative w-full max-w-sm sm:max-w-md lg:max-w-none mx-auto aspect-square max-h-[400px] sm:max-h-[440px] bg-white border border-[#EAE6DB] rounded-2xl overflow-hidden shadow-xs flex items-center justify-center cursor-crosshair select-none"
+          >
             <img
               src={product.images[activeImage]}
               alt={product.name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover object-center"
             />
+
+            {/* Vertical Portrait Rectangular Lens Box */}
+            {zoomState.isHovering && (
+              <div
+                className="absolute border-2 border-[#967BB6] bg-[#967BB6]/20 backdrop-blur-[1px] rounded-2xl pointer-events-none hidden lg:block shadow-md"
+                style={{
+                  width: '85px',
+                  height: '130px',
+                  left: `${zoomState.lensX}px`,
+                  top: `${zoomState.lensY}px`,
+                }}
+              />
+            )}
+
             {product.isNewArrival && (
-              <span className="absolute top-3 left-3 bg-[#967BB6] text-white text-[9px] sm:text-[10px] font-bold px-2.5 py-1 uppercase tracking-wider">
+              <span className="absolute top-3 left-3 bg-[#967BB6] text-white text-[9px] sm:text-[10px] font-bold px-2.5 py-1 uppercase tracking-wider rounded-md shadow-xs">
                 New Arrival
               </span>
             )}
+
+            {/* Hint Badge */}
+            <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md text-white px-2.5 py-1 rounded-full text-[10px] font-bold items-center gap-1 hidden lg:flex pointer-events-none opacity-80">
+              <ZoomIn className="w-3 h-3 text-[#FFFDD0]" />
+              <span>Hover to Zoom</span>
+            </div>
           </div>
+
+          {/* Amazon-style Side Window Zoom Magnifier (Vertical Portrait) */}
+          {zoomState.isHovering && (
+            <div
+              className="absolute left-[calc(100%+1rem)] top-0 z-50 w-[270px] h-[380px] xl:w-[300px] xl:h-[400px] bg-white rounded-3xl border-2 border-[#967BB6]/50 shadow-2xl overflow-hidden pointer-events-none hidden lg:block animate-fade-in bg-no-repeat"
+              style={{
+                backgroundImage: `url(${product.images[activeImage]})`,
+                backgroundPosition: `${zoomState.xPercent}% ${zoomState.yPercent}%`,
+                backgroundSize: '260% 260%',
+                backgroundColor: '#FFFFFF',
+              }}
+            >
+              {/* Magnifier Badge */}
+              <div className="absolute top-2.5 right-2.5 bg-[#1A1821]/85 text-white text-[9px] font-bold px-2.5 py-0.5 rounded-full backdrop-blur-md flex items-center gap-1 shadow-sm">
+                <Sparkles className="w-3 h-3 text-brand-yellow" />
+                <span>Zoom View</span>
+              </div>
+            </div>
+          )}
 
           {/* Thumbnail Strip */}
           {product.images.length > 1 && (
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+            <div className="flex gap-2.5 overflow-x-auto pb-1 justify-center sm:justify-start scrollbar-none">
               {product.images.map((img, idx) => (
                 <button
                   key={idx}
                   onClick={() => setActiveImage(idx)}
-                  className={`w-14 sm:w-20 aspect-[3/4] border-2 overflow-hidden shrink-0 ${
-                    activeImage === idx ? 'border-[#967BB6]' : 'border-transparent opacity-70'
+                  className={`w-14 sm:w-16 h-14 sm:h-16 rounded-xl border-2 overflow-hidden shrink-0 transition-all cursor-pointer ${
+                    activeImage === idx
+                      ? 'border-[#967BB6] ring-2 ring-[#967BB6]/25 scale-95'
+                      : 'border-[#EAE6DB] opacity-70 hover:opacity-100 hover:border-[#967BB6]/50'
                   }`}
                 >
-                  <img src={img} alt="" className="w-full h-full object-cover" />
+                  <img src={img} alt="" className="w-full h-full object-cover object-center" />
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        {/* Right: Product Details & Actions (5 Cols) */}
-        <div className="lg:col-span-5 bg-white p-5 sm:p-7 border border-[#EAE6DB] space-y-5">
+        {/* Right: Product Details & Actions (7 Cols) */}
+        <div className="lg:col-span-7 bg-white p-5 sm:p-7 border border-[#EAE6DB] rounded-2xl shadow-xs space-y-5">
           <div className="space-y-1.5 border-b border-[#EAE6DB] pb-4">
             <span className="text-[10px] font-bold uppercase tracking-widest text-[#967BB6]">
               {product.subCategory}
