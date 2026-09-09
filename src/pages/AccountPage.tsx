@@ -1169,9 +1169,13 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                     {/* Stepper Node 1: Order Confirmed */}
                     <div className="flex items-start gap-4 relative">
                       {/* Connecting Line */}
-                      <div className="absolute left-[11px] top-6 bottom-[-24px] w-0.5 bg-[#967BB6]/40" />
+                      <div className={`absolute left-[11px] top-6 bottom-[-24px] w-0.5 ${
+                        selectedOrderForDetail.status === 'Shipped' || selectedOrderForDetail.status === 'Delivered'
+                          ? 'bg-[#967BB6]'
+                          : 'bg-[#967BB6]/40'
+                      }`} />
 
-                      <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-xs z-10">
+                      <div className="w-6 h-6 rounded-full bg-[#967BB6] text-white flex items-center justify-center shrink-0 shadow-xs z-10">
                         <Check className="w-3.5 h-3.5 stroke-[3]" />
                       </div>
                       <div className="space-y-0.5">
@@ -1189,18 +1193,22 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                     {/* Stepper Node 2: Shipped */}
                     <div className="flex items-start gap-4 relative">
                       {/* Connecting Line */}
-                      <div className="absolute left-[11px] top-6 bottom-[-24px] w-0.5 bg-[#EAE6DB]" />
+                      <div className={`absolute left-[11px] top-6 bottom-[-24px] w-0.5 ${
+                        selectedOrderForDetail.status === 'Delivered'
+                          ? 'bg-[#967BB6]'
+                          : 'bg-[#EAE6DB]'
+                      }`} />
 
                       <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 shadow-xs z-10 ${
                         selectedOrderForDetail.status === 'Shipped' || selectedOrderForDetail.status === 'Delivered'
                           ? 'bg-[#967BB6] text-white'
-                          : 'bg-white border-2 border-brand-muted text-brand-muted'
+                          : 'bg-white border-2 border-[#EAE6DB] text-brand-muted'
                       }`}>
-                        <div className={`w-2 h-2 rounded-full ${
-                          selectedOrderForDetail.status === 'Shipped' || selectedOrderForDetail.status === 'Delivered'
-                            ? 'bg-white'
-                            : 'bg-brand-muted'
-                        }`} />
+                        {selectedOrderForDetail.status === 'Shipped' || selectedOrderForDetail.status === 'Delivered' ? (
+                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        ) : (
+                          <div className="w-2 h-2 rounded-full bg-[#EAE6DB]" />
+                        )}
                       </div>
                       <div className="space-y-0.5">
                         <h5 className="font-sans font-black text-sm text-brand-charcoal">Shipped</h5>
@@ -1215,20 +1223,28 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                     {/* Stepper Node 3: Out for Delivery */}
                     <div className="flex items-start gap-4 relative">
                       {/* Connecting Line */}
-                      <div className="absolute left-[11px] top-6 bottom-[-24px] w-0.5 bg-[#EAE6DB]" />
+                      <div className={`absolute left-[11px] top-6 bottom-[-24px] w-0.5 ${
+                        selectedOrderForDetail.status === 'Delivered'
+                          ? 'bg-[#967BB6]'
+                          : 'bg-[#EAE6DB]'
+                      }`} />
 
                       <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 shadow-xs z-10 ${
                         selectedOrderForDetail.status === 'Delivered'
                           ? 'bg-[#967BB6] text-white'
-                          : 'bg-white border-2 border-brand-muted text-brand-muted'
+                          : 'bg-white border-2 border-[#EAE6DB] text-brand-muted'
                       }`}>
-                        <div className={`w-2 h-2 rounded-full ${
-                          selectedOrderForDetail.status === 'Delivered' ? 'bg-white' : 'bg-brand-muted'
-                        }`} />
+                        {selectedOrderForDetail.status === 'Delivered' ? (
+                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        ) : (
+                          <div className="w-2 h-2 rounded-full bg-[#EAE6DB]" />
+                        )}
                       </div>
                       <div className="space-y-0.5">
                         <h5 className="font-sans font-black text-sm text-brand-charcoal">Out for Delivery</h5>
-                        <p className="text-xs text-brand-muted font-medium">Expected shortly</p>
+                        <p className="text-xs text-brand-muted font-medium">
+                          {selectedOrderForDetail.status === 'Delivered' ? 'Completed' : 'Expected shortly'}
+                        </p>
                       </div>
                     </div>
 
@@ -1236,12 +1252,14 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                     <div className="flex items-start gap-4 relative">
                       <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 shadow-xs z-10 ${
                         selectedOrderForDetail.status === 'Delivered'
-                          ? 'bg-emerald-500 text-white'
-                          : 'bg-white border-2 border-brand-muted text-brand-muted'
+                          ? 'bg-[#967BB6] text-white'
+                          : 'bg-white border-2 border-[#EAE6DB] text-brand-muted'
                       }`}>
-                        <div className={`w-2 h-2 rounded-full ${
-                          selectedOrderForDetail.status === 'Delivered' ? 'bg-white' : 'bg-brand-muted'
-                        }`} />
+                        {selectedOrderForDetail.status === 'Delivered' ? (
+                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        ) : (
+                          <div className="w-2 h-2 rounded-full bg-[#EAE6DB]" />
+                        )}
                       </div>
                       <div className="space-y-0.5">
                         <h5 className="font-sans font-black text-sm text-brand-charcoal">Delivered</h5>
