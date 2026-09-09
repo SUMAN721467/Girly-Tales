@@ -379,7 +379,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               <button
                 type="submit"
                 disabled={isSearchingOrder}
-                className="px-6 py-3.5 bg-[#1A1821] hover:bg-[#967BB6] text-white text-xs font-bold uppercase tracking-wider rounded-2xl shadow-xs transition-colors shrink-0 flex items-center justify-center gap-2"
+                className="px-7 py-3.5 bg-[#967BB6] hover:bg-[#7F62A1] active:bg-[#6D528F] text-white text-xs font-black uppercase tracking-wider rounded-2xl shadow-sm hover:shadow-md transition-all shrink-0 flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-60"
               >
                 {isSearchingOrder ? 'Searching...' : 'Track Order'}
                 <ArrowRight className="w-3.5 h-3.5" />
