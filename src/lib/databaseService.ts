@@ -1215,7 +1215,7 @@ export const DatabaseService = {
     createdAt?: string;
   }): Promise<RealReview> {
     const newReview: RealReview = {
-      id: generateId('rev'),
+      id: 'rev-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
       productId: reviewData.productId || '',
       productName: reviewData.productName,
       author: reviewData.author.trim(),

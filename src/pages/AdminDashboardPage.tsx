@@ -2368,7 +2368,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                         if (ok) {
                           triggerToast('Order Deleted', `Order #${selectedOrderDetail.id} removed permanently from Supabase database.`, undefined, 'info');
                         } else {
-                          triggerToast('Action Required', `Order removed in app, but Supabase RLS policy blocked PostgreSQL delete. Please run the SQL snippet in Supabase SQL Editor.`, undefined, 'warning');
+                          triggerToast('Action Required', `Order removed in app, but Supabase RLS policy blocked PostgreSQL delete. Please run the SQL snippet in Supabase SQL Editor.`, undefined, 'error');
                         }
                       },
                     });
@@ -2861,7 +2861,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                                       if (ok) {
                                         triggerToast('Order Deleted', `Order #${ord.id} removed permanently from Supabase database.`, undefined, 'info');
                                       } else {
-                                        triggerToast('Action Required', `Order removed in app, but Supabase RLS policy blocked PostgreSQL delete. Please run the SQL snippet in Supabase SQL Editor.`, undefined, 'warning');
+                                        triggerToast('Action Required', `Order removed in app, but Supabase RLS policy blocked PostgreSQL delete. Please run the SQL snippet in Supabase SQL Editor.`, undefined, 'info');
                                       }
                                     },
                                   });
