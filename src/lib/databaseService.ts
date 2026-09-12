@@ -1,7 +1,6 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 import { Product } from '../types/product';
 import { CartService } from './cartService';
-import { MOCK_PRODUCTS } from '../data/products';
 
 // Purge any legacy browser/local storage keys to guarantee pure direct Supabase operation
 if (typeof window !== 'undefined') {
@@ -247,7 +246,7 @@ const SEED_COUPONS: RealCoupon[] = [
 
 // Runtime in-memory state (Direct Supabase data is authoritative source)
 let inMemoryCategories: RealCategory[] = [];
-let inMemoryProducts: Product[] = [...MOCK_PRODUCTS];
+let inMemoryProducts: Product[] = [];
 let inMemoryOrders: RealOrder[] = [];
 let inMemoryReviews: RealReview[] = [];
 let inMemoryCoupons: RealCoupon[] = [];
@@ -559,7 +558,7 @@ export const DatabaseService = {
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (!error && Array.isArray(data) && data.length > 0) {
+        if (!error && Array.isArray(data)) {
           const mapped: Product[] = data.map((d: any) => ({
             id: String(d.id),
             name: d.name || 'Girly Tales Item',
@@ -593,24 +592,16 @@ export const DatabaseService = {
             specs: d.specs || {},
           }));
 
-          // Merge custom database products with standard products to guarantee full catalog is always available
-          const existingIds = new Set(mapped.map((p) => p.id));
-          const fallbackRemaining = MOCK_PRODUCTS.filter((p) => !existingIds.has(p.id));
-          const combined = [...mapped, ...fallbackRemaining];
-
-          inMemoryProducts = combined;
-          return combined;
+          inMemoryProducts = mapped;
+          return mapped;
         } else if (error) {
-          console.warn('Supabase getProducts error, serving local catalog:', error.message);
+          console.warn('Supabase getProducts error:', error.message);
         }
       } catch (err) {
-        console.warn('Supabase getProducts exception, serving local catalog:', err);
+        console.warn('Supabase getProducts exception:', err);
       }
     }
 
-    if (inMemoryProducts.length === 0) {
-      inMemoryProducts = [...MOCK_PRODUCTS];
-    }
     return inMemoryProducts;
   },
 
