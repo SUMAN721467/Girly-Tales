@@ -20,11 +20,14 @@ export const CartService = {
       }
     } catch (e) {}
 
-    const resolveProduct = (productId: string, fallbackData?: any): Product | null => {
-      let matched = allProducts.find((p) => p.id === productId || p.slug === productId);
-      if (!matched && fallbackData && fallbackData.name && fallbackData.price) {
-        matched = fallbackData as Product;
-      }
+    const resolveProduct = (productId: string): Product | null => {
+      if (!productId) return null;
+      const cleanPid = String(productId).trim().toLowerCase();
+      const matched = allProducts.find(
+        (p) =>
+          String(p.id).trim().toLowerCase() === cleanPid ||
+          String(p.slug).trim().toLowerCase() === cleanPid
+      );
       return matched || null;
     };
 
@@ -44,13 +47,15 @@ export const CartService = {
 
         if (!error && Array.isArray(data) && data.length > 0) {
           const dbItems: CartItem[] = [];
+          const staleRowIds: string[] = [];
+
           for (const row of data) {
             const productId = row.product_id || row.productId;
             const size = row.selected_size || row.selectedSize || undefined;
             const color = row.selected_color || row.selectedColor || undefined;
             const quantity = Number(row.quantity) || 1;
 
-            const product = resolveProduct(productId, row.product_data);
+            const product = resolveProduct(productId);
             if (product) {
               const itemId = `${product.id}-${size || 'default'}-${color || 'default'}`;
               dbItems.push({
@@ -60,12 +65,20 @@ export const CartService = {
                 selectedSize: size || undefined,
                 selectedColor: color || undefined,
               });
+            } else {
+              // Product was deleted from database
+              if (row.id) staleRowIds.push(row.id);
             }
           }
 
-          if (dbItems.length > 0) {
-            return dbItems;
+          // Clean up stale rows in background
+          if (staleRowIds.length > 0) {
+            try {
+              await supabase.from('cart_items').delete().in('id', staleRowIds);
+            } catch (e) {}
           }
+
+          return dbItems;
         }
       } catch (e) {
         console.warn('CartService cart_items table check note:', e);
@@ -73,7 +86,9 @@ export const CartService = {
 
       // --- 2. Second priority: Check Supabase Auth user_metadata ---
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
         if (user?.user_metadata?.cart) {
           const rawMetaCart = user.user_metadata.cart;
           const parsedList: any[] = Array.isArray(rawMetaCart)
@@ -90,7 +105,7 @@ export const CartService = {
               const color = item.selectedColor || item.selected_color || undefined;
               const quantity = Number(item.quantity) || 1;
 
-              const product = resolveProduct(prodId, item.product);
+              const product = resolveProduct(prodId);
               if (product) {
                 const itemId = `${product.id}-${size || 'default'}-${color || 'default'}`;
                 metaItems.push({
@@ -103,9 +118,7 @@ export const CartService = {
               }
             }
 
-            if (metaItems.length > 0) {
-              return metaItems;
-            }
+            return metaItems;
           }
         }
       } catch (e) {

@@ -3,6 +3,7 @@ import { Product, CartItem } from '../types/product';
 import { useToast, ToastData } from './ToastContext';
 import { useAuth } from './AuthContext';
 import { CartService } from '../lib/cartService';
+import { DatabaseService } from '../lib/databaseService';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface CartContextType {
@@ -154,7 +155,42 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [isLoggedIn, user, loadRemoteCart]);
 
-  // 4. Debounced Sync Helper to push live in-memory cart changes directly to Supabase
+  // 4. Auto-purge deleted products from in-memory cart whenever products are modified/deleted
+  useEffect(() => {
+    const handleSync = async (e: any) => {
+      const type = e.detail?.type;
+      if (!type || type === 'products' || type === 'cart' || type === 'all') {
+        try {
+          const prods = await DatabaseService.getProducts();
+          const validIds = new Set(prods.map((p) => String(p.id).toLowerCase().trim()));
+          const validSlugs = new Set(prods.map((p) => String(p.slug).toLowerCase().trim()));
+
+          setItems((currentItems) => {
+            const filtered = currentItems.filter(
+              (it) =>
+                validIds.has(String(it.product.id).toLowerCase().trim()) ||
+                validSlugs.has(String(it.product.slug).toLowerCase().trim())
+            );
+            if (filtered.length !== currentItems.length) {
+              if (isLoggedIn && user) {
+                const userId = user.id || user.email;
+                if (userId) {
+                  CartService.saveUserCart(userId, filtered, user.email).catch(() => {});
+                }
+              }
+              return filtered;
+            }
+            return currentItems;
+          });
+        } catch (err) {}
+      }
+    };
+
+    window.addEventListener('gt_db_sync', handleSync);
+    return () => window.removeEventListener('gt_db_sync', handleSync);
+  }, [isLoggedIn, user]);
+
+  // 5. Debounced Sync Helper to push live in-memory cart changes directly to Supabase
   const scheduleCloudSync = useCallback(
     (updatedItems: CartItem[]) => {
       if (!isSupabaseConfigured || !isLoggedIn || !user) {

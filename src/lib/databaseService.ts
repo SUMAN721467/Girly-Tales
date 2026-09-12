@@ -811,6 +811,8 @@ export const DatabaseService = {
 
     inMemoryProducts = inMemoryProducts.filter((p) => p.id !== cleanId && p.slug !== cleanId);
     notifyDatabaseChange('products');
+    notifyDatabaseChange('cart');
+    notifyDatabaseChange('wishlist');
 
     let deleted = true;
     if (isSupabaseConfigured) {
@@ -827,6 +829,20 @@ export const DatabaseService = {
             console.error('Supabase retry delete failed:', retry.error.message);
             deleted = false;
           }
+        }
+
+        // Also clean up any lingering cart items and wishlist items in database
+        try {
+          await supabase
+            .from('cart_items')
+            .delete()
+            .or(`product_id.eq.${cleanId},productId.eq.${cleanId}`);
+          await supabase
+            .from('wishlist')
+            .delete()
+            .or(`product_id.eq.${cleanId},productId.eq.${cleanId}`);
+        } catch (subErr) {
+          console.warn('Cart / Wishlist cleanup note on deleteProduct:', subErr);
         }
       } catch (e) {
         console.error('Supabase delete product note:', e);
@@ -1057,11 +1073,14 @@ export const DatabaseService = {
     const cleanEmail = userEmail?.toLowerCase().trim();
     const allProducts = await this.getProducts();
 
-    const resolveProduct = (productId: string, fallbackData?: any): Product | null => {
-      let matched = allProducts.find((p) => p.id === productId || p.slug === productId);
-      if (!matched && fallbackData && fallbackData.name && fallbackData.price) {
-        matched = fallbackData as Product;
-      }
+    const resolveProduct = (productId: string): Product | null => {
+      if (!productId) return null;
+      const cleanPid = String(productId).trim().toLowerCase();
+      const matched = allProducts.find(
+        (p) =>
+          String(p.id).trim().toLowerCase() === cleanPid ||
+          String(p.slug).trim().toLowerCase() === cleanPid
+      );
       return matched || null;
     };
 

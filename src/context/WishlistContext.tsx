@@ -31,13 +31,36 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const { triggerToast } = useToast();
   const { user, isLoggedIn } = useAuth();
 
-  // Load dynamic catalog products
+  // Load dynamic catalog products & listen for product deletion sync
   useEffect(() => {
-    DatabaseService.getProducts().then((prods) => {
-      if (Array.isArray(prods)) {
-        setAllProducts(prods);
+    const refreshProducts = () => {
+      DatabaseService.getProducts().then((prods) => {
+        if (Array.isArray(prods)) {
+          setAllProducts(prods);
+          const validIds = new Set(prods.map((p) => String(p.id).toLowerCase()));
+          const validSlugs = new Set(prods.map((p) => String(p.slug).toLowerCase()));
+          setWishlistIds((prev) =>
+            prev.filter(
+              (id) =>
+                validIds.has(String(id).toLowerCase()) ||
+                validSlugs.has(String(id).toLowerCase())
+            )
+          );
+        }
+      });
+    };
+
+    refreshProducts();
+
+    const handleSync = (e: any) => {
+      const type = e.detail?.type;
+      if (!type || type === 'products' || type === 'wishlist' || type === 'all') {
+        refreshProducts();
       }
-    });
+    };
+
+    window.addEventListener('gt_db_sync', handleSync);
+    return () => window.removeEventListener('gt_db_sync', handleSync);
   }, []);
 
   // Fetch from Supabase when user logs in
