@@ -42,7 +42,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
             <button
               key={idx}
               onClick={() => setCurrentIndex(idx)}
-              className={`w-16 h-20 md:w-20 md:h-24 rounded-2xl overflow-hidden border-2 transition-all shrink-0 ${
+              className={`w-16 h-20 md:w-20 md:h-24 rounded-lg overflow-hidden border-2 transition-all shrink-0 ${
                 currentIndex === idx
                   ? 'border-brand-lilac ring-2 ring-brand-lilac/30 scale-95'
                   : 'border-brand-border opacity-70 hover:opacity-100 hover:border-brand-muted-light'
@@ -60,7 +60,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
 
       {/* Main Image Frame */}
       <div
-        className="relative flex-1 aspect-[4/5] rounded-3xl overflow-hidden bg-brand-ivory border border-brand-border cursor-crosshair group select-none shadow-sm"
+        className="relative flex-1 aspect-[4/5] rounded-xl overflow-hidden bg-brand-ivory border border-brand-border cursor-crosshair group select-none shadow-sm"
         onMouseEnter={() => setIsZoomed(true)}
         onMouseLeave={() => setIsZoomed(false)}
         onMouseMove={handleMouseMove}

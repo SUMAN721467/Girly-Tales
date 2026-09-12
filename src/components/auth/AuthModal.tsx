@@ -215,7 +215,7 @@ export const AuthModal: React.FC = () => {
               <span className="font-serif font-black text-2xl sm:text-3xl text-white uppercase tracking-widest drop-shadow-md">
                 GIRLY TALES
               </span>
-              <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.25em] text-[#FFFDD0] uppercase drop-shadow-xs">
+              <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.25em] text-[#fffee3] uppercase drop-shadow-xs">
                 ✦ EVERYDAY COMFORT &amp; SHINE ✦
               </span>
             </div>
@@ -235,14 +235,14 @@ export const AuthModal: React.FC = () => {
                     <h3 className="font-sans font-black text-lg text-brand-charcoal uppercase">
                       {user.name}
                     </h3>
-                    <span className="bg-[#FFFDD0] text-[#967BB6] border border-[#EAE6DB] text-[9px] font-black uppercase px-1.5 py-0.5 rounded">
+                    <span className="bg-[#fffee3] text-[#967BB6] border border-[#EAE6DB] text-[9px] font-black uppercase px-1.5 py-0.5 rounded">
                       VIP Member
                     </span>
                   </div>
                   <p className="text-xs text-brand-muted mt-0.5">{user.email}</p>
                 </div>
 
-                <div className="p-3 bg-[#FFFDD0]/60 border border-[#EAE6DB] rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-brand-charcoal">
+                <div className="p-3 bg-[#fffee3]/60 border border-[#EAE6DB] rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-brand-charcoal">
                   <Sparkles className="w-4 h-4 text-[#967BB6]" />
                   <span>10% VIP Discount automatically unlocked!</span>
                 </div>
@@ -250,7 +250,7 @@ export const AuthModal: React.FC = () => {
                 <div className="pt-2 flex gap-2.5">
                   <button
                     onClick={closeAuthModal}
-                    className="flex-1 py-2.5 bg-[#FFFDD0] hover:bg-[#FBEFC8] text-brand-charcoal text-xs font-bold uppercase rounded-lg border border-[#EAE6DB] transition-colors"
+                    className="flex-1 py-2.5 bg-[#fffee3] hover:bg-[#FBEFC8] text-brand-charcoal text-xs font-bold uppercase rounded-lg border border-[#EAE6DB] transition-colors"
                   >
                     Continue Shopping
                   </button>
@@ -446,7 +446,7 @@ export const AuthModal: React.FC = () => {
                         onKeyDown={(e) => handleOtpKeyDown(idx, e)}
                         className={`w-11 h-12 sm:w-12 sm:h-14 text-center font-bold text-lg sm:text-xl rounded-xl border-2 transition-all focus:outline-none ${
                           digit
-                            ? 'border-[#967BB6] bg-[#FFFDD0]/30 text-[#1A1821]'
+                            ? 'border-[#967BB6] bg-[#fffee3]/30 text-[#1A1821]'
                             : 'border-gray-200 bg-gray-50/50 text-[#1A1821] focus:border-[#967BB6] focus:bg-white'
                         }`}
                       />

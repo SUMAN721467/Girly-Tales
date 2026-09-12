@@ -118,12 +118,12 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                   <div
                     key={p.id}
                     onClick={() => handleSelect(p)}
-                    className="flex items-center gap-3 p-2.5 rounded-2xl border border-brand-border hover:border-brand-lilac bg-brand-ivory/50 cursor-pointer transition-all"
+                    className="flex items-center gap-3 p-2.5 rounded-xl border border-brand-border hover:border-brand-lilac bg-brand-ivory/50 cursor-pointer transition-all"
                   >
                     <img
                       src={p.images[0]}
                       alt={p.name}
-                      className="w-12 h-12 rounded-xl object-cover"
+                      className="w-12 h-12 rounded-lg object-cover"
                     />
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-brand-charcoal truncate">{p.name}</p>
@@ -149,13 +149,13 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                 <div
                   key={product.id}
                   onClick={() => handleSelect(product)}
-                  className="flex items-center justify-between p-3 rounded-2xl hover:bg-brand-ivory cursor-pointer transition-colors group"
+                  className="flex items-center justify-between p-3 rounded-xl hover:bg-brand-ivory cursor-pointer transition-colors group"
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
                     <img
                       src={product.images[0]}
                       alt={product.name}
-                      className="w-14 h-16 rounded-xl object-cover border border-brand-border shrink-0"
+                      className="w-14 h-16 rounded-lg object-cover border border-brand-border shrink-0"
                     />
                     <div className="min-w-0">
                       <span className="text-[10px] uppercase font-bold text-brand-lilac">

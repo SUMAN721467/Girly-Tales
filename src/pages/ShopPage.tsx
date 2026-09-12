@@ -143,7 +143,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6 bg-[#FFFDD0] w-full">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6 bg-[#fffee3] w-full">
       {/* Category Header */}
       <div className="bg-white p-5 sm:p-8 border border-[#EAE6DB] text-center space-y-2">
         <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-[#967BB6]">
@@ -327,7 +327,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                 <h3 className="font-sans font-black text-sm uppercase text-brand-charcoal">Filters</h3>
                 <button
                   onClick={() => setIsMobileFilterOpen(false)}
-                  className="p-1 rounded-full bg-[#FFFDD0] text-brand-charcoal"
+                  className="p-1 rounded-full bg-[#fffee3] text-brand-charcoal"
                 >
                   <X className="w-4 h-4" />
                 </button>

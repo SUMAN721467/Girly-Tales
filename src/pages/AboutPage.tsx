@@ -24,7 +24,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToShop }) => {
       {/* 2. Split Story with Brand Imagery */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
-          <div className="relative aspect-[4/5] rounded-[36px] overflow-hidden shadow-card border border-brand-border">
+          <div className="relative aspect-[4/5] rounded-xl overflow-hidden shadow-card border border-brand-border">
             <img
               src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1000&q=80"
               alt="Girly Tales Craftsmanship"

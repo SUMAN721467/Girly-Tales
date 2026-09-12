@@ -45,12 +45,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       onMouseLeave={() => setIsHovered(false)}
       className="group flex flex-col justify-between cursor-pointer relative select-none"
     >
-      {/* Tall Portrait Image Container */}
-      <div className="relative aspect-[3/4] sm:aspect-[4/5] w-full overflow-hidden bg-white rounded-none border border-[#EAE6DB] mb-3">
+      {/* Tall Portrait Image Container with Rounded Corners */}
+      <div className="relative aspect-[3/4] sm:aspect-[4/5] w-full overflow-hidden bg-white rounded-lg border border-[#EAE6DB] mb-3 shadow-2xs">
         <img
           src={currentImage}
           alt={product.name}
-          className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
+          className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105 rounded-lg"
           loading="lazy"
         />
 

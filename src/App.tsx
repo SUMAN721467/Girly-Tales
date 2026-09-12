@@ -238,7 +238,7 @@ export const AppContent: React.FC = () => {
                 <span className="text-3xl">🔒</span>
               </div>
               <div className="space-y-2">
-                <span className="text-[10px] font-black uppercase tracking-widest text-[#967BB6] bg-[#FFFDD0] border border-[#EAE6DB] px-3 py-1 rounded-full">
+                <span className="text-[10px] font-black uppercase tracking-widest text-[#967BB6] bg-[#fffee3] border border-[#EAE6DB] px-3 py-1 rounded-full">
                   Admin Access Required
                 </span>
                 <h2 className="font-serif font-black text-2xl sm:text-3xl text-brand-charcoal uppercase">
@@ -270,7 +270,7 @@ export const AppContent: React.FC = () => {
                   </button>
                   <button
                     onClick={() => navigateTo('home')}
-                    className="w-full sm:w-auto px-6 py-3 bg-[#FAF8F2] hover:bg-[#FFFDD0] border border-[#EAE6DB] text-brand-charcoal text-xs font-bold uppercase tracking-wider rounded-xl transition-all"
+                    className="w-full sm:w-auto px-6 py-3 bg-[#FAF8F2] hover:bg-[#fffee3] border border-[#EAE6DB] text-brand-charcoal text-xs font-bold uppercase tracking-wider rounded-xl transition-all"
                   >
                     Return to Store
                   </button>

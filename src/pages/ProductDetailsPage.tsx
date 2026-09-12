@@ -99,7 +99,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   ).slice(0, 4);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-8 sm:space-y-12 bg-[#FFFDD0] w-full">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-8 sm:space-y-12 bg-[#fffee3] w-full">
       {/* Back button */}
       <div>
         <button
@@ -121,7 +121,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
             onMouseMove={handleImageMouseMove}
             onMouseEnter={handleImageMouseMove}
             onMouseLeave={handleImageMouseLeave}
-            className="relative w-full max-w-sm sm:max-w-md lg:max-w-none mx-auto aspect-square max-h-[400px] sm:max-h-[440px] bg-white border border-[#EAE6DB] rounded-2xl overflow-hidden shadow-xs flex items-center justify-center cursor-crosshair select-none"
+            className="relative w-full max-w-sm sm:max-w-md lg:max-w-none mx-auto aspect-square max-h-[400px] sm:max-h-[440px] bg-white border border-[#EAE6DB] rounded-xl overflow-hidden shadow-xs flex items-center justify-center cursor-crosshair select-none"
           >
             <img
               src={product.images[activeImage] || product.images[0] || 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=1000&q=80'}
@@ -132,7 +132,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
             {/* Vertical Portrait Rectangular Lens Box */}
             {zoomState.isHovering && (
               <div
-                className="absolute border-2 border-[#967BB6] bg-[#967BB6]/20 backdrop-blur-[1px] rounded-2xl pointer-events-none hidden lg:block shadow-md"
+                className="absolute border-2 border-[#967BB6] bg-[#967BB6]/20 backdrop-blur-[1px] rounded-lg pointer-events-none hidden lg:block shadow-md"
                 style={{
                   width: '85px',
                   height: '130px',
@@ -150,7 +150,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
 
             {/* Hint Badge */}
             <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md text-white px-2.5 py-1 rounded-full text-[10px] font-bold items-center gap-1 hidden lg:flex pointer-events-none opacity-80">
-              <ZoomIn className="w-3 h-3 text-[#FFFDD0]" />
+              <ZoomIn className="w-3 h-3 text-[#fffee3]" />
               <span>Hover to Zoom</span>
             </div>
           </div>
@@ -158,7 +158,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
           {/* Amazon-style Side Window Zoom Magnifier (Vertical Portrait) */}
           {zoomState.isHovering && (
             <div
-              className="absolute left-[calc(100%+1rem)] top-0 z-50 w-[270px] h-[380px] xl:w-[300px] xl:h-[400px] bg-white rounded-3xl border-2 border-[#967BB6]/50 shadow-2xl overflow-hidden pointer-events-none hidden lg:block animate-fade-in bg-no-repeat"
+              className="absolute left-[calc(100%+1rem)] top-0 z-50 w-[270px] h-[380px] xl:w-[300px] xl:h-[400px] bg-white rounded-xl border-2 border-[#967BB6]/50 shadow-2xl overflow-hidden pointer-events-none hidden lg:block animate-fade-in bg-no-repeat"
               style={{
                 backgroundImage: `url(${product.images[activeImage] || product.images[0]})`,
                 backgroundPosition: `${zoomState.xPercent}% ${zoomState.yPercent}%`,
@@ -181,7 +181,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                 <button
                   key={idx}
                   onClick={() => setActiveImage(idx)}
-                  className={`w-14 sm:w-16 h-14 sm:h-16 rounded-xl border-2 overflow-hidden shrink-0 transition-all cursor-pointer ${
+                  className={`w-14 sm:w-16 h-14 sm:h-16 rounded-lg border-2 overflow-hidden shrink-0 transition-all cursor-pointer ${
                     activeImage === idx
                       ? 'border-[#967BB6] ring-2 ring-[#967BB6]/25 scale-95'
                       : 'border-[#EAE6DB] opacity-70 hover:opacity-100 hover:border-[#967BB6]/50'
@@ -258,7 +258,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
           <div className="space-y-2.5 pt-1">
             <div className="flex items-center gap-2 sm:gap-3">
               {/* Stepper */}
-              <div className="flex items-center border border-[#EAE6DB] bg-[#FFFDD0] px-2.5 py-2 text-xs font-bold shrink-0">
+              <div className="flex items-center border border-[#EAE6DB] bg-[#fffee3] px-2.5 py-2 text-xs font-bold shrink-0">
                 <button
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                   className="px-1.5"
@@ -288,7 +288,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                 className={`p-3 border transition-colors shrink-0 ${
                   isFavorited
                     ? 'border-rose-300 bg-rose-50 text-rose-500'
-                    : 'border-[#EAE6DB] text-brand-charcoal hover:bg-[#FFFDD0]'
+                    : 'border-[#EAE6DB] text-brand-charcoal hover:bg-[#fffee3]'
                 }`}
                 aria-label="Wishlist"
               >
@@ -316,7 +316,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                 ];
 
             return (
-              <div className="p-3.5 bg-[#FFFDD0] border border-[#EAE6DB] space-y-1.5 text-xs">
+              <div className="p-3.5 bg-[#fffee3] border border-[#EAE6DB] space-y-1.5 text-xs">
                 {highlightsList.map((item, idx) => {
                   const IconComponent = idx === 0 ? Truck : idx === 1 ? RefreshCw : Sparkles;
                   return (

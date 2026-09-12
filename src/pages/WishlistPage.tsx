@@ -74,7 +74,7 @@ export const WishlistPage: React.FC<WishlistPageProps> = ({
         {wishlistProducts.map((product) => (
           <div
             key={product.id}
-            className="bg-white rounded-3xl border border-brand-border overflow-hidden shadow-xs hover:shadow-card transition-all flex flex-col justify-between group"
+            className="bg-white rounded-xl border border-brand-border overflow-hidden shadow-xs hover:shadow-card transition-all flex flex-col justify-between group"
           >
             {/* Image */}
             <div

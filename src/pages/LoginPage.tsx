@@ -82,7 +82,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       {/* 1. TOP HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#EAE6DB]">
         <div>
-          <span className="text-[10px] font-black uppercase tracking-widest text-[#967BB6] bg-[#FFFDD0] border border-[#EAE6DB] px-3 py-1 rounded-full">
+          <span className="text-[10px] font-black uppercase tracking-widest text-[#967BB6] bg-[#fffee3] border border-[#EAE6DB] px-3 py-1 rounded-full">
             ✦ Girly Tales Member Lounge ✦
           </span>
           <h1 className="font-serif text-3xl sm:text-4xl text-brand-charcoal font-medium mt-2">
@@ -127,7 +127,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2 justify-center sm:justify-start">
                   <h3 className="font-bold text-lg text-brand-charcoal">{user.name}</h3>
-                  <span className="bg-[#FFFDD0] text-[#967BB6] border border-[#EAE6DB] text-[10px] font-black uppercase px-2 py-0.5 rounded">
+                  <span className="bg-[#fffee3] text-[#967BB6] border border-[#EAE6DB] text-[10px] font-black uppercase px-2 py-0.5 rounded">
                     VIP Member
                   </span>
                 </div>
@@ -155,7 +155,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               className={`px-4 py-2 rounded-xl text-xs font-bold uppercase transition-all ${
                 accountTab === 'overview'
                   ? 'bg-[#967BB6] text-white shadow-md shadow-[#967BB6]/25 hover:bg-[#7F62A1]'
-                  : 'bg-[#FAF8F2] text-brand-charcoal hover:bg-[#FFFDD0]'
+                  : 'bg-[#FAF8F2] text-brand-charcoal hover:bg-[#fffee3]'
               }`}
             >
               Overview
@@ -165,7 +165,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               className={`px-4 py-2 rounded-xl text-xs font-bold uppercase transition-all flex items-center gap-1.5 ${
                 accountTab === 'orders'
                   ? 'bg-[#967BB6] text-white shadow-md shadow-[#967BB6]/25 hover:bg-[#7F62A1]'
-                  : 'bg-[#FAF8F2] text-brand-charcoal hover:bg-[#FFFDD0]'
+                  : 'bg-[#FAF8F2] text-brand-charcoal hover:bg-[#fffee3]'
               }`}
             >
               <ShoppingBag className="w-3.5 h-3.5" />
@@ -179,7 +179,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div
                   onClick={() => onNavigate('shop')}
-                  className="p-5 bg-[#FFFDD0]/60 border border-[#EAE6DB] hover:border-[#967BB6] rounded-3xl cursor-pointer transition-all space-y-2 group shadow-xs"
+                  className="p-5 bg-[#fffee3]/60 border border-[#EAE6DB] hover:border-[#967BB6] rounded-3xl cursor-pointer transition-all space-y-2 group shadow-xs"
                 >
                   <div className="w-10 h-10 rounded-2xl bg-[#967BB6] text-white flex items-center justify-center group-hover:scale-110 transition-transform shadow-xs">
                     <Sparkles className="w-5 h-5" />
@@ -229,7 +229,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   <span className="text-[10px] font-bold text-[#FBB6CE] uppercase tracking-widest">
                     ✦ VIP EXCLUSIVE CODE ✦
                   </span>
-                  <p className="text-sm font-bold">Use code <strong className="text-[#FFFDD0] underline font-mono">GIRLY10</strong> for 10% off today</p>
+                  <p className="text-sm font-bold">Use code <strong className="text-[#fffee3] underline font-mono">GIRLY10</strong> for 10% off today</p>
                 </div>
                 <button
                   onClick={() => onNavigate('shop')}

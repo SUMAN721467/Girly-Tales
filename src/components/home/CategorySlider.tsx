@@ -220,7 +220,7 @@ export const CategorySlider: React.FC<CategorySliderProps> = ({
                     goToSlide(idx);
                   }
                 }}
-                className={`absolute w-[70vw] sm:w-[42vw] md:w-[32vw] lg:w-[26vw] xl:w-[24vw] max-w-[360px] aspect-[4/5] rounded-none overflow-hidden cursor-pointer transition-all duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] origin-center ${
+                className={`absolute w-[70vw] sm:w-[42vw] md:w-[32vw] lg:w-[26vw] xl:w-[24vw] max-w-[360px] aspect-[4/5] rounded-xl overflow-hidden cursor-pointer transition-all duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] origin-center ${
                   isCenter ? 'shadow-2xl ring-1 ring-black/10' : 'shadow-xl'
                 }`}
                 style={{
@@ -255,7 +255,7 @@ export const CategorySlider: React.FC<CategorySliderProps> = ({
                   </h3>
 
                   {/* Subtitle / Tagline */}
-                  <p className="text-[10px] sm:text-xs md:text-sm text-[#FFFDD0] font-medium tracking-wide mt-1.5 drop-shadow line-clamp-1 max-w-[92%]">
+                  <p className="text-[10px] sm:text-xs md:text-sm text-[#fffee3] font-medium tracking-wide mt-1.5 drop-shadow line-clamp-1 max-w-[92%]">
                     {item.tagline}
                   </p>
 

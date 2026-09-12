@@ -22,11 +22,11 @@ export default {
           'lilac-tint': '#E8DCF3',
 
           // Yellow / Butter / Ivory shades
-          yellow: '#FFFDD0',
+          yellow: '#fffee3',
           'yellow-light': '#FFFEE8',
           'yellow-dark': '#EDEAB0',
           'yellow-card': '#FEFDEB',
-          butter: '#FFFDD0',
+          butter: '#fffee3',
           'butter-light': '#FFFEE8',
           'butter-dark': '#EDEAB0',
           ivory: '#FAF8F2',

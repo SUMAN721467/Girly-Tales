@@ -521,7 +521,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                     ADMIN
                   </span>
                 ) : (
-                  <span className="bg-[#FFFDD0] text-[#967BB6] border border-[#EAE6DB] text-[10px] font-black uppercase px-2 py-0.5 rounded">
+                  <span className="bg-[#fffee3] text-[#967BB6] border border-[#EAE6DB] text-[10px] font-black uppercase px-2 py-0.5 rounded">
                     VIP Club Member
                   </span>
                 )
@@ -709,7 +709,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                           ADMIN
                         </span>
                       ) : (
-                        <span className="bg-[#FFFDD0] text-[#967BB6] border border-[#EAE6DB] text-[10px] font-black uppercase px-2 py-0.5 rounded">
+                        <span className="bg-[#fffee3] text-[#967BB6] border border-[#EAE6DB] text-[10px] font-black uppercase px-2 py-0.5 rounded">
                           VIP Club Member
                         </span>
                       )}
@@ -731,7 +731,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsEditingProfile(true)}
-                  className="px-4 py-2 bg-white hover:bg-[#FFFDD0] border border-[#EAE6DB] text-brand-charcoal font-bold text-xs rounded-xl transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer shrink-0"
+                  className="px-4 py-2 bg-white hover:bg-[#fffee3] border border-[#EAE6DB] text-brand-charcoal font-bold text-xs rounded-xl transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer shrink-0"
                 >
                   <Edit2 className="w-3.5 h-3.5 text-[#967BB6]" />
                   <span>Modify Details</span>
@@ -952,7 +952,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                           className={`py-2.5 px-2 rounded-xl text-xs font-bold border transition-all truncate cursor-pointer ${
                             profileForm.gender === g
                               ? 'bg-[#967BB6] text-white border-[#967BB6] shadow-xs'
-                              : 'bg-[#FAF8F2] border-[#EAE6DB] text-brand-charcoal hover:bg-[#FFFDD0]'
+                              : 'bg-[#FAF8F2] border-[#EAE6DB] text-brand-charcoal hover:bg-[#fffee3]'
                           }`}
                         >
                           {g}
@@ -1089,7 +1089,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleOpenEditAddress(addr)}
-                      className="px-3 py-1.5 bg-[#FAF8F2] hover:bg-[#FFFDD0] border border-[#EAE6DB] text-brand-charcoal font-bold text-xs rounded-xl flex items-center gap-1 cursor-pointer transition-colors"
+                      className="px-3 py-1.5 bg-[#FAF8F2] hover:bg-[#fffee3] border border-[#EAE6DB] text-brand-charcoal font-bold text-xs rounded-xl flex items-center gap-1 cursor-pointer transition-colors"
                     >
                       <Edit2 className="w-3 h-3 text-[#967BB6]" />
                       <span>Edit</span>
@@ -1176,7 +1176,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
               <div>
                 <button
                   onClick={() => setSelectedOrderForDetail(null)}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-[#FFFDD0] border border-[#EAE6DB] rounded-2xl text-xs font-bold text-brand-charcoal transition-all shadow-xs cursor-pointer active:scale-95"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-[#fffee3] border border-[#EAE6DB] rounded-2xl text-xs font-bold text-brand-charcoal transition-all shadow-xs cursor-pointer active:scale-95"
                 >
                   <ArrowLeft className="w-4 h-4 text-[#967BB6]" />
                   <span>Back to Order History</span>
@@ -1358,7 +1358,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                     <button
                       type="button"
                       onClick={() => onNavigate('contact')}
-                      className="py-3 px-4 border border-[#EAE6DB] bg-[#FAF8F2] hover:bg-[#FFFDD0] text-brand-charcoal font-bold text-xs uppercase tracking-wider rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer text-center"
+                      className="py-3 px-4 border border-[#EAE6DB] bg-[#FAF8F2] hover:bg-[#fffee3] text-brand-charcoal font-bold text-xs uppercase tracking-wider rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer text-center"
                     >
                       <MessageSquare className="w-3.5 h-3.5 text-[#967BB6]" />
                       <span>Contact us</span>
@@ -1426,7 +1426,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                             href={selectedOrderForDetail.trackingUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="w-full mt-1 py-2 px-3 bg-[#FAF8F2] hover:bg-[#FFFDD0] border border-[#EAE6DB] rounded-xl text-[11px] font-bold text-[#967BB6] flex items-center justify-center gap-1.5 transition-colors"
+                            className="w-full mt-1 py-2 px-3 bg-[#FAF8F2] hover:bg-[#fffee3] border border-[#EAE6DB] rounded-xl text-[11px] font-bold text-[#967BB6] flex items-center justify-center gap-1.5 transition-colors"
                           >
                             <span>Track Package Online</span>
                             <ExternalLink className="w-3 h-3" />
@@ -1494,7 +1494,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                         triggerToast('Order ID Copied! 📋', `#${selectedOrderForDetail.id} copied`, undefined, 'success');
                         setTimeout(() => setCopiedOrderId(false), 2000);
                       }}
-                      className="px-4 py-2 bg-[#FAF8F2] hover:bg-[#FFFDD0] border border-[#EAE6DB] text-brand-charcoal text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
+                      className="px-4 py-2 bg-[#FAF8F2] hover:bg-[#fffee3] border border-[#EAE6DB] text-brand-charcoal text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
                     >
                       {copiedOrderId ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-[#967BB6]" />}
                       <span>{copiedOrderId ? 'Copied' : 'Copy ID'}</span>
@@ -1527,7 +1527,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
 
                 <button
                   onClick={() => onNavigate('shop')}
-                  className="px-5 py-2.5 bg-[#FAF8F2] hover:bg-[#FFFDD0] border border-[#EAE6DB] text-brand-charcoal text-xs font-black uppercase tracking-wider rounded-2xl transition-all shadow-xs shrink-0 cursor-pointer"
+                  className="px-5 py-2.5 bg-[#FAF8F2] hover:bg-[#fffee3] border border-[#EAE6DB] text-brand-charcoal text-xs font-black uppercase tracking-wider rounded-2xl transition-all shadow-xs shrink-0 cursor-pointer"
                 >
                   Continue Shopping 🛍️
                 </button>
@@ -1685,7 +1685,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                   <div className="pt-2 flex items-center justify-center gap-3 flex-wrap">
                     <button
                       onClick={() => onNavigate('shop')}
-                      className="px-6 py-2.5 bg-[#FAF8F2] hover:bg-[#FFFDD0] border border-[#EAE6DB] text-brand-charcoal text-xs font-bold uppercase rounded-2xl shadow-xs cursor-pointer"
+                      className="px-6 py-2.5 bg-[#FAF8F2] hover:bg-[#fffee3] border border-[#EAE6DB] text-brand-charcoal text-xs font-bold uppercase rounded-2xl shadow-xs cursor-pointer"
                     >
                       Explore Shop
                     </button>
@@ -1716,7 +1716,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
           >
             <button
               onClick={() => setIsAddressModalOpen(false)}
-              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-[#FAF8F2] hover:bg-[#FFFDD0] flex items-center justify-center text-brand-charcoal transition-colors cursor-pointer"
+              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-[#FAF8F2] hover:bg-[#fffee3] flex items-center justify-center text-brand-charcoal transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1855,7 +1855,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                         className={`py-2 text-[11px] font-bold rounded-xl border transition-all cursor-pointer ${
                           addressForm.type === t
                             ? 'bg-[#967BB6] text-white border-[#967BB6]'
-                            : 'bg-[#FAF8F2] border-[#EAE6DB] text-brand-charcoal hover:bg-[#FFFDD0]'
+                            : 'bg-[#FAF8F2] border-[#EAE6DB] text-brand-charcoal hover:bg-[#fffee3]'
                         }`}
                       >
                         {t}
@@ -1925,7 +1925,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
           >
             <button
               onClick={() => setIsDeleteModalOpen(false)}
-              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-[#FAF8F2] hover:bg-[#FFFDD0] flex items-center justify-center text-brand-charcoal transition-colors cursor-pointer"
+              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-[#FAF8F2] hover:bg-[#fffee3] flex items-center justify-center text-brand-charcoal transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>

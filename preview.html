@@ -19,7 +19,7 @@
         extend: {
           colors: {
             brand: {
-              yellow: '#FFFDD0',         // User Requested Light Yellow
+              yellow: '#fffee3',         // User Requested Light Yellow
               'yellow-card': '#FEFDEB',
               lavender: '#967BB6',       // User Requested Grey Lavender
               'lavender-dark': '#7F62A1',
@@ -49,7 +49,7 @@
 
   <style>
     body {
-      background-color: #FFFDD0;
+      background-color: #fffee3;
       color: #1A1821;
       font-family: 'Plus Jakarta Sans', sans-serif;
       overflow-x: hidden;
@@ -356,7 +356,7 @@
       };
 
       return (
-        <div className="min-h-screen flex flex-col justify-between bg-[#FFFDD0] w-full overflow-x-hidden">
+        <div className="min-h-screen flex flex-col justify-between bg-[#fffee3] w-full overflow-x-hidden">
           {/* Top Marquee Ticker */}
           <div className="bg-[#FCE7ED] text-[#1A1821] py-2 text-[11px] sm:text-xs font-bold tracking-wider overflow-hidden border-b border-[#EBD7DE]">
             <div className="marquee-container">
@@ -453,7 +453,7 @@
                           <span className="text-[9px] sm:text-[10px] md:text-[11px] font-bold tracking-[0.2em] uppercase text-white">
                             {phrase}
                           </span>
-                          <span className="text-[#FFFDD0] text-[8px] sm:text-[9px] opacity-85">✦</span>
+                          <span className="text-[#fffee3] text-[8px] sm:text-[9px] opacity-85">✦</span>
                         </div>
                       ))}
                     </div>
@@ -548,7 +548,7 @@
                                 setCatActiveIdx(idx);
                               }
                             }}
-                            className={`absolute w-[70vw] sm:w-[42vw] md:w-[32vw] lg:w-[26vw] xl:w-[24vw] max-w-[360px] aspect-[4/5] rounded-none overflow-hidden cursor-pointer transition-all duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] origin-center ${
+                            className={`absolute w-[70vw] sm:w-[42vw] md:w-[32vw] lg:w-[26vw] xl:w-[24vw] max-w-[360px] aspect-[4/5] rounded-xl overflow-hidden cursor-pointer transition-all duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] origin-center ${
                               isCenter ? 'shadow-2xl ring-1 ring-black/10' : 'shadow-xl'
                             }`}
                             style={{
@@ -569,7 +569,7 @@
                               <h3 className="font-sans font-black text-sm sm:text-base md:text-xl text-white uppercase tracking-[0.16em] pb-1 border-b-[1.5px] border-white drop-shadow-md">
                                 {cat.name}
                               </h3>
-                              <p className="text-[10px] sm:text-xs md:text-sm text-[#FFFDD0] font-medium tracking-wide mt-1.5 drop-shadow line-clamp-1 max-w-[92%]">
+                              <p className="text-[10px] sm:text-xs md:text-sm text-[#fffee3] font-medium tracking-wide mt-1.5 drop-shadow line-clamp-1 max-w-[92%]">
                                 {cat.tagline}
                               </p>
 
@@ -579,7 +579,7 @@
                                     e.stopPropagation();
                                     navigate('shop', cat.category);
                                   }}
-                                  className="mt-2.5 sm:mt-3.5 bg-[#FBB6CE] hover:bg-[#F89CBA] text-[#1A1821] px-4 sm:px-6 py-1.5 sm:py-2 rounded text-[11px] sm:text-xs font-black tracking-widest uppercase transition-all duration-200 shadow-md hover:scale-105 flex items-center gap-1.5 cursor-pointer"
+                                  className="mt-2.5 sm:mt-3.5 bg-[#FBB6CE] hover:bg-[#F89CBA] text-[#1A1821] px-4 sm:px-6 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-xs font-black tracking-widest uppercase transition-all duration-200 shadow-md hover:scale-105 flex items-center gap-1.5 cursor-pointer"
                                 >
                                   <span>{cat.ctaText || 'SHOP NOW'}</span>
                                   <span>→</span>
@@ -616,7 +616,7 @@
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-6 mt-8 sm:mt-12">
                   <div className="flex items-center justify-between gap-2">
                     <h2 className="font-sans font-black text-lg sm:text-2xl md:text-3xl uppercase tracking-tight">TRENDING THIS SEASON</h2>
-                    <button onClick={() => navigate('shop')} className="bg-[#FBB6CE] hover:bg-[#F89CBA] text-[#1A1821] px-3.5 sm:px-5 py-2 text-xs font-black uppercase tracking-wider rounded shrink-0">
+                    <button onClick={() => navigate('shop')} className="bg-[#FBB6CE] hover:bg-[#F89CBA] text-[#1A1821] px-3.5 sm:px-5 py-2 text-xs font-black uppercase tracking-wider rounded-lg shrink-0">
                       SHOP ALL TRENDING
                     </button>
                   </div>
@@ -624,11 +624,11 @@
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-6">
                     {PRODUCTS.slice(0, 4).map(p => (
                       <div key={p.id} onClick={() => { setSelectedProduct(p); setPage('product'); }} className="group cursor-pointer flex flex-col justify-between">
-                        <div className="aspect-[3/4] sm:aspect-[4/5] bg-white border border-[#EAE6DB] relative overflow-hidden mb-2">
+                        <div className="aspect-[3/4] sm:aspect-[4/5] bg-white border border-[#EAE6DB] rounded-lg relative overflow-hidden mb-2">
                           <img src={p.images[0]} className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300" />
-                          {p.isNewArrival && <span className="absolute top-2 left-2 bg-[#967BB6] text-white text-[9px] font-bold px-2 py-0.5 uppercase">New Arrival</span>}
-                          {p.isBestSeller && !p.isNewArrival && <span className="absolute top-2 left-2 bg-[#E56B88] text-white text-[9px] font-bold px-2 py-0.5 uppercase">Back in Stock</span>}
-                          <span className="absolute bottom-2 left-2 bg-white/90 text-[9px] font-bold px-2 py-0.5 border">
+                          {p.isNewArrival && <span className="absolute top-2 left-2 bg-[#967BB6] text-white text-[9px] font-bold px-2 py-0.5 uppercase rounded">New Arrival</span>}
+                          {p.isBestSeller && !p.isNewArrival && <span className="absolute top-2 left-2 bg-[#E56B88] text-white text-[9px] font-bold px-2 py-0.5 uppercase rounded">Back in Stock</span>}
+                          <span className="absolute bottom-2 left-2 bg-white/90 text-[9px] font-bold px-2 py-0.5 border rounded">
                             {p.category === 'jewellery' ? '18K Gold ✨' : '100% Cotton 🌿'}
                           </span>
                         </div>
@@ -650,25 +650,25 @@
 
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-5">
                     {INFLUENCER_ITEMS.map((inf, idx) => (
-                      <div key={idx} className="bg-white border border-[#EAE6DB] overflow-hidden flex flex-col justify-between">
-                        <div className="relative aspect-[9/14] overflow-hidden bg-black">
+                      <div key={idx} className="bg-white border border-[#EAE6DB] rounded-xl overflow-hidden flex flex-col justify-between shadow-xs">
+                        <div className="relative aspect-[9/14] rounded-t-xl overflow-hidden bg-black">
                           <img src={inf.image} className="w-full h-full object-cover opacity-95" />
                           <div className="absolute top-3 sm:top-4 left-3 sm:left-4 text-white">
-                            <span className="font-handwritten text-xl sm:text-2xl text-[#FFFDD0] block font-bold leading-tight">{inf.tag}</span>
+                            <span className="font-handwritten text-xl sm:text-2xl text-[#fffee3] block font-bold leading-tight">{inf.tag}</span>
                             <span className="text-[9px] sm:text-[10px] font-bold uppercase">{inf.sub}</span>
                           </div>
-                          <span className="absolute top-3 right-3 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded">👁️ {inf.views}</span>
+                          <span className="absolute top-3 right-3 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded-md">👁️ {inf.views}</span>
                         </div>
 
                         <div className="p-2.5 sm:p-3 space-y-2">
                           <div className="flex items-center gap-2">
-                            <img src={inf.product.images[0]} className="w-8 h-8 sm:w-9 sm:h-9 object-cover rounded border shrink-0" />
+                            <img src={inf.product.images[0]} className="w-8 h-8 sm:w-9 sm:h-9 object-cover rounded-lg border shrink-0" />
                             <div className="min-w-0 flex-1">
                               <p className="text-[11px] sm:text-xs font-bold truncate">{inf.product.name}</p>
                               <p className="text-xs font-black">₹{inf.product.price}</p>
                             </div>
                           </div>
-                          <button onClick={() => { addToCart(inf.product); setIsCartOpen(true); }} className="w-full py-2 bg-[#FBB6CE] hover:bg-[#F89CBA] text-[#1A1821] text-[11px] sm:text-xs font-black uppercase tracking-wider rounded">
+                          <button onClick={() => { addToCart(inf.product); setIsCartOpen(true); }} className="w-full py-2 bg-[#FBB6CE] hover:bg-[#F89CBA] text-[#1A1821] text-[11px] sm:text-xs font-black uppercase tracking-wider rounded-lg">
                             Add to Cart
                           </button>
                         </div>
@@ -765,7 +765,7 @@
                     <button onClick={() => setIsCartOpen(false)} className="text-lg font-bold">✕</button>
                   </div>
                   {subtotal < 999 && subtotal > 0 && (
-                    <div className="p-2.5 bg-[#FFFDD0] border text-xs font-bold">
+                    <div className="p-2.5 bg-[#fffee3] border text-xs font-bold">
                       Add <strong>₹{999 - subtotal}</strong> more for <strong>FREE Delivery!</strong>
                     </div>
                   )}
@@ -817,13 +817,13 @@
                     <button onClick={() => setIsMenuOpen(false)} className="text-lg font-bold">✕</button>
                   </div>
                   <div className="space-y-2 text-xs font-bold uppercase tracking-wider">
-                    <button onClick={() => { navigate('home'); setIsMenuOpen(false); }} className="w-full text-left py-2.5 px-2 hover:bg-[#FFFDD0]">Home</button>
-                    <button onClick={() => { navigate('shop', 'all'); setIsMenuOpen(false); }} className="w-full text-left py-2.5 px-2 hover:bg-[#FFFDD0]">Shop All</button>
-                    <button onClick={() => { navigate('shop', 'nightwear'); setIsMenuOpen(false); }} className="w-full text-left py-2.5 px-2 hover:bg-[#FFFDD0] text-[#967BB6]">Nightwear &amp; Pyjamas</button>
-                    <button onClick={() => { navigate('shop', 'jewellery'); setIsMenuOpen(false); }} className="w-full text-left py-2.5 px-2 hover:bg-[#FFFDD0] text-amber-700">18K Anti-Tarnish Jewels</button>
+                    <button onClick={() => { navigate('home'); setIsMenuOpen(false); }} className="w-full text-left py-2.5 px-2 hover:bg-[#fffee3]">Home</button>
+                    <button onClick={() => { navigate('shop', 'all'); setIsMenuOpen(false); }} className="w-full text-left py-2.5 px-2 hover:bg-[#fffee3]">Shop All</button>
+                    <button onClick={() => { navigate('shop', 'nightwear'); setIsMenuOpen(false); }} className="w-full text-left py-2.5 px-2 hover:bg-[#fffee3] text-[#967BB6]">Nightwear &amp; Pyjamas</button>
+                    <button onClick={() => { navigate('shop', 'jewellery'); setIsMenuOpen(false); }} className="w-full text-left py-2.5 px-2 hover:bg-[#fffee3] text-amber-700">18K Anti-Tarnish Jewels</button>
                   </div>
                 </div>
-                <div className="p-3 bg-[#FFFDD0] border text-center text-xs">
+                <div className="p-3 bg-[#fffee3] border text-center text-xs">
                   <p className="font-bold">✦ BUNDLE DEAL ✦</p>
                   <p className="text-[11px] text-brand-muted">Buy Any 3 for ₹2999</p>
                 </div>
@@ -845,7 +845,7 @@
                 />
                 <div className="max-h-60 overflow-y-auto space-y-2">
                   {PRODUCTS.filter(p => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase())).map(p => (
-                    <div key={p.id} onClick={() => { setSelectedProduct(p); setPage('product'); setIsSearchOpen(false); }} className="flex items-center gap-3 p-2 hover:bg-[#FFFDD0] cursor-pointer">
+                    <div key={p.id} onClick={() => { setSelectedProduct(p); setPage('product'); setIsSearchOpen(false); }} className="flex items-center gap-3 p-2 hover:bg-[#fffee3] cursor-pointer">
                       <img src={p.images[0]} className="w-10 h-12 object-cover" />
                       <div>
                         <p className="text-xs font-bold">{p.name}</p>
@@ -874,7 +874,7 @@
                     <h3 className="font-sans font-black text-xl uppercase">Delivery Details</h3>
                     <input type="text" placeholder="Full Name" defaultValue="Ananya Verma" className="w-full border p-2 text-xs font-bold" />
                     <input type="text" placeholder="Address" defaultValue="Bandra West, Mumbai" className="w-full border p-2 text-xs font-bold" />
-                    <div className="p-3 bg-[#FFFDD0] border text-xs font-bold flex justify-between">
+                    <div className="p-3 bg-[#fffee3] border text-xs font-bold flex justify-between">
                       <span>Total:</span>
                       <span>Rs. {total}.00</span>
                     </div>
@@ -902,17 +902,17 @@
                 <p className="text-white/60">Everyday soft luxury and 100% waterproof anti-tarnish jewels for modern women.</p>
               </div>
               <div>
-                <h5 className="font-bold text-[#FFFDD0] uppercase mb-2">Shop</h5>
+                <h5 className="font-bold text-[#fffee3] uppercase mb-2">Shop</h5>
                 <p className="text-white/60 cursor-pointer hover:underline" onClick={() => navigate('shop', 'nightwear')}>Night Suits</p>
                 <p className="text-white/60 cursor-pointer hover:underline mt-1" onClick={() => navigate('shop', 'jewellery')}>Anti-Tarnish Jewellery</p>
               </div>
               <div>
-                <h5 className="font-bold text-[#FFFDD0] uppercase mb-2">Help</h5>
+                <h5 className="font-bold text-[#fffee3] uppercase mb-2">Help</h5>
                 <p className="text-white/60">WhatsApp: +91 98765 43210</p>
                 <p className="text-white/60 mt-1">care@girlytales.com</p>
               </div>
               <div>
-                <h5 className="font-bold text-[#FFFDD0] uppercase mb-2">Instagram</h5>
+                <h5 className="font-bold text-[#fffee3] uppercase mb-2">Instagram</h5>
                 <p className="text-white/60">@girlytalesofficial</p>
               </div>
             </div>

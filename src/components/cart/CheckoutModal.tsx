@@ -725,14 +725,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       <button
                         type="button"
                         onClick={() => handleQuickApply('GIRLY10')}
-                        className="px-2.5 py-1 bg-white hover:bg-[#FFFDD0] border border-[#EAE6DB] rounded-lg text-[10px] font-mono font-bold text-[#967BB6] transition-colors"
+                        className="px-2.5 py-1 bg-white hover:bg-[#fffee3] border border-[#EAE6DB] rounded-lg text-[10px] font-mono font-bold text-[#967BB6] transition-colors"
                       >
                         GIRLY10 (10% OFF)
                       </button>
                       <button
                         type="button"
                         onClick={() => handleQuickApply('WELCOME15')}
-                        className="px-2.5 py-1 bg-white hover:bg-[#FFFDD0] border border-[#EAE6DB] rounded-lg text-[10px] font-mono font-bold text-[#967BB6] transition-colors"
+                        className="px-2.5 py-1 bg-white hover:bg-[#fffee3] border border-[#EAE6DB] rounded-lg text-[10px] font-mono font-bold text-[#967BB6] transition-colors"
                       >
                         WELCOME15 (15% OFF)
                       </button>

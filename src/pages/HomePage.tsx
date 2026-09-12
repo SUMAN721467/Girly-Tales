@@ -56,7 +56,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   const trendingProducts = MOCK_PRODUCTS.slice(0, 4);
 
   return (
-    <div className="pb-16 bg-[#FFFDD0] w-full">
+    <div className="pb-16 bg-[#fffee3] w-full">
       {/* 1. FULL-WIDTH HERO CAROUSEL BANNER */}
       <section className="w-full">
         <BannerCarousel onNavigate={onNavigate} />
@@ -112,7 +112,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           {INFLUENCER_REELS.map((reel) => (
             <div
               key={reel.id}
-              className="bg-white border border-[#EAE6DB] rounded-none overflow-hidden flex flex-col justify-between shadow-xs"
+              className="bg-white border border-[#EAE6DB] rounded-xl overflow-hidden flex flex-col justify-between shadow-xs"
             >
               {/* Reel Card Image */}
               <div
@@ -127,7 +127,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
                 {/* Aesthetic Top Tag Overlay */}
                 <div className="absolute top-3 sm:top-4 left-3 sm:left-4 text-white drop-shadow-md">
-                  <span className="font-handwritten text-xl sm:text-2xl text-[#FFFDD0] block font-bold leading-tight">
+                  <span className="font-handwritten text-xl sm:text-2xl text-[#fffee3] block font-bold leading-tight">
                     {reel.tagText}
                   </span>
                   <span className="text-[10px] sm:text-[11px] font-bold text-white tracking-wide uppercase">

@@ -15,7 +15,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({ item, compact = false 
   return (
     <div className={`flex gap-3 ${compact ? 'py-2' : 'py-3'} border-b border-brand-border/60 group animate-fade-in`}>
       {/* Thumbnail */}
-      <div className={`${compact ? 'w-12 h-14' : 'w-16 h-20 sm:w-20 sm:h-24'} rounded-2xl overflow-hidden bg-brand-ivory border border-brand-border shrink-0`}>
+      <div className={`${compact ? 'w-12 h-14' : 'w-16 h-20 sm:w-20 sm:h-24'} rounded-lg overflow-hidden bg-brand-ivory border border-brand-border shrink-0`}>
         <img
           src={product.images[0]}
           alt={product.name}
