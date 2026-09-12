@@ -33,6 +33,7 @@ import { AccountPage } from './pages/AccountPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 
 import { useAuth } from './context/AuthContext';
+import { DatabaseService } from './lib/databaseService';
 
 export const AppContent: React.FC = () => {
   const { user, isLoggedIn, isAdmin, openAuthModal } = useAuth();
@@ -40,6 +41,7 @@ export const AppContent: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
+  const [allProducts, setAllProducts] = useState<Product[]>(MOCK_PRODUCTS);
 
   // Overlay states
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -47,13 +49,15 @@ export const AppContent: React.FC = () => {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
   // Helper to parse route from current window pathname & legacy hash
-  const parseCurrentRoute = () => {
+  const parseCurrentRoute = (productsToUse?: Product[]) => {
+    const prods = productsToUse && productsToUse.length > 0 ? productsToUse : allProducts;
+
     // 1. Check if URL contains legacy hash (e.g. #orders, #/orders, #product/xyz)
     const rawHash = window.location.hash.replace(/^#\/?/, '').trim();
     if (rawHash) {
       if (rawHash.startsWith('product/')) {
         const slug = rawHash.replace('product/', '');
-        const found = MOCK_PRODUCTS.find((p) => p.slug === slug || p.id === slug);
+        const found = prods.find((p) => p.slug === slug || p.id === slug) || MOCK_PRODUCTS.find((p) => p.slug === slug || p.id === slug);
         if (found) {
           setSelectedProduct(found);
           setCurrentPage('product');
@@ -80,7 +84,7 @@ export const AppContent: React.FC = () => {
       setSelectedCategory('all');
     } else if (pathname.startsWith('product/')) {
       const slug = pathname.replace('product/', '');
-      const found = MOCK_PRODUCTS.find((p) => p.slug === slug || p.id === slug);
+      const found = prods.find((p) => p.slug === slug || p.id === slug) || MOCK_PRODUCTS.find((p) => p.slug === slug || p.id === slug);
       if (found) {
         setSelectedProduct(found);
         setCurrentPage('product');
@@ -96,7 +100,30 @@ export const AppContent: React.FC = () => {
   };
 
   useEffect(() => {
-    parseCurrentRoute();
+    const initApp = async () => {
+      try {
+        const prods = await DatabaseService.getProducts();
+        if (Array.isArray(prods) && prods.length > 0) {
+          setAllProducts(prods);
+          parseCurrentRoute(prods);
+          return;
+        }
+      } catch (e) {}
+      parseCurrentRoute();
+    };
+
+    initApp();
+
+    const handleSync = (e: any) => {
+      const type = e.detail?.type;
+      if (!type || type === 'products' || type === 'all') {
+        DatabaseService.getProducts().then((prods) => {
+          if (Array.isArray(prods) && prods.length > 0) {
+            setAllProducts(prods);
+          }
+        });
+      }
+    };
 
     const handlePopState = () => {
       parseCurrentRoute();
@@ -108,9 +135,11 @@ export const AppContent: React.FC = () => {
 
     window.addEventListener('popstate', handlePopState);
     window.addEventListener('hashchange', handleHashChange);
+    window.addEventListener('gt_db_sync', handleSync);
     return () => {
       window.removeEventListener('popstate', handlePopState);
       window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('gt_db_sync', handleSync);
     };
   }, []);
 

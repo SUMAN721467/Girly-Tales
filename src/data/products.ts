@@ -14,9 +14,9 @@ export const MOCK_PRODUCTS: Product[] = [
     rating: 4.9,
     reviewCount: 142,
     images: [
-      'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=1000&q=80',
+      'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80',
       'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1000&q=80',
-      'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=1000&q=80'
+      'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&w=1000&q=80'
     ],
     description: 'Drift into blissful sleep with our signature Mulberry Silk Satin Notch Collar Set. Crafted from feather-weight, breathable satin with subtle contrast piping, it feels like a gentle caress on your skin.',
     shortDescription: 'Ultra-luxe satin with contrast piping and relaxed tailored silhouette.',
@@ -194,7 +194,7 @@ export const MOCK_PRODUCTS: Product[] = [
     reviewCount: 115,
     images: [
       'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=1000&q=80',
-      'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=1000&q=80'
+      'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80'
     ],
     description: 'An oversized, effortless nightshirt designed for uninterrupted sleep and weekend lounging. Features a curved hemline, mother-of-pearl buttons, and sweet floral motifs.',
     shortDescription: 'Oversized boyfriend-style nightshirt with curved hem.',
@@ -268,7 +268,7 @@ export const MOCK_PRODUCTS: Product[] = [
     reviewCount: 88,
     images: [
       'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=1000&q=80',
-      'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=1000&q=80'
+      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1000&q=80'
     ],
     description: 'Sumptuous stretch velvet paired with fine gold piping. Designed for those winter night stays, bridal get-togethers, and memorable slumber parties.',
     shortDescription: 'Plush stretch velvet pyjama suit with champagne gold piping.',

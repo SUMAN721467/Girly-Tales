@@ -117,7 +117,11 @@ export const ShopPage: React.FC<ShopPageProps> = ({
         const matchSub = productSub.includes(catLower);
         if (!matchMain && !matchSub) return false;
       }
-      if (selectedSubCats.length > 0 && !selectedSubCats.includes(product.subCategory)) return false;
+      if (selectedSubCats.length > 0) {
+        const productSub = (product.subCategory || '').toLowerCase();
+        const matchesSub = selectedSubCats.some((sub) => productSub.includes(sub.toLowerCase()));
+        if (!matchesSub) return false;
+      }
       if (product.price > maxPrice) return false;
       return true;
     }).sort((a, b) => {

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, X, ArrowRight, TrendingUp } from 'lucide-react';
 import { MOCK_PRODUCTS } from '../../data/products';
 import { Product } from '../../types/product';
+import { DatabaseService } from '../../lib/databaseService';
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -25,10 +26,21 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   onSelectProduct,
 }) => {
   const [query, setQuery] = useState('');
+  const [productsList, setProductsList] = useState<Product[]>(MOCK_PRODUCTS);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const loadProducts = async () => {
+    try {
+      const prods = await DatabaseService.getProducts();
+      if (Array.isArray(prods) && prods.length > 0) {
+        setProductsList(prods);
+      }
+    } catch (e) {}
+  };
 
   useEffect(() => {
     if (isOpen) {
+      loadProducts();
       setTimeout(() => inputRef.current?.focus(), 50);
     } else {
       setQuery('');
@@ -38,7 +50,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   if (!isOpen) return null;
 
   const results = query.trim()
-    ? MOCK_PRODUCTS.filter((p) => {
+    ? productsList.filter((p) => {
         const q = query.toLowerCase();
         return (
           p.name.toLowerCase().includes(q) ||

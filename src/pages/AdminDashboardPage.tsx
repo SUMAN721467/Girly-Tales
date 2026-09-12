@@ -141,11 +141,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     highlights: 'Free Delivery on all prepaid orders\n7-Day Hassle-Free Size Exchange\n100% Anti-Tarnish & Waterproof',
     careInstructionsText: 'Simply wipe clean with a dry cloth',
     deliveryPolicy: 'Dispatched within 24 hours. Delivered across India within 2 to 4 business days. Easy 7-day exchange support available on WhatsApp.',
-    images: [
-      'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=1000&q=80',
-      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1000&q=80',
-      'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=1000&q=80'
-    ] as string[],
+    images: [] as string[],
     inStock: true,
   };
 
@@ -698,7 +694,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
     const finalImages = productForm.images.length > 0
       ? productForm.images
-      : ['https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=1000&q=80'];
+      : ['https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80'];
 
     if (editingProductId) {
       const existing = productsList.find((p) => p.id === editingProductId);
@@ -2061,7 +2057,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           <td className="py-3.5 px-4">
                             <div className="flex items-center gap-3.5">
                               <img
-                                src={prod.images[0] || 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=200&q=80'}
+                                src={prod.images?.[0] || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=200&q=80'}
                                 alt={prod.name}
                                 className="w-12 h-12 rounded-xl object-cover border border-[#EAE6DB] shrink-0"
                               />

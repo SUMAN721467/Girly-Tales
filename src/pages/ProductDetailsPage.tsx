@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Heart, Sparkles, Truck, RefreshCw, ChevronDown, ChevronUp, Ruler, ArrowLeft, ZoomIn } from 'lucide-react';
 import { Product } from '../types/product';
 import { MOCK_PRODUCTS } from '../data/products';
@@ -6,6 +6,7 @@ import { ProductCard } from '../components/product/ProductCard';
 import { SizeGuideModal } from '../components/common/SizeGuideModal';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
+import { DatabaseService } from '../lib/databaseService';
 
 interface ProductDetailsPageProps {
   product: Product;
@@ -20,12 +21,21 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   onBackToShop,
   onOpenCheckout,
 }) => {
+  const [productsList, setProductsList] = useState<Product[]>(MOCK_PRODUCTS);
   const [activeImage, setActiveImage] = useState(0);
   const [selectedSize, setSelectedSize] = useState<string | undefined>(
     product.sizes ? product.sizes[0] : undefined
   );
   const [quantity, setQuantity] = useState(1);
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
+
+  useEffect(() => {
+    DatabaseService.getProducts().then((prods) => {
+      if (Array.isArray(prods) && prods.length > 0) {
+        setProductsList(prods);
+      }
+    });
+  }, []);
 
   // Amazon-style Side Zoom State
   const imageContainerRef = useRef<HTMLDivElement>(null);
@@ -94,7 +104,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
     onOpenCheckout();
   };
 
-  const relatedProducts = MOCK_PRODUCTS.filter(
+  const relatedProducts = productsList.filter(
     (p) => p.id !== product.id && p.category === product.category
   ).slice(0, 4);
 
@@ -124,7 +134,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
             className="relative w-full max-w-sm sm:max-w-md lg:max-w-none mx-auto aspect-square max-h-[400px] sm:max-h-[440px] bg-white border border-[#EAE6DB] rounded-xl overflow-hidden shadow-xs flex items-center justify-center cursor-crosshair select-none"
           >
             <img
-              src={product.images[activeImage] || product.images[0] || 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=1000&q=80'}
+              src={product.images?.[activeImage] || product.images?.[0] || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80'}
               alt={product.name}
               className="w-full h-full object-cover object-center"
             />

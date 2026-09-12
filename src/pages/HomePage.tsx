@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MOCK_PRODUCTS } from '../data/products';
 import { Product } from '../types/product';
 import { ProductCard } from '../components/product/ProductCard';
@@ -6,6 +6,7 @@ import { BannerCarousel } from '../components/home/BannerCarousel';
 import { ComfortMarquee } from '../components/home/ComfortMarquee';
 import { CategorySlider } from '../components/home/CategorySlider';
 import { useCart } from '../context/CartContext';
+import { DatabaseService } from '../lib/databaseService';
 
 interface HomePageProps {
   onNavigate: (page: string, category?: string) => void;
@@ -53,7 +54,36 @@ export const HomePage: React.FC<HomePageProps> = ({
   onSelectProduct,
 }) => {
   const { addToCart, openCart } = useCart();
-  const trendingProducts = MOCK_PRODUCTS.slice(0, 4);
+  const [productsList, setProductsList] = useState<Product[]>(MOCK_PRODUCTS);
+
+  const loadHomeProducts = async () => {
+    try {
+      const prods = await DatabaseService.getProducts();
+      if (Array.isArray(prods) && prods.length > 0) {
+        setProductsList(prods);
+      }
+    } catch (e) {
+      console.warn('Failed to load home products:', e);
+    }
+  };
+
+  useEffect(() => {
+    loadHomeProducts();
+
+    const handleSync = (e: any) => {
+      const type = e.detail?.type;
+      if (!type || type === 'products' || type === 'all') {
+        loadHomeProducts();
+      }
+    };
+
+    window.addEventListener('gt_db_sync', handleSync);
+    return () => window.removeEventListener('gt_db_sync', handleSync);
+  }, []);
+
+  const trendingProducts = useMemo(() => {
+    return productsList.filter((p) => p.inStock !== false).slice(0, 4);
+  }, [productsList]);
 
   return (
     <div className="pb-16 bg-[#fffeea] w-full">
