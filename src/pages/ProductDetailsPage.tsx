@@ -37,7 +37,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   }, []);
 
   // Amazon-style Side Zoom State
-  const imageContainerRef = useRef<HTMLDivElement>(null);
+  // High-Definition Interactive Zoom State
   const [zoomState, setZoomState] = useState({
     isHovering: false,
     xPercent: 50,
@@ -47,18 +47,43 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   });
 
   const handleImageMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!imageContainerRef.current) return;
-    const rect = imageContainerRef.current.getBoundingClientRect();
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
     const rawX = e.clientX - rect.left;
     const rawY = e.clientY - rect.top;
 
-    // Calculate percentage for high-def backgroundPosition in zoom window
     const xPercent = Math.max(0, Math.min(100, (rawX / rect.width) * 100));
     const yPercent = Math.max(0, Math.min(100, (rawY / rect.height) * 100));
 
-    // Vertical Portrait Rectangular Lens dimensions
-    const lensWidth = 85;
-    const lensHeight = 130;
+    const lensWidth = 90;
+    const lensHeight = 112;
+    const halfW = lensWidth / 2;
+    const halfH = lensHeight / 2;
+
+    const lensX = Math.max(0, Math.min(rect.width - lensWidth, rawX - halfW));
+    const lensY = Math.max(0, Math.min(rect.height - lensHeight, rawY - halfH));
+
+    setZoomState({
+      isHovering: true,
+      xPercent,
+      yPercent,
+      lensX,
+      lensY,
+    });
+  };
+
+  const handleImageTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!e.touches[0]) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const rawX = e.touches[0].clientX - rect.left;
+    const rawY = e.touches[0].clientY - rect.top;
+
+    const xPercent = Math.max(0, Math.min(100, (rawX / rect.width) * 100));
+    const yPercent = Math.max(0, Math.min(100, (rawY / rect.height) * 100));
+
+    const lensWidth = 90;
+    const lensHeight = 112;
     const halfW = lensWidth / 2;
     const halfH = lensHeight / 2;
 
@@ -103,131 +128,157 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
     onOpenCheckout();
   };
 
+  const currentImageSrc =
+    product.images?.[activeImage] ||
+    product.images?.[0] ||
+    'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80';
+
   const relatedProducts = productsList.filter(
     (p) => p.id !== product.id && p.category === product.category
   ).slice(0, 4);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-8 sm:space-y-12 bg-[#fffeea] w-full">
+    <div className="max-w-6xl xl:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-6 space-y-6 sm:space-y-8 bg-[#fffeea] w-full">
       {/* Back button */}
       <div>
         <button
           onClick={onBackToShop}
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-muted hover:text-brand-lavender uppercase tracking-wider"
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-muted hover:text-brand-lavender uppercase tracking-wider transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Collection</span>
         </button>
       </div>
 
-      {/* Main Product Layout: Balanced 2-col layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start relative">
-        {/* Left: Product Images (5 Cols with max-height & sticky) */}
-        <div className="lg:col-span-5 lg:sticky lg:top-24 space-y-3 relative">
-          {/* Main Image Frame with Amazon-style Zoom Lens */}
-          <div
-            ref={imageContainerRef}
-            onMouseMove={handleImageMouseMove}
-            onMouseEnter={handleImageMouseMove}
-            onMouseLeave={handleImageMouseLeave}
-            className="relative w-full max-w-sm sm:max-w-md lg:max-w-none mx-auto aspect-square max-h-[400px] sm:max-h-[440px] bg-white border border-[#EAE6DB] rounded-xl overflow-hidden shadow-xs flex items-center justify-center cursor-crosshair select-none"
-          >
-            <img
-              src={product.images?.[activeImage] || product.images?.[0] || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80'}
-              alt={product.name}
-              className="w-full h-full object-cover object-center"
-            />
-
-            {/* Vertical Portrait Rectangular Lens Box */}
-            {zoomState.isHovering && (
+      {/* Unified Luxury Product Showcase Card */}
+      <div className="bg-white border border-[#EAE6DB] rounded-2xl sm:rounded-3xl p-5 sm:p-7 lg:p-8 shadow-xs w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 lg:gap-10 xl:gap-12 items-start w-full">
+          {/* Left: Product Media (5 cols - Compact & Elegant) */}
+          <div className="lg:col-span-5 flex flex-col items-center space-y-3.5 w-full">
+            {/* Main Image Frame Wrapper with Relative Anchor */}
+            <div className="relative w-full max-w-[380px] lg:max-w-[420px]">
               <div
-                className="absolute border-2 border-[#967BB6] bg-[#967BB6]/20 backdrop-blur-[1px] rounded-lg pointer-events-none hidden lg:block shadow-md"
-                style={{
-                  width: '85px',
-                  height: '130px',
-                  left: `${zoomState.lensX}px`,
-                  top: `${zoomState.lensY}px`,
-                }}
-              />
-            )}
+                onMouseMove={handleImageMouseMove}
+                onMouseEnter={handleImageMouseMove}
+                onMouseLeave={handleImageMouseLeave}
+                onTouchMove={handleImageTouchMove}
+                onTouchEnd={handleImageMouseLeave}
+                className="relative w-full aspect-[4/5] bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl overflow-hidden shadow-2xs flex items-center justify-center cursor-crosshair select-none"
+              >
+                {/* Main Product Image (Unscaled & Sharp) */}
+                <img
+                  src={currentImageSrc}
+                  alt={product.name}
+                  className="w-full h-full object-cover object-center pointer-events-none"
+                />
 
-            {product.isNewArrival && (
-              <span className="absolute top-3 left-3 bg-[#967BB6] text-white text-[9px] sm:text-[10px] font-bold px-2.5 py-1 uppercase tracking-wider rounded-md shadow-xs">
-                New Arrival
-              </span>
-            )}
+                {/* Classic Lens Box Overlay following cursor */}
+                {zoomState.isHovering && (
+                  <div
+                    className="absolute border-2 border-[#967BB6] bg-[#967BB6]/20 backdrop-blur-[1px] rounded-lg pointer-events-none hidden lg:block shadow-md transition-all duration-75"
+                    style={{
+                      width: '90px',
+                      height: '112px',
+                      left: `${zoomState.lensX}px`,
+                      top: `${zoomState.lensY}px`,
+                    }}
+                  />
+                )}
 
-            {/* Hint Badge */}
-            <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md text-white px-2.5 py-1 rounded-full text-[10px] font-bold items-center gap-1 hidden lg:flex pointer-events-none opacity-80">
-              <ZoomIn className="w-3 h-3 text-[#fffeea]" />
-              <span>Hover to Zoom</span>
-            </div>
-          </div>
+                {product.isNewArrival && (
+                  <span className="absolute top-3 left-3 bg-[#967BB6] text-white text-[9px] sm:text-[10px] font-bold px-2.5 py-1 uppercase tracking-wider rounded-md shadow-xs pointer-events-none">
+                    New Arrival
+                  </span>
+                )}
 
-          {/* Amazon-style Side Window Zoom Magnifier (Vertical Portrait) */}
-          {zoomState.isHovering && (
-            <div
-              className="absolute left-[calc(100%+1rem)] top-0 z-50 w-[270px] h-[380px] xl:w-[300px] xl:h-[400px] bg-white rounded-xl border-2 border-[#967BB6]/50 shadow-2xl overflow-hidden pointer-events-none hidden lg:block animate-fade-in bg-no-repeat"
-              style={{
-                backgroundImage: `url(${product.images[activeImage] || product.images[0]})`,
-                backgroundPosition: `${zoomState.xPercent}% ${zoomState.yPercent}%`,
-                backgroundSize: '260% 260%',
-                backgroundColor: '#FFFFFF',
-              }}
-            >
-              {/* Magnifier Badge */}
-              <div className="absolute top-2.5 right-2.5 bg-[#1A1821]/85 text-white text-[9px] font-bold px-2.5 py-0.5 rounded-full backdrop-blur-md flex items-center gap-1 shadow-sm">
-                <Sparkles className="w-3 h-3 text-brand-yellow" />
-                <span>Zoom View</span>
+                {/* Hint Badge */}
+                <div className="absolute bottom-3 right-3 bg-black/65 backdrop-blur-md text-white px-2.5 py-1 rounded-full text-[10px] font-bold items-center gap-1 hidden lg:flex pointer-events-none opacity-85 transition-opacity">
+                  <ZoomIn className="w-3 h-3 text-[#fffeea]" />
+                  <span>Hover to Zoom</span>
+                </div>
               </div>
-            </div>
-          )}
 
-          {/* Thumbnail Strip */}
-          {product.images.length > 1 && (
-            <div className="flex gap-2.5 overflow-x-auto pb-1 justify-center sm:justify-start scrollbar-none">
-              {product.images.map((img, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setActiveImage(idx)}
-                  className={`w-14 sm:w-16 h-14 sm:h-16 rounded-lg border-2 overflow-hidden shrink-0 transition-all cursor-pointer ${
-                    activeImage === idx
-                      ? 'border-[#967BB6] ring-2 ring-[#967BB6]/25 scale-95'
-                      : 'border-[#EAE6DB] opacity-70 hover:opacity-100 hover:border-[#967BB6]/50'
-                  }`}
+              {/* Side Magnifier Window (Exclusive Zoom View) */}
+              {zoomState.isHovering && (
+                <div
+                  className="absolute left-[calc(100%+1rem)] top-0 z-50 w-[320px] h-[400px] xl:w-[380px] xl:h-[475px] bg-white rounded-2xl border-2 border-[#967BB6]/60 shadow-2xl overflow-hidden pointer-events-none hidden lg:block animate-fade-in bg-no-repeat"
+                  style={{
+                    backgroundImage: `url(${currentImageSrc})`,
+                    backgroundPosition: `${zoomState.xPercent}% ${zoomState.yPercent}%`,
+                    backgroundSize: '280% 280%',
+                    backgroundColor: '#FFFFFF',
+                  }}
                 >
-                  <img src={img} alt="" className="w-full h-full object-cover object-center" />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Right: Product Details & Actions (7 Cols) */}
-        <div className="lg:col-span-7 bg-white p-5 sm:p-7 border border-[#EAE6DB] rounded-2xl shadow-xs space-y-5">
-          <div className="space-y-1.5 border-b border-[#EAE6DB] pb-4">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-[#967BB6]">
-              {product.subCategory}
-            </span>
-            <h1 className="font-sans font-black text-xl sm:text-2xl md:text-3xl text-brand-charcoal uppercase leading-tight">
-              {product.name}
-            </h1>
-
-            {/* Price Box */}
-            <div className="flex items-baseline gap-2.5 pt-1">
-              <span className="text-xl sm:text-2xl font-black text-brand-charcoal">
-                Rs. {product.price.toLocaleString('en-IN')}.00
-              </span>
-              {product.originalPrice > product.price && (
-                <span className="text-xs sm:text-sm text-brand-muted-light line-through">
-                  Rs. {product.originalPrice.toLocaleString('en-IN')}.00
-                </span>
+                  <div className="absolute top-2.5 right-2.5 bg-[#1A1821]/85 text-white text-[9px] font-bold px-2.5 py-0.5 rounded-full backdrop-blur-md flex items-center gap-1 shadow-sm">
+                    <Sparkles className="w-3 h-3 text-brand-yellow" />
+                    <span>HD Zoom View</span>
+                  </div>
+                </div>
               )}
             </div>
-            <p className="text-[11px] text-brand-muted">
-              Tax included. Free shipping on prepaid orders.
-            </p>
+
+            {/* Thumbnail Strip */}
+            {product.images.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto pb-1 justify-center w-full scrollbar-none">
+                {product.images.map((img, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setActiveImage(idx)}
+                    className={`w-12 sm:w-14 aspect-[4/5] rounded-lg border-2 overflow-hidden shrink-0 transition-all cursor-pointer ${
+                      activeImage === idx
+                        ? 'border-[#967BB6] ring-2 ring-[#967BB6]/25 scale-95'
+                        : 'border-[#EAE6DB] opacity-70 hover:opacity-100 hover:border-[#967BB6]/50'
+                    }`}
+                  >
+                    <img src={img} alt="" className="w-full h-full object-cover object-center" />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+
+          {/* Right: Product Details & Actions (7 Cols) */}
+          <div className="lg:col-span-7 space-y-4 w-full">
+            <div className="space-y-2 border-b border-[#EAE6DB] pb-4">
+              {/* Category, Rating & Status Badges */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-black uppercase tracking-widest text-[#967BB6] bg-[#967BB6]/10 px-2.5 py-0.5 rounded-md">
+                  {product.subCategory || product.category}
+                </span>
+                <span className="flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60">
+                  ★ {product.rating || 4.9} ({product.reviewCount || 12} reviews)
+                </span>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  In Stock
+                </span>
+              </div>
+
+              {/* Big Prominent Product Title */}
+              <h1 className="font-sans font-black text-2xl sm:text-3xl lg:text-[34px] xl:text-[38px] text-brand-charcoal uppercase leading-[1.12] tracking-tight">
+                {product.name}
+              </h1>
+
+              {/* Price Box */}
+              <div className="flex flex-wrap items-baseline gap-2.5 pt-1">
+                <span className="text-2xl sm:text-3xl font-black text-brand-charcoal">
+                  Rs. {product.price.toLocaleString('en-IN')}.00
+                </span>
+                {product.originalPrice > product.price && (
+                  <>
+                    <span className="text-sm sm:text-base text-brand-muted-light line-through font-semibold">
+                      Rs. {product.originalPrice.toLocaleString('en-IN')}.00
+                    </span>
+                    <span className="bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded tracking-wider uppercase shadow-xs">
+                      Save {Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}%
+                    </span>
+                  </>
+                )}
+              </div>
+              <p className="text-[11px] text-brand-muted font-medium">
+                Tax included. Free express shipping on all prepaid orders.
+              </p>
+            </div>
 
           {/* Sizes */}
           {product.sizes && (
@@ -394,6 +445,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
           </div>
         </div>
       </div>
+    </div>
 
       {/* Related Products Grid: 2 col mobile, 4 col desktop */}
       {relatedProducts.length > 0 && (

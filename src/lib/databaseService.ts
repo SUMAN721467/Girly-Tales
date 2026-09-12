@@ -842,13 +842,28 @@ export const DatabaseService = {
 
       if (isSupabaseConfigured) {
         try {
-          const { error: uploadError } = await supabase.storage
+          let { error: uploadError } = await supabase.storage
             .from('product-images')
             .upload(filePath, optimizedBlob, {
               contentType: file.type || 'image/jpeg',
               cacheControl: '3600',
               upsert: true,
             });
+
+          // Auto-create bucket if missing and retry upload
+          if (uploadError && (uploadError.message?.toLowerCase().includes('not found') || uploadError.message?.toLowerCase().includes('bucket'))) {
+            try {
+              await supabase.storage.createBucket('product-images', { public: true });
+              const retry = await supabase.storage
+                .from('product-images')
+                .upload(filePath, optimizedBlob, {
+                  contentType: file.type || 'image/jpeg',
+                  cacheControl: '3600',
+                  upsert: true,
+                });
+              uploadError = retry.error;
+            } catch (createErr) {}
+          }
 
           if (!uploadError) {
             const { data: publicData } = supabase.storage

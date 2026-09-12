@@ -1869,7 +1869,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                                 }`}
                               >
                                 {/* Thumbnail Container */}
-                                <div className="relative aspect-square w-full bg-[#FAF8F2] overflow-hidden">
+                                <div className="relative aspect-[4/5] w-full bg-[#FAF8F2] overflow-hidden">
                                   <img
                                     src={imgUrl}
                                     alt={`Product preview ${index + 1}`}

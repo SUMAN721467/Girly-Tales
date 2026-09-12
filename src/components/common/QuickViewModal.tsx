@@ -53,7 +53,7 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
           {/* Gallery side */}
           <div>
-            <div className="aspect-[4/5] rounded-xl overflow-hidden bg-brand-ivory border border-brand-border mb-3">
+            <div className="aspect-[4/5] max-w-[280px] sm:max-w-[320px] mx-auto rounded-xl overflow-hidden bg-brand-ivory border border-brand-border mb-3">
               <img
                 src={product.images[selectedImage]}
                 alt={product.name}
