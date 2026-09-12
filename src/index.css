@@ -4,12 +4,12 @@
 
 @layer base {
   :root {
-    --brand-yellow: #fffee3;
+    --brand-yellow: #fffeea;
     --brand-lavender: #967BB6;
   }
 
   body {
-    background-color: #fffee3;
+    background-color: #fffeea;
     color: #1A1821;
     font-family: 'Plus Jakarta Sans', sans-serif;
     overflow-x: hidden;
@@ -23,7 +23,7 @@
   }
 
   ::-webkit-scrollbar-track {
-    background: #fffee3;
+    background: #fffeea;
   }
 
   ::-webkit-scrollbar-thumb {

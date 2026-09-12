@@ -35,7 +35,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onNavigat
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-full bg-[#fffee3] hover:bg-brand-lavender-subtle text-brand-charcoal"
+              className="p-1.5 rounded-full bg-[#fffeea] hover:bg-brand-lavender-subtle text-brand-charcoal"
             >
               <X className="w-5 h-5" />
             </button>
@@ -45,7 +45,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onNavigat
           <nav className="py-6 space-y-1 text-sm font-bold uppercase tracking-wider text-brand-charcoal">
             <button
               onClick={() => handleLinkClick('home')}
-              className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#fffee3] flex items-center justify-between transition-colors"
+              className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#fffeea] flex items-center justify-between transition-colors"
             >
               <span>Home</span>
               <ArrowRight className="w-4 h-4 text-brand-muted-light" />
@@ -53,7 +53,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onNavigat
 
             <button
               onClick={() => handleLinkClick('shop', 'all')}
-              className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#fffee3] flex items-center justify-between transition-colors"
+              className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#fffeea] flex items-center justify-between transition-colors"
             >
               <span>Shop All</span>
               <span className="text-[10px] bg-brand-lavender text-white px-2 py-0.5 rounded-full font-black">
@@ -63,7 +63,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onNavigat
 
             <button
               onClick={() => handleLinkClick('shop', 'nightwear')}
-              className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#fffee3] flex items-center justify-between text-brand-lavender transition-colors"
+              className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#fffeea] flex items-center justify-between text-brand-lavender transition-colors"
             >
               <span className="flex items-center gap-2">
                 <Moon className="w-4 h-4 text-brand-lavender" />
@@ -74,7 +74,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onNavigat
 
             <button
               onClick={() => handleLinkClick('shop', 'jewellery')}
-              className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#fffee3] flex items-center justify-between text-amber-700 transition-colors"
+              className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#fffeea] flex items-center justify-between text-amber-700 transition-colors"
             >
               <span className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-[#D4AF37]" />
@@ -87,7 +87,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onNavigat
               <>
                 <button
                   onClick={() => handleLinkClick('account', 'profile')}
-                  className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#fffee3] flex items-center justify-between transition-colors"
+                  className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#fffeea] flex items-center justify-between transition-colors"
                 >
                   <span className="flex items-center gap-2">
                     <UserIcon className="w-4 h-4 text-[#967BB6]" />
@@ -98,7 +98,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onNavigat
 
                 <button
                   onClick={() => handleLinkClick('account', 'addresses')}
-                  className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#fffee3] flex items-center justify-between transition-colors"
+                  className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#fffeea] flex items-center justify-between transition-colors"
                 >
                   <span className="flex items-center gap-2">
                     <span className="text-sm">📍</span>
@@ -109,7 +109,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onNavigat
 
                 <button
                   onClick={() => handleLinkClick('account', 'orders')}
-                  className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#fffee3] flex items-center justify-between transition-colors"
+                  className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#fffeea] flex items-center justify-between transition-colors"
                 >
                   <span className="flex items-center gap-2">
                     <ShoppingBag className="w-4 h-4 text-[#967BB6]" />
@@ -124,7 +124,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onNavigat
                   onClose();
                   openAuthModal('login');
                 }}
-                className="w-full text-left py-3 px-3 rounded-xl bg-[#FAF8F2] hover:bg-[#fffee3] flex items-center justify-between transition-colors text-[#967BB6] font-black"
+                className="w-full text-left py-3 px-3 rounded-xl bg-[#FAF8F2] hover:bg-[#fffeea] flex items-center justify-between transition-colors text-[#967BB6] font-black"
               >
                 <span className="flex items-center gap-2">
                   <UserIcon className="w-4 h-4 text-[#967BB6]" />
@@ -137,7 +137,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onNavigat
             {isAdmin && (
               <button
                 onClick={() => handleLinkClick('admin')}
-                className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#fffee3] flex items-center justify-between transition-colors bg-[#FAF8F2]"
+                className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#fffeea] flex items-center justify-between transition-colors bg-[#FAF8F2]"
               >
                 <span className="flex items-center gap-2">
                   <span className="text-[10px] bg-[#967BB6] text-white px-1.5 py-0.5 rounded font-black">ADMIN</span>
@@ -149,7 +149,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onNavigat
 
             <button
               onClick={() => handleLinkClick('wishlist')}
-              className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#fffee3] flex items-center justify-between transition-colors"
+              className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#fffeea] flex items-center justify-between transition-colors"
             >
               <span className="flex items-center gap-2">
                 <Heart className="w-4 h-4 text-rose-500" />
@@ -165,14 +165,14 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onNavigat
             <div className="pt-4 border-t border-[#EAE6DB] space-y-1">
               <button
                 onClick={() => handleLinkClick('about')}
-                className="w-full text-left py-2.5 px-3 rounded-xl hover:bg-[#fffee3] text-xs text-brand-muted font-bold flex items-center gap-2"
+                className="w-full text-left py-2.5 px-3 rounded-xl hover:bg-[#fffeea] text-xs text-brand-muted font-bold flex items-center gap-2"
               >
                 <HelpCircle className="w-4 h-4 text-brand-lavender" />
                 <span>Our Story</span>
               </button>
               <button
                 onClick={() => handleLinkClick('contact')}
-                className="w-full text-left py-2.5 px-3 rounded-xl hover:bg-[#fffee3] text-xs text-brand-muted font-bold flex items-center gap-2"
+                className="w-full text-left py-2.5 px-3 rounded-xl hover:bg-[#fffeea] text-xs text-brand-muted font-bold flex items-center gap-2"
               >
                 <Phone className="w-4 h-4 text-brand-lavender" />
                 <span>Contact &amp; Help</span>
@@ -182,7 +182,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onNavigat
         </div>
 
         {/* Promo Box at Bottom */}
-        <div className="p-4 bg-[#fffee3] rounded-2xl border border-[#EBD7DE] text-center space-y-1">
+        <div className="p-4 bg-[#fffeea] rounded-2xl border border-[#EBD7DE] text-center space-y-1">
           <p className="text-xs font-black text-brand-charcoal">✦ BUNDLE OFFER ✦</p>
           <p className="text-[11px] text-brand-muted">Buy Any 3 Sets for ₹2,999/-</p>
           <button

@@ -99,7 +99,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   ).slice(0, 4);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-8 sm:space-y-12 bg-[#fffee3] w-full">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-8 sm:space-y-12 bg-[#fffeea] w-full">
       {/* Back button */}
       <div>
         <button
@@ -150,7 +150,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
 
             {/* Hint Badge */}
             <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md text-white px-2.5 py-1 rounded-full text-[10px] font-bold items-center gap-1 hidden lg:flex pointer-events-none opacity-80">
-              <ZoomIn className="w-3 h-3 text-[#fffee3]" />
+              <ZoomIn className="w-3 h-3 text-[#fffeea]" />
               <span>Hover to Zoom</span>
             </div>
           </div>
@@ -258,7 +258,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
           <div className="space-y-2.5 pt-1">
             <div className="flex items-center gap-2 sm:gap-3">
               {/* Stepper */}
-              <div className="flex items-center border border-[#EAE6DB] bg-[#fffee3] px-2.5 py-2 text-xs font-bold shrink-0">
+              <div className="flex items-center border border-[#EAE6DB] bg-[#fffeea] px-2.5 py-2 text-xs font-bold shrink-0">
                 <button
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                   className="px-1.5"
@@ -288,7 +288,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                 className={`p-3 border transition-colors shrink-0 ${
                   isFavorited
                     ? 'border-rose-300 bg-rose-50 text-rose-500'
-                    : 'border-[#EAE6DB] text-brand-charcoal hover:bg-[#fffee3]'
+                    : 'border-[#EAE6DB] text-brand-charcoal hover:bg-[#fffeea]'
                 }`}
                 aria-label="Wishlist"
               >
@@ -316,7 +316,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                 ];
 
             return (
-              <div className="p-3.5 bg-[#fffee3] border border-[#EAE6DB] space-y-1.5 text-xs">
+              <div className="p-3.5 bg-[#fffeea] border border-[#EAE6DB] space-y-1.5 text-xs">
                 {highlightsList.map((item, idx) => {
                   const IconComponent = idx === 0 ? Truck : idx === 1 ? RefreshCw : Sparkles;
                   return (

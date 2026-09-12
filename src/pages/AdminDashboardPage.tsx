@@ -1005,7 +1005,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             <div className="flex items-center gap-2">
               <button
                 onClick={() => onNavigate('home')}
-                className="p-1.5 -ml-1.5 rounded-full hover:bg-[#fffee3] text-brand-muted hover:text-brand-charcoal transition-colors"
+                className="p-1.5 -ml-1.5 rounded-full hover:bg-[#fffeea] text-brand-muted hover:text-brand-charcoal transition-colors"
                 title="Back to Shop"
               >
                 <ArrowLeft className="w-5 h-5 stroke-[2]" />
@@ -1292,7 +1292,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                         setEditingProductId(null);
                         setProductForm(DEFAULT_PRODUCT_FORM);
                       }}
-                      className="p-1.5 -ml-1.5 rounded-full hover:bg-[#fffee3] text-brand-muted hover:text-brand-charcoal transition-colors"
+                      className="p-1.5 -ml-1.5 rounded-full hover:bg-[#fffeea] text-brand-muted hover:text-brand-charcoal transition-colors"
                       title="Back to products list"
                     >
                       <ArrowLeft className="w-5 h-5 stroke-[2]" />
@@ -1485,7 +1485,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                               className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
                                 isSelected
                                   ? 'bg-[#967BB6] text-white shadow-xs border border-[#7F62A1]'
-                                  : 'bg-[#FAF8F2] text-brand-charcoal border border-[#EAE6DB] hover:bg-[#fffee3]'
+                                  : 'bg-[#FAF8F2] text-brand-charcoal border border-[#EAE6DB] hover:bg-[#fffeea]'
                               }`}
                             >
                               {cat.name}
@@ -1603,7 +1603,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                         <span className="text-[11px] font-bold uppercase text-brand-muted block">
                           Live Product Page Preview:
                         </span>
-                        <div className="p-3.5 bg-[#fffee3] border border-[#EAE6DB] space-y-1.5 text-xs rounded-xl">
+                        <div className="p-3.5 bg-[#fffeea] border border-[#EAE6DB] space-y-1.5 text-xs rounded-xl">
                           {productForm.highlights
                             .split('\n')
                             .map((s) => s.trim())
@@ -1883,8 +1883,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                                   {/* Badge: Cover or Index */}
                                   <div className="absolute top-2 left-2 z-10">
                                     {isCover ? (
-                                      <span className="inline-flex items-center gap-1 bg-[#1A1821]/90 text-[#fffee3] text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-xs backdrop-blur-md">
-                                        <Star className="w-2.5 h-2.5 fill-[#fffee3] text-[#fffee3]" />
+                                      <span className="inline-flex items-center gap-1 bg-[#1A1821]/90 text-[#fffeea] text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-xs backdrop-blur-md">
+                                        <Star className="w-2.5 h-2.5 fill-[#fffeea] text-[#fffeea]" />
                                         <span>Primary Cover</span>
                                       </span>
                                     ) : (
@@ -1982,7 +1982,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                         setEditingProductId(null);
                         setProductForm(DEFAULT_PRODUCT_FORM);
                       }}
-                      className="px-6 py-3 bg-[#FAF8F2] hover:bg-[#fffee3] border border-[#EAE6DB] text-brand-charcoal text-xs font-bold uppercase rounded-2xl transition-all"
+                      className="px-6 py-3 bg-[#FAF8F2] hover:bg-[#fffeea] border border-[#EAE6DB] text-brand-charcoal text-xs font-bold uppercase rounded-2xl transition-all"
                     >
                       Cancel
                     </button>
@@ -2790,7 +2790,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                     selectedCustomerDetail.tier === 'VIP Platinum'
                       ? 'bg-[#1A1821] text-white'
                       : selectedCustomerDetail.tier === 'VIP Gold'
-                      ? 'bg-[#fffee3] text-[#967BB6] border border-[#EAE6DB]'
+                      ? 'bg-[#fffeea] text-[#967BB6] border border-[#EAE6DB]'
                       : 'bg-gray-100 text-gray-700'
                   }`}>
                     {selectedCustomerDetail.tier} Member
@@ -3422,7 +3422,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm text-brand-charcoal">{promo.name}</span>
-                      <span className="bg-[#fffee3] text-[#967BB6] border border-[#EAE6DB] text-[10px] font-black uppercase px-2 py-0.5 rounded-full">
+                      <span className="bg-[#fffeea] text-[#967BB6] border border-[#EAE6DB] text-[10px] font-black uppercase px-2 py-0.5 rounded-full">
                         {promo.badge}
                       </span>
                     </div>
@@ -3697,7 +3697,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                     });
                     setDeleteConfirmInput('');
                   }}
-                  className="w-full py-3.5 px-4 bg-[#FAF8F2] hover:bg-[#fffee3] border border-[#EAE6DB] hover:border-[#967BB6]/40 text-brand-charcoal text-xs font-bold uppercase tracking-wider rounded-2xl transition-all shadow-xs"
+                  className="w-full py-3.5 px-4 bg-[#FAF8F2] hover:bg-[#fffeea] border border-[#EAE6DB] hover:border-[#967BB6]/40 text-brand-charcoal text-xs font-bold uppercase tracking-wider rounded-2xl transition-all shadow-xs"
                 >
                   Reset to Default Categories
                 </button>
@@ -4019,7 +4019,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                     className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                       shippingModalTargetStatus === st
                         ? 'bg-[#1A1821] text-white border-[#1A1821] shadow-xs'
-                        : 'bg-[#FAF8F2] border-[#EAE6DB] text-brand-charcoal hover:bg-[#fffee3]'
+                        : 'bg-[#FAF8F2] border-[#EAE6DB] text-brand-charcoal hover:bg-[#fffeea]'
                     }`}
                   >
                     {st === 'Shipped' ? '📦 Mark Shipped' : '🚚 Out for Delivery'}
@@ -4049,7 +4049,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                     className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
                       courierInput === cName
                         ? 'bg-[#967BB6] text-white font-bold shadow-xs'
-                        : 'bg-[#FAF8F2] border border-[#EAE6DB] text-brand-charcoal hover:bg-[#fffee3]'
+                        : 'bg-[#FAF8F2] border border-[#EAE6DB] text-brand-charcoal hover:bg-[#fffeea]'
                     }`}
                   >
                     {cName}

@@ -130,7 +130,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setIsProfileOpen((prev) => !prev)}
                 className={`p-1.5 transition-all flex items-center justify-center rounded-full border ${
                   isProfileOpen
-                    ? 'border-[#967BB6] bg-[#fffee3]/40 text-[#967BB6]'
+                    ? 'border-[#967BB6] bg-[#fffeea]/40 text-[#967BB6]'
                     : 'border-[#EAE6DB] hover:border-[#967BB6] text-brand-charcoal hover:text-[#967BB6]'
                 } relative`}
                 aria-label="Account Menu"
@@ -141,7 +141,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     {user.name.charAt(0).toUpperCase()}
                   </div>
                 ) : (
-                  <div className="w-6 h-6 min-w-[24px] min-h-[24px] aspect-square shrink-0 rounded-full bg-gradient-to-br from-[#fffee3] to-[#E8DCF3] flex items-center justify-center text-brand-charcoal text-[10px] font-black select-none">
+                  <div className="w-6 h-6 min-w-[24px] min-h-[24px] aspect-square shrink-0 rounded-full bg-gradient-to-br from-[#fffeea] to-[#E8DCF3] flex items-center justify-center text-brand-charcoal text-[10px] font-black select-none">
                     <UserIcon className="w-3.5 h-3.5 stroke-[2.2]" />
                   </div>
                 )}

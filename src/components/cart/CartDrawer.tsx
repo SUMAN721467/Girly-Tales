@@ -58,7 +58,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drawer Header */}
-        <div className="p-4 sm:p-5 border-b border-[#EAE6DB] bg-[#fffee3]">
+        <div className="p-4 sm:p-5 border-b border-[#EAE6DB] bg-[#fffeea]">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ShoppingBag className="w-5 h-5 text-brand-lavender" />
@@ -96,7 +96,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               </span>
               <span className="text-[10px] text-brand-muted">{freeShippingProgress}%</span>
             </div>
-            <div className="w-full bg-[#fffee3] h-2 overflow-hidden border border-[#EAE6DB]">
+            <div className="w-full bg-[#fffeea] h-2 overflow-hidden border border-[#EAE6DB]">
               <div
                 className="bg-[#967BB6] h-full transition-all duration-300"
                 style={{ width: `${freeShippingProgress}%` }}
@@ -109,7 +109,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 divide-y divide-[#EAE6DB]">
           {items.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center py-12 space-y-3">
-              <div className="w-16 h-16 rounded-full bg-[#fffee3] text-brand-lavender flex items-center justify-center">
+              <div className="w-16 h-16 rounded-full bg-[#fffeea] text-brand-lavender flex items-center justify-center">
                 <ShoppingBag className="w-8 h-8" />
               </div>
               <h4 className="font-sans font-bold text-base text-brand-charcoal uppercase">
@@ -157,7 +157,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   </div>
 
                   <div className="flex justify-between items-center mt-2">
-                    <div className="flex items-center border border-[#EAE6DB] bg-[#fffee3] px-2 py-0.5 text-xs font-bold">
+                    <div className="flex items-center border border-[#EAE6DB] bg-[#fffeea] px-2 py-0.5 text-xs font-bold">
                       <button
                         onClick={() => updateQuantity(item.id, item.quantity - 1)}
                         className="px-1"
@@ -201,7 +201,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     placeholder="Coupon (e.g. GIRLY10)"
                     value={couponInput}
                     onChange={(e) => setCouponInput(e.target.value)}
-                    className="flex-1 border border-[#EAE6DB] bg-[#fffee3] px-3 py-2 text-xs uppercase font-bold focus:outline-none"
+                    className="flex-1 border border-[#EAE6DB] bg-[#fffeea] px-3 py-2 text-xs uppercase font-bold focus:outline-none"
                   />
                   <button
                     type="submit"

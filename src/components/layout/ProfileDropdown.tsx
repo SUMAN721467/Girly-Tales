@@ -85,7 +85,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
                   <div className={`w-full h-full aspect-square rounded-full flex items-center justify-center font-serif font-black text-lg select-none ${
                     isAdmin 
                       ? 'bg-gradient-to-br from-[#967BB6] to-[#7F62A1] text-white shadow-sm'
-                      : 'bg-gradient-to-br from-[#fffee3] to-[#E8DCF3] text-brand-charcoal'
+                      : 'bg-gradient-to-br from-[#fffeea] to-[#E8DCF3] text-brand-charcoal'
                   }`}>
                     {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
                   </div>
@@ -105,7 +105,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
                     ADMIN
                   </span>
                 ) : (
-                  <span className="shrink-0 bg-[#fffee3] text-[#967BB6] border border-[#EAE6DB] text-[9px] font-black uppercase px-1.5 py-0.5 rounded">
+                  <span className="shrink-0 bg-[#fffeea] text-[#967BB6] border border-[#EAE6DB] text-[9px] font-black uppercase px-1.5 py-0.5 rounded">
                     VIP
                   </span>
                 )}
@@ -122,7 +122,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
             {isAdmin && (
               <button
                 onClick={() => handleMenuClick(() => onNavigate('admin'))}
-                className="w-full flex items-center justify-between p-2.5 rounded-2xl bg-[#FAF8F2] hover:bg-[#fffee3] border border-[#EAE6DB] transition-all group text-left shadow-xs"
+                className="w-full flex items-center justify-between p-2.5 rounded-2xl bg-[#FAF8F2] hover:bg-[#fffeea] border border-[#EAE6DB] transition-all group text-left shadow-xs"
               >
                 <div className="flex items-center gap-3.5">
                   <div className="w-10 h-10 rounded-xl bg-[#967BB6] text-white flex items-center justify-center group-hover:scale-105 transition-all shadow-xs">
@@ -144,10 +144,10 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
             {/* 1. Profile Details */}
             <button
               onClick={() => handleMenuClick(() => onNavigate('account', 'profile'))}
-              className="w-full flex items-center justify-between p-2.5 rounded-2xl hover:bg-[#fffee3]/50 transition-all group text-left"
+              className="w-full flex items-center justify-between p-2.5 rounded-2xl hover:bg-[#fffeea]/50 transition-all group text-left"
             >
               <div className="flex items-center gap-3.5">
-                <div className="w-10 h-10 rounded-xl bg-[#FAF8F2] flex items-center justify-center text-brand-charcoal group-hover:bg-[#fffee3] group-hover:scale-105 transition-all shadow-xs">
+                <div className="w-10 h-10 rounded-xl bg-[#FAF8F2] flex items-center justify-center text-brand-charcoal group-hover:bg-[#fffeea] group-hover:scale-105 transition-all shadow-xs">
                   <UserIcon className="w-5 h-5 stroke-[1.8] text-[#967BB6]" />
                 </div>
                 <div>
@@ -165,10 +165,10 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
             {/* 2. Shipping Address */}
             <button
               onClick={() => handleMenuClick(() => onNavigate('account', 'addresses'))}
-              className="w-full flex items-center justify-between p-2.5 rounded-2xl hover:bg-[#fffee3]/50 transition-all group text-left"
+              className="w-full flex items-center justify-between p-2.5 rounded-2xl hover:bg-[#fffeea]/50 transition-all group text-left"
             >
               <div className="flex items-center gap-3.5">
-                <div className="w-10 h-10 rounded-xl bg-[#FAF8F2] flex items-center justify-center text-brand-charcoal group-hover:bg-[#fffee3] group-hover:scale-105 transition-all shadow-xs">
+                <div className="w-10 h-10 rounded-xl bg-[#FAF8F2] flex items-center justify-center text-brand-charcoal group-hover:bg-[#fffeea] group-hover:scale-105 transition-all shadow-xs">
                   <span className="text-base">📍</span>
                 </div>
                 <div>
@@ -186,10 +186,10 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
             {/* 3. My Orders */}
             <button
               onClick={() => handleMenuClick(() => onNavigate('account', 'orders'))}
-              className="w-full flex items-center justify-between p-2.5 rounded-2xl hover:bg-[#fffee3]/50 transition-all group text-left"
+              className="w-full flex items-center justify-between p-2.5 rounded-2xl hover:bg-[#fffeea]/50 transition-all group text-left"
             >
               <div className="flex items-center gap-3.5">
-                <div className="w-10 h-10 rounded-xl bg-[#FAF8F2] flex items-center justify-center text-brand-charcoal group-hover:bg-[#fffee3] group-hover:scale-105 transition-all shadow-xs">
+                <div className="w-10 h-10 rounded-xl bg-[#FAF8F2] flex items-center justify-center text-brand-charcoal group-hover:bg-[#fffeea] group-hover:scale-105 transition-all shadow-xs">
                   <ShoppingBag className="w-5 h-5 stroke-[1.8] text-[#967BB6]" />
                 </div>
                 <div>
@@ -207,7 +207,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
             {/* My Wishlist */}
             <button
               onClick={() => handleMenuClick(() => onNavigate('wishlist'))}
-              className="w-full flex items-center justify-between p-2.5 rounded-2xl hover:bg-[#fffee3]/50 transition-all group text-left"
+              className="w-full flex items-center justify-between p-2.5 rounded-2xl hover:bg-[#fffeea]/50 transition-all group text-left"
             >
               <div className="flex items-center gap-3.5">
                 <div className="w-10 h-10 rounded-xl bg-[#EEF4F0] flex items-center justify-center text-brand-charcoal group-hover:bg-[#E2ECE5] group-hover:scale-105 transition-all shadow-xs">
@@ -251,7 +251,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
         /* ================= 2. GUEST (NOT LOGGED IN) VIEW ================= */
         <div className="p-6 space-y-4 bg-[#FAF8F2]">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-[#fffee3] border border-[#EAE6DB] flex items-center justify-center text-[#967BB6] shadow-xs shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-[#fffeea] border border-[#EAE6DB] flex items-center justify-center text-[#967BB6] shadow-xs shrink-0">
               <Sparkles className="w-6 h-6 text-[#967BB6]" />
             </div>
             <div>

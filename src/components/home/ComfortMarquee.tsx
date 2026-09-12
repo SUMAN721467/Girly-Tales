@@ -18,7 +18,7 @@ export const ComfortMarquee: React.FC = () => {
               <span className="text-[9px] sm:text-[10px] md:text-[11px] font-bold tracking-[0.2em] uppercase text-white">
                 {phrase}
               </span>
-              <span className="text-[#fffee3] text-[8px] sm:text-[9px] opacity-85">✦</span>
+              <span className="text-[#fffeea] text-[8px] sm:text-[9px] opacity-85">✦</span>
             </div>
           ))}
         </div>

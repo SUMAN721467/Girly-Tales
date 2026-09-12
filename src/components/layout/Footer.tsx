@@ -44,7 +44,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
 
           {/* Quick Links */}
           <div className="space-y-2.5">
-            <h4 className="font-bold text-xs uppercase tracking-widest text-[#fffee3]">
+            <h4 className="font-bold text-xs uppercase tracking-widest text-[#fffeea]">
               Collections
             </h4>
             <ul className="space-y-2 text-white/70">
@@ -73,7 +73,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
 
           {/* Customer Care */}
           <div className="space-y-2.5">
-            <h4 className="font-bold text-xs uppercase tracking-widest text-[#fffee3]">
+            <h4 className="font-bold text-xs uppercase tracking-widest text-[#fffeea]">
               Customer Care
             </h4>
             <ul className="space-y-2 text-white/70">
@@ -107,13 +107,13 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
 
           {/* Contact Details */}
           <div className="space-y-2.5">
-            <h4 className="font-bold text-xs uppercase tracking-widest text-[#fffee3]">
+            <h4 className="font-bold text-xs uppercase tracking-widest text-[#fffeea]">
               WhatsApp &amp; Support
             </h4>
             <p className="text-white/70">
               Need help choosing the right size or styling a jewellery stack? Chat with us!
             </p>
-            <p className="font-bold text-[#fffee3]">WhatsApp: +91 98765 43210</p>
+            <p className="font-bold text-[#fffeea]">WhatsApp: +91 98765 43210</p>
             <p className="text-white/70">Email: care@girlytales.com</p>
           </div>
         </div>

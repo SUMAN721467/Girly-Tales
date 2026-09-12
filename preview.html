@@ -19,7 +19,7 @@
         extend: {
           colors: {
             brand: {
-              yellow: '#fffee3',         // User Requested Light Yellow
+              yellow: '#fffeea',         // User Requested Light Yellow
               'yellow-card': '#FEFDEB',
               lavender: '#967BB6',       // User Requested Grey Lavender
               'lavender-dark': '#7F62A1',
@@ -49,7 +49,7 @@
 
   <style>
     body {
-      background-color: #fffee3;
+      background-color: #fffeea;
       color: #1A1821;
       font-family: 'Plus Jakarta Sans', sans-serif;
       overflow-x: hidden;
@@ -356,7 +356,7 @@
       };
 
       return (
-        <div className="min-h-screen flex flex-col justify-between bg-[#fffee3] w-full overflow-x-hidden">
+        <div className="min-h-screen flex flex-col justify-between bg-[#fffeea] w-full overflow-x-hidden">
           {/* Top Marquee Ticker */}
           <div className="bg-[#FCE7ED] text-[#1A1821] py-2 text-[11px] sm:text-xs font-bold tracking-wider overflow-hidden border-b border-[#EBD7DE]">
             <div className="marquee-container">
@@ -453,7 +453,7 @@
                           <span className="text-[9px] sm:text-[10px] md:text-[11px] font-bold tracking-[0.2em] uppercase text-white">
                             {phrase}
                           </span>
-                          <span className="text-[#fffee3] text-[8px] sm:text-[9px] opacity-85">✦</span>
+                          <span className="text-[#fffeea] text-[8px] sm:text-[9px] opacity-85">✦</span>
                         </div>
                       ))}
                     </div>
@@ -569,7 +569,7 @@
                               <h3 className="font-sans font-black text-sm sm:text-base md:text-xl text-white uppercase tracking-[0.16em] pb-1 border-b-[1.5px] border-white drop-shadow-md">
                                 {cat.name}
                               </h3>
-                              <p className="text-[10px] sm:text-xs md:text-sm text-[#fffee3] font-medium tracking-wide mt-1.5 drop-shadow line-clamp-1 max-w-[92%]">
+                              <p className="text-[10px] sm:text-xs md:text-sm text-[#fffeea] font-medium tracking-wide mt-1.5 drop-shadow line-clamp-1 max-w-[92%]">
                                 {cat.tagline}
                               </p>
 
@@ -654,7 +654,7 @@
                         <div className="relative aspect-[9/14] rounded-t-xl overflow-hidden bg-black">
                           <img src={inf.image} className="w-full h-full object-cover opacity-95" />
                           <div className="absolute top-3 sm:top-4 left-3 sm:left-4 text-white">
-                            <span className="font-handwritten text-xl sm:text-2xl text-[#fffee3] block font-bold leading-tight">{inf.tag}</span>
+                            <span className="font-handwritten text-xl sm:text-2xl text-[#fffeea] block font-bold leading-tight">{inf.tag}</span>
                             <span className="text-[9px] sm:text-[10px] font-bold uppercase">{inf.sub}</span>
                           </div>
                           <span className="absolute top-3 right-3 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded-md">👁️ {inf.views}</span>
@@ -765,7 +765,7 @@
                     <button onClick={() => setIsCartOpen(false)} className="text-lg font-bold">✕</button>
                   </div>
                   {subtotal < 999 && subtotal > 0 && (
-                    <div className="p-2.5 bg-[#fffee3] border text-xs font-bold">
+                    <div className="p-2.5 bg-[#fffeea] border text-xs font-bold">
                       Add <strong>₹{999 - subtotal}</strong> more for <strong>FREE Delivery!</strong>
                     </div>
                   )}
@@ -817,13 +817,13 @@
                     <button onClick={() => setIsMenuOpen(false)} className="text-lg font-bold">✕</button>
                   </div>
                   <div className="space-y-2 text-xs font-bold uppercase tracking-wider">
-                    <button onClick={() => { navigate('home'); setIsMenuOpen(false); }} className="w-full text-left py-2.5 px-2 hover:bg-[#fffee3]">Home</button>
-                    <button onClick={() => { navigate('shop', 'all'); setIsMenuOpen(false); }} className="w-full text-left py-2.5 px-2 hover:bg-[#fffee3]">Shop All</button>
-                    <button onClick={() => { navigate('shop', 'nightwear'); setIsMenuOpen(false); }} className="w-full text-left py-2.5 px-2 hover:bg-[#fffee3] text-[#967BB6]">Nightwear &amp; Pyjamas</button>
-                    <button onClick={() => { navigate('shop', 'jewellery'); setIsMenuOpen(false); }} className="w-full text-left py-2.5 px-2 hover:bg-[#fffee3] text-amber-700">18K Anti-Tarnish Jewels</button>
+                    <button onClick={() => { navigate('home'); setIsMenuOpen(false); }} className="w-full text-left py-2.5 px-2 hover:bg-[#fffeea]">Home</button>
+                    <button onClick={() => { navigate('shop', 'all'); setIsMenuOpen(false); }} className="w-full text-left py-2.5 px-2 hover:bg-[#fffeea]">Shop All</button>
+                    <button onClick={() => { navigate('shop', 'nightwear'); setIsMenuOpen(false); }} className="w-full text-left py-2.5 px-2 hover:bg-[#fffeea] text-[#967BB6]">Nightwear &amp; Pyjamas</button>
+                    <button onClick={() => { navigate('shop', 'jewellery'); setIsMenuOpen(false); }} className="w-full text-left py-2.5 px-2 hover:bg-[#fffeea] text-amber-700">18K Anti-Tarnish Jewels</button>
                   </div>
                 </div>
-                <div className="p-3 bg-[#fffee3] border text-center text-xs">
+                <div className="p-3 bg-[#fffeea] border text-center text-xs">
                   <p className="font-bold">✦ BUNDLE DEAL ✦</p>
                   <p className="text-[11px] text-brand-muted">Buy Any 3 for ₹2999</p>
                 </div>
@@ -845,7 +845,7 @@
                 />
                 <div className="max-h-60 overflow-y-auto space-y-2">
                   {PRODUCTS.filter(p => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase())).map(p => (
-                    <div key={p.id} onClick={() => { setSelectedProduct(p); setPage('product'); setIsSearchOpen(false); }} className="flex items-center gap-3 p-2 hover:bg-[#fffee3] cursor-pointer">
+                    <div key={p.id} onClick={() => { setSelectedProduct(p); setPage('product'); setIsSearchOpen(false); }} className="flex items-center gap-3 p-2 hover:bg-[#fffeea] cursor-pointer">
                       <img src={p.images[0]} className="w-10 h-12 object-cover" />
                       <div>
                         <p className="text-xs font-bold">{p.name}</p>
@@ -874,7 +874,7 @@
                     <h3 className="font-sans font-black text-xl uppercase">Delivery Details</h3>
                     <input type="text" placeholder="Full Name" defaultValue="Ananya Verma" className="w-full border p-2 text-xs font-bold" />
                     <input type="text" placeholder="Address" defaultValue="Bandra West, Mumbai" className="w-full border p-2 text-xs font-bold" />
-                    <div className="p-3 bg-[#fffee3] border text-xs font-bold flex justify-between">
+                    <div className="p-3 bg-[#fffeea] border text-xs font-bold flex justify-between">
                       <span>Total:</span>
                       <span>Rs. {total}.00</span>
                     </div>
@@ -902,17 +902,17 @@
                 <p className="text-white/60">Everyday soft luxury and 100% waterproof anti-tarnish jewels for modern women.</p>
               </div>
               <div>
-                <h5 className="font-bold text-[#fffee3] uppercase mb-2">Shop</h5>
+                <h5 className="font-bold text-[#fffeea] uppercase mb-2">Shop</h5>
                 <p className="text-white/60 cursor-pointer hover:underline" onClick={() => navigate('shop', 'nightwear')}>Night Suits</p>
                 <p className="text-white/60 cursor-pointer hover:underline mt-1" onClick={() => navigate('shop', 'jewellery')}>Anti-Tarnish Jewellery</p>
               </div>
               <div>
-                <h5 className="font-bold text-[#fffee3] uppercase mb-2">Help</h5>
+                <h5 className="font-bold text-[#fffeea] uppercase mb-2">Help</h5>
                 <p className="text-white/60">WhatsApp: +91 98765 43210</p>
                 <p className="text-white/60 mt-1">care@girlytales.com</p>
               </div>
               <div>
-                <h5 className="font-bold text-[#fffee3] uppercase mb-2">Instagram</h5>
+                <h5 className="font-bold text-[#fffeea] uppercase mb-2">Instagram</h5>
                 <p className="text-white/60">@girlytalesofficial</p>
               </div>
             </div>

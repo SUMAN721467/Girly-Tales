@@ -255,7 +255,7 @@ export const CategorySlider: React.FC<CategorySliderProps> = ({
                   </h3>
 
                   {/* Subtitle / Tagline */}
-                  <p className="text-[10px] sm:text-xs md:text-sm text-[#fffee3] font-medium tracking-wide mt-1.5 drop-shadow line-clamp-1 max-w-[92%]">
+                  <p className="text-[10px] sm:text-xs md:text-sm text-[#fffeea] font-medium tracking-wide mt-1.5 drop-shadow line-clamp-1 max-w-[92%]">
                     {item.tagline}
                   </p>
 
