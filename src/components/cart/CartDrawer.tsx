@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, ShoppingBag, Truck, Trash2, Plus, Minus } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
+import { useAuth } from '../../context/AuthContext';
 
 interface CartDrawerProps {
   onNavigateToShop: () => void;
@@ -31,11 +32,22 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     removeFromCart,
     isCartSyncing,
   } = useCart();
+  const { user, isLoggedIn, openAuthModal } = useAuth();
 
   const [couponInput, setCouponInput] = useState('');
   const [couponError, setCouponError] = useState('');
 
   if (!isCartOpen) return null;
+
+  const handleProceedToCheckout = () => {
+    if (!isLoggedIn || !user) {
+      closeCart();
+      openAuthModal('login');
+      return;
+    }
+    closeCart();
+    onOpenCheckout();
+  };
 
   const handleApplyCoupon = (e: React.FormEvent) => {
     e.preventDefault();
@@ -239,11 +251,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             {/* Checkout Action Buttons */}
             <div className="space-y-2">
               <button
-                onClick={() => {
-                  closeCart();
-                  onOpenCheckout();
-                }}
-                className="w-full py-3.5 bg-[#967BB6] hover:bg-brand-lavender-dark text-white font-black text-xs uppercase tracking-widest transition-colors shadow-md"
+                onClick={handleProceedToCheckout}
+                className="w-full py-3.5 bg-[#967BB6] hover:bg-brand-lavender-dark text-white font-black text-xs uppercase tracking-widest transition-colors shadow-md cursor-pointer"
               >
                 Proceed to Checkout • Rs. {finalTotal}.00
               </button>

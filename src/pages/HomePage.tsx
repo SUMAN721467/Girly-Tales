@@ -5,6 +5,7 @@ import { BannerCarousel } from '../components/home/BannerCarousel';
 import { ComfortMarquee } from '../components/home/ComfortMarquee';
 import { CategorySlider } from '../components/home/CategorySlider';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 import { DatabaseService } from '../lib/databaseService';
 
 interface HomePageProps {
@@ -49,6 +50,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   onSelectProduct,
 }) => {
   const { items, addToCart, openCart } = useCart();
+  const { user, isLoggedIn, openAuthModal } = useAuth();
   const [productsList, setProductsList] = useState<Product[]>([]);
 
   const loadHomeProducts = async () => {
@@ -207,6 +209,10 @@ export const HomePage: React.FC<HomePageProps> = ({
                         e.stopPropagation();
                         if (isReelProdInCart) {
                           openCart();
+                          return;
+                        }
+                        if (!isLoggedIn || !user) {
+                          openAuthModal('login');
                           return;
                         }
                         addToCart(reel.product, 1);

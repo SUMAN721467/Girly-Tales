@@ -48,7 +48,7 @@ if (typeof window !== 'undefined') {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, isLoggedIn } = useAuth();
+  const { user, isLoggedIn, openAuthModal } = useAuth();
   const { toasts, triggerToast, dismissToast } = useToast();
 
   // Pure in-memory React state + Realtime Supabase Cloud Cart (No localStorage)
@@ -103,6 +103,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } else {
       loadedUserRef.current = null;
+      setItems([]);
     }
   }, [isLoggedIn, user, loadRemoteCart]);
 
@@ -192,6 +193,17 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     selectedSize?: string,
     selectedColor?: string
   ) => {
+    if (!isLoggedIn || !user) {
+      openAuthModal('login');
+      triggerToast(
+        'Login Required',
+        'Please log in or sign up to add items to your cart.',
+        undefined,
+        'info'
+      );
+      return;
+    }
+
     const size = selectedSize || (product.sizes ? product.sizes[0] : undefined);
     const color = selectedColor || (product.colors ? product.colors[0].name : undefined);
     const itemId = `${product.id}-${size || 'default'}-${color || 'default'}`;

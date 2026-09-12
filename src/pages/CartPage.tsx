@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ShoppingBag, ArrowRight, Truck, Tag, ArrowLeft, Trash2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 import { CartItemRow } from '../components/cart/CartItemRow';
 import { Button } from '../components/common/Button';
 import { Product } from '../types/product';
@@ -30,11 +31,20 @@ export const CartPage: React.FC<CartPageProps> = ({
     clearCart,
     isCartSyncing,
   } = useCart();
+  const { user, isLoggedIn, openAuthModal } = useAuth();
 
   const [couponCode, setCouponCode] = useState('');
   const [couponError, setCouponError] = useState('');
 
   const remaining = Math.max(0, freeShippingThreshold - subtotal);
+
+  const handleProceedToCheckout = () => {
+    if (!isLoggedIn || !user) {
+      openAuthModal('login');
+      return;
+    }
+    onOpenCheckout();
+  };
 
   const handleApplyCoupon = (e: React.FormEvent) => {
     e.preventDefault();
@@ -215,7 +225,7 @@ export const CartPage: React.FC<CartPageProps> = ({
           </div>
 
           <button
-            onClick={onOpenCheckout}
+            onClick={handleProceedToCheckout}
             className="w-full py-4 px-6 bg-[#967BB6] hover:bg-[#7F62A1] active:bg-[#6D528F] text-white font-bold text-sm uppercase tracking-wider rounded-2xl shadow-lg shadow-[#967BB6]/30 flex items-center justify-center gap-2 transition-all cursor-pointer hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 select-none"
           >
             <span>Proceed to Checkout</span>

@@ -2,6 +2,7 @@ import React from 'react';
 import { Heart, ShoppingBag, Trash2, ArrowRight } from 'lucide-react';
 import { useWishlist } from '../context/WishlistContext';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 import { Product } from '../types/product';
 import { Button } from '../components/common/Button';
 import { RatingStars } from '../components/common/RatingStars';
@@ -17,8 +18,13 @@ export const WishlistPage: React.FC<WishlistPageProps> = ({
 }) => {
   const { wishlistProducts, toggleWishlist, clearWishlist, wishlistCount } = useWishlist();
   const { addToCart, openCart } = useCart();
+  const { user, isLoggedIn, openAuthModal } = useAuth();
 
   const handleMoveToCart = (product: Product) => {
+    if (!isLoggedIn || !user) {
+      openAuthModal('login');
+      return;
+    }
     addToCart(product, 1);
     toggleWishlist(product.id);
     openCart();

@@ -3,6 +3,7 @@ import { Heart, ShoppingBag, Sparkles, Check } from 'lucide-react';
 import { Product } from '../../types/product';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
+import { useAuth } from '../../context/AuthContext';
 
 interface ProductCardProps {
   product: Product;
@@ -19,6 +20,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   const { items, addToCart, openCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
+  const { user, isLoggedIn, openAuthModal } = useAuth();
 
   const isFavorited = isInWishlist(product.id);
   const isProductInCart = items.some((item) => item.product.id === product.id);
@@ -27,6 +29,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     e.stopPropagation();
     if (isProductInCart) {
       openCart();
+      return;
+    }
+    if (!isLoggedIn || !user) {
+      openAuthModal('login');
       return;
     }
     addToCart(product, 1);

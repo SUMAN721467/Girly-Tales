@@ -5,6 +5,7 @@ import { ProductCard } from '../components/product/ProductCard';
 import { SizeGuideModal } from '../components/common/SizeGuideModal';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
+import { useAuth } from '../context/AuthContext';
 import { DatabaseService, RealReview } from '../lib/databaseService';
 
 interface ProductDetailsPageProps {
@@ -197,16 +198,25 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
 
   const { items, addToCart, openCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
+  const { user, isLoggedIn, openAuthModal } = useAuth();
 
   const isFavorited = isInWishlist(product.id);
   const isProductInCart = items.some((item) => item.product.id === product.id);
 
   const handleAddToCart = () => {
+    if (!isLoggedIn || !user) {
+      openAuthModal('login');
+      return;
+    }
     addToCart(product, quantity, selectedSize);
     openCart();
   };
 
   const handleBuyNow = () => {
+    if (!isLoggedIn || !user) {
+      openAuthModal('login');
+      return;
+    }
     addToCart(product, quantity, selectedSize);
     onOpenCheckout();
   };

@@ -5,6 +5,7 @@ import { RatingStars } from './RatingStars';
 import { Button } from './Button';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
+import { useAuth } from '../../context/AuthContext';
 
 interface QuickViewModalProps {
   product: Product | null;
@@ -27,6 +28,7 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
 
   const { items, addToCart, openCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
+  const { user, isLoggedIn, openAuthModal } = useAuth();
 
   const isFavorited = isInWishlist(product.id);
   const isProductInCart = items.some((item) => item.product.id === product.id);
@@ -35,6 +37,11 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
     if (isProductInCart) {
       onClose();
       openCart();
+      return;
+    }
+    if (!isLoggedIn || !user) {
+      onClose();
+      openAuthModal('login');
       return;
     }
     addToCart(product, quantity, selectedSize);

@@ -13,6 +13,8 @@ import {
   Home,
   Briefcase,
   ShieldCheck,
+  Lock,
+  UserCheck,
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
@@ -95,7 +97,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     clearCart,
     triggerToast,
   } = useCart();
-  const { user } = useAuth();
+  const { user, isLoggedIn, openAuthModal } = useAuth();
 
   const [step, setStep] = useState<'details' | 'success'>('details');
   const [savedAddresses, setSavedAddresses] = useState<ShippingAddress[]>([]);
@@ -106,13 +108,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   // Address form fields
   const [formData, setFormData] = useState({
-    name: 'Ananya Verma',
-    email: 'ananya@example.com',
-    phone: '9876543210',
-    pincode: '400050',
-    address: 'B-402, Sea Green Heights, Bandra West',
-    city: 'Mumbai',
-    state: 'Maharashtra',
+    name: user?.name || '',
+    email: user?.email || '',
+    phone: user?.phone || '',
+    pincode: '',
+    address: '',
+    city: '',
+    state: '',
     type: 'Home' as 'Home' | 'Work' | 'Other',
   });
 
@@ -308,6 +310,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!isLoggedIn || !user) {
+      triggerToast('Login Required', 'Please log in or sign up to place your order.', undefined, 'error');
+      openAuthModal('login');
+      return;
+    }
+
     if (!formData.name || !formData.phone || !formData.pincode || !formData.address) {
       triggerToast('Incomplete Details', 'Please complete the delivery address.', undefined, 'error');
       return;
@@ -405,7 +413,46 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           <X className="w-5 h-5" />
         </button>
 
-        {step === 'details' ? (
+        {!isLoggedIn || !user ? (
+          <div className="text-center py-8 sm:py-10 px-4 sm:px-6 space-y-6 animate-fade-in">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-[#FAF8F2] border border-[#EAE6DB] text-[#967BB6] flex items-center justify-center mx-auto shadow-xs">
+              <Lock className="w-8 h-8 sm:w-10 sm:h-10 stroke-[1.75]" />
+            </div>
+
+            <div className="space-y-2 max-w-md mx-auto">
+              <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-[#967BB6] bg-[#967BB6]/10 px-3 py-1 rounded-full">
+                Account Login Required
+              </span>
+              <h3 className="font-serif text-2xl sm:text-3xl text-brand-charcoal font-medium">
+                Please Log In to Place Order
+              </h3>
+              <p className="text-xs sm:text-sm text-brand-muted leading-relaxed">
+                To guarantee safe delivery tracking, auto-save your shipping address, and receive live order updates, please log in or create an account.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2 max-w-md mx-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  openAuthModal('login');
+                }}
+                className="w-full sm:flex-1 py-3.5 px-6 bg-[#1A1821] hover:bg-[#967BB6] text-white font-black text-xs uppercase tracking-wider rounded-2xl transition-all shadow-md hover:shadow-lg cursor-pointer flex items-center justify-center gap-2"
+              >
+                <UserCheck className="w-4 h-4 text-[#FBB6CE]" />
+                <span>Log In / Sign Up</span>
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full sm:w-auto py-3.5 px-5 bg-[#FAF8F2] hover:bg-stone-100 text-brand-charcoal font-bold text-xs rounded-2xl border border-[#EAE6DB] transition-colors cursor-pointer"
+              >
+                Continue Shopping
+              </button>
+            </div>
+          </div>
+        ) : step === 'details' ? (
           <div>
             {/* Header */}
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#EAE6DB]">
