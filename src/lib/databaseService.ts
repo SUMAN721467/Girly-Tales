@@ -1,6 +1,7 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 import { Product } from '../types/product';
 import { CartService } from './cartService';
+import { MOCK_PRODUCTS } from '../data/products';
 
 // Purge any legacy browser/local storage keys to guarantee pure direct Supabase operation
 if (typeof window !== 'undefined') {
@@ -230,11 +231,11 @@ export interface RealCategory {
 }
 
 export const SEED_CATEGORIES: RealCategory[] = [
-  { id: 'cat-1', name: 'Floor', slug: 'floor', isActive: true, orderIndex: 0 },
-  { id: 'cat-2', name: 'Foldable Mat', slug: 'foldable-mat', isActive: true, orderIndex: 1 },
-  { id: 'cat-3', name: 'Cushion Mat', slug: 'cushion-mat', isActive: true, orderIndex: 2 },
-  { id: 'cat-4', name: 'Doormat', slug: 'doormat', isActive: false, orderIndex: 3 },
-  { id: 'cat-5', name: 'Yoga', slug: 'yoga', isActive: true, orderIndex: 4 },
+  { id: 'cat-1', name: 'Nightwear & Pyjamas', slug: 'nightwear', isActive: true, orderIndex: 0 },
+  { id: 'cat-2', name: '18K Anti-Tarnish Jewels', slug: 'jewellery', isActive: true, orderIndex: 1 },
+  { id: 'cat-3', name: 'Satin & Silk Sets', slug: 'satin-sets', isActive: true, orderIndex: 2 },
+  { id: 'cat-4', name: 'Pure Cotton Sets', slug: 'cotton-sets', isActive: true, orderIndex: 3 },
+  { id: 'cat-5', name: 'Waterproof Necklaces & Rings', slug: 'jewels', isActive: true, orderIndex: 4 },
 ];
 
 const SEED_COUPONS: RealCoupon[] = [
@@ -245,8 +246,8 @@ const SEED_COUPONS: RealCoupon[] = [
 ];
 
 // Runtime in-memory state (Direct Supabase data is authoritative source)
-let inMemoryCategories: RealCategory[] = [...SEED_CATEGORIES];
-let inMemoryProducts: Product[] = [];
+let inMemoryCategories: RealCategory[] = [];
+let inMemoryProducts: Product[] = [...MOCK_PRODUCTS];
 let inMemoryOrders: RealOrder[] = [];
 let inMemoryReviews: RealReview[] = [];
 let inMemoryCoupons: RealCoupon[] = [];
@@ -558,7 +559,7 @@ export const DatabaseService = {
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (!error && Array.isArray(data)) {
+        if (!error && Array.isArray(data) && data.length > 0) {
           const mapped: Product[] = data.map((d: any) => ({
             id: String(d.id),
             name: d.name || 'Girly Tales Item',
@@ -592,16 +593,24 @@ export const DatabaseService = {
             specs: d.specs || {},
           }));
 
-          inMemoryProducts = mapped;
-          return mapped;
+          // Merge custom database products with standard products to guarantee full catalog is always available
+          const existingIds = new Set(mapped.map((p) => p.id));
+          const fallbackRemaining = MOCK_PRODUCTS.filter((p) => !existingIds.has(p.id));
+          const combined = [...mapped, ...fallbackRemaining];
+
+          inMemoryProducts = combined;
+          return combined;
         } else if (error) {
-          console.warn('Supabase getProducts error:', error.message);
+          console.warn('Supabase getProducts error, serving local catalog:', error.message);
         }
       } catch (err) {
-        console.warn('Supabase getProducts exception:', err);
+        console.warn('Supabase getProducts exception, serving local catalog:', err);
       }
     }
 
+    if (inMemoryProducts.length === 0) {
+      inMemoryProducts = [...MOCK_PRODUCTS];
+    }
     return inMemoryProducts;
   },
 
@@ -1385,7 +1394,31 @@ export const DatabaseService = {
           .order('order_index', { ascending: true });
 
         if (!error && Array.isArray(data)) {
-          const mapped: RealCategory[] = data.map((d: any, idx: number) => ({
+          // Permanently purge any unwanted legacy mat categories from database
+          const legacyItems = data.filter((d: any) =>
+            ['floor', 'foldable-mat', 'cushion-mat', 'doormat', 'yoga', 'cat-1', 'cat-2', 'cat-3', 'cat-4', 'cat-5'].includes(
+              (d.slug || d.name || d.id || '').toLowerCase().trim()
+            )
+          );
+
+          if (legacyItems.length > 0) {
+            try {
+              for (const leg of legacyItems) {
+                await supabase.from('categories').delete().or(`id.eq.${leg.id},slug.eq.${leg.slug}`);
+              }
+            } catch (delErr) {
+              console.warn('Auto-purge legacy categories note:', delErr);
+            }
+          }
+
+          const validData = data.filter(
+            (d: any) =>
+              !['floor', 'foldable-mat', 'cushion-mat', 'doormat', 'yoga', 'cat-1', 'cat-2', 'cat-3', 'cat-4', 'cat-5'].includes(
+                (d.slug || d.name || d.id || '').toLowerCase().trim()
+              )
+          );
+
+          const mapped: RealCategory[] = validData.map((d: any, idx: number) => ({
             id: d.id,
             name: d.name,
             slug: d.slug || d.name.toLowerCase().replace(/\s+/g, '-'),
@@ -1524,27 +1557,18 @@ export const DatabaseService = {
   },
 
   async resetDefaultCategories(): Promise<RealCategory[]> {
-    inMemoryCategories = [...SEED_CATEGORIES];
+    inMemoryCategories = [];
     notifyDatabaseChange('categories');
 
     if (isSupabaseConfigured) {
       try {
         await supabase.from('categories').delete().neq('id', 'non-existent');
-        for (const cat of SEED_CATEGORIES) {
-          await supabase.from('categories').insert({
-            id: cat.id,
-            name: cat.name,
-            slug: cat.slug,
-            is_active: cat.isActive,
-            order_index: cat.orderIndex,
-          });
-        }
       } catch (e) {
         console.warn('Supabase reset categories note:', e);
       }
     }
 
-    return SEED_CATEGORIES;
+    return inMemoryCategories;
   },
 
   // ==================== 7. DATABASE HEALTH & TABLE STATUS ====================

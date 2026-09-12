@@ -33,6 +33,7 @@ import { AdminDashboardPage } from './pages/AdminDashboardPage';
 
 import { useAuth } from './context/AuthContext';
 import { DatabaseService } from './lib/databaseService';
+import { MOCK_PRODUCTS } from './data/products';
 
 export const AppContent: React.FC = () => {
   const { user, isLoggedIn, isAdmin, openAuthModal } = useAuth();
@@ -40,7 +41,7 @@ export const AppContent: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>(MOCK_PRODUCTS);
 
   // Overlay states
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);

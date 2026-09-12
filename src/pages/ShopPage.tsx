@@ -3,7 +3,7 @@ import { Filter, SlidersHorizontal, X, ArrowUpDown } from 'lucide-react';
 import { Product, SortOption } from '../types/product';
 import { ProductCard } from '../components/product/ProductCard';
 import { DatabaseService, RealCategory } from '../lib/databaseService';
-
+import { MOCK_PRODUCTS } from '../data/products';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface ShopPageProps {
@@ -29,7 +29,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   initialCategory = 'all',
   onSelectProduct,
 }) => {
-  const [productsList, setProductsList] = useState<Product[]>([]);
+  const [productsList, setProductsList] = useState<Product[]>(MOCK_PRODUCTS);
   const [dbCategories, setDbCategories] = useState<RealCategory[]>([]);
   const [category, setCategory] = useState<string>(initialCategory);
   const [selectedSubCats, setSelectedSubCats] = useState<string[]>([]);
@@ -43,7 +43,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
         DatabaseService.getProducts(),
         DatabaseService.getCategories(),
       ]);
-      if (Array.isArray(loadedProducts)) {
+      if (Array.isArray(loadedProducts) && loadedProducts.length > 0) {
         setProductsList(loadedProducts);
       }
       if (Array.isArray(loadedCats)) {
@@ -109,16 +109,53 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   const filteredProducts = useMemo(() => {
     return productsList.filter((product) => {
       if (category !== 'all') {
-        const catLower = category.toLowerCase();
-        const productCat = (product.category || '').toLowerCase();
-        const productSub = (product.subCategory || '').toLowerCase();
-        const matchMain = productCat === catLower;
-        const matchSub = productSub.includes(catLower);
+        const catLower = category.toLowerCase().trim();
+        const productCat = (product.category || '').toLowerCase().trim();
+        const productSub = (product.subCategory || '').toLowerCase().trim();
+        const productName = (product.name || '').toLowerCase().trim();
+
+        const matchMain =
+          productCat === catLower ||
+          (catLower === 'nightwear' &&
+            (productCat === 'nightwear' ||
+              productSub.includes('set') ||
+              productSub.includes('pj') ||
+              productSub.includes('satin') ||
+              productSub.includes('cotton') ||
+              productSub.includes('robe') ||
+              productSub.includes('lounge') ||
+              productSub.includes('sleep'))) ||
+          (catLower === 'jewellery' &&
+            (productCat === 'jewellery' ||
+              productCat === 'jewelry' ||
+              productSub.includes('ring') ||
+              productSub.includes('necklace') ||
+              productSub.includes('earring') ||
+              productSub.includes('bracelet') ||
+              productSub.includes('anklet') ||
+              productSub.includes('gold') ||
+              productSub.includes('jewel'))) ||
+          (catLower === 'satin-sets' &&
+            (productSub.includes('satin') || productName.includes('satin'))) ||
+          (catLower === 'cotton-sets' &&
+            (productSub.includes('cotton') || productName.includes('cotton'))) ||
+          (catLower === 'jewels' &&
+            (productCat === 'jewellery' ||
+              productSub.includes('ring') ||
+              productSub.includes('necklace') ||
+              productSub.includes('earring') ||
+              productSub.includes('bracelet')));
+
+        const matchSub = productSub.includes(catLower) || catLower.includes(productSub);
         if (!matchMain && !matchSub) return false;
       }
       if (selectedSubCats.length > 0) {
         const productSub = (product.subCategory || '').toLowerCase();
-        const matchesSub = selectedSubCats.some((sub) => productSub.includes(sub.toLowerCase()));
+        const productName = (product.name || '').toLowerCase();
+        const matchesSub = selectedSubCats.some((sub) => {
+          const s = sub.toLowerCase();
+          return productSub.includes(s) || productName.includes(s);
+        });
         if (!matchesSub) return false;
       }
       if (product.price > maxPrice) return false;
@@ -189,12 +226,46 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             const isCatSelected =
               category.toLowerCase() === cat.slug.toLowerCase() ||
               category.toLowerCase() === cat.name.toLowerCase();
-            const count = productsList.filter(
-              (p) =>
-                (p.category || '').toLowerCase() === cat.slug.toLowerCase() ||
-                (p.category || '').toLowerCase() === cat.name.toLowerCase() ||
-                (p.subCategory || '').toLowerCase().includes(cat.name.toLowerCase())
-            ).length;
+            const catSlugLower = cat.slug.toLowerCase();
+            const catNameLower = cat.name.toLowerCase();
+            const count = productsList.filter((p) => {
+              const pCat = (p.category || '').toLowerCase();
+              const pSub = (p.subCategory || '').toLowerCase();
+              const pName = (p.name || '').toLowerCase();
+              return (
+                pCat === catSlugLower ||
+                pCat === catNameLower ||
+                (catSlugLower === 'nightwear' &&
+                  (pCat === 'nightwear' ||
+                    pSub.includes('set') ||
+                    pSub.includes('pj') ||
+                    pSub.includes('satin') ||
+                    pSub.includes('cotton') ||
+                    pSub.includes('robe') ||
+                    pSub.includes('lounge') ||
+                    pSub.includes('sleep'))) ||
+                (catSlugLower === 'jewellery' &&
+                  (pCat === 'jewellery' ||
+                    pCat === 'jewelry' ||
+                    pSub.includes('ring') ||
+                    pSub.includes('necklace') ||
+                    pSub.includes('earring') ||
+                    pSub.includes('bracelet') ||
+                    pSub.includes('gold') ||
+                    pSub.includes('jewel'))) ||
+                (catSlugLower === 'satin-sets' &&
+                  (pSub.includes('satin') || pName.includes('satin'))) ||
+                (catSlugLower === 'cotton-sets' &&
+                  (pSub.includes('cotton') || pName.includes('cotton'))) ||
+                (catSlugLower === 'jewels' &&
+                  (pCat === 'jewellery' ||
+                    pSub.includes('ring') ||
+                    pSub.includes('necklace') ||
+                    pSub.includes('earring') ||
+                    pSub.includes('bracelet'))) ||
+                pSub.includes(catNameLower)
+              );
+            }).length;
 
             return (
               <button
@@ -206,7 +277,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                     : 'bg-white text-brand-charcoal border border-[#EAE6DB] hover:bg-[#F5EEFA]'
                 }`}
               >
-                {cat.name} {count > 0 ? `(${count})` : ''}
+                {cat.name} ({count})
               </button>
             );
           })}
@@ -302,19 +373,47 @@ export const ShopPage: React.FC<ShopPageProps> = ({
 
         {/* Product Listing Grid: 2 cols on mobile/tablet, 3 cols on desktop */}
         <div className="lg:col-span-3 space-y-4">
-          <div className="text-xs font-bold text-brand-muted">
-            Showing {filteredProducts.length} styles
+          <div className="flex items-center justify-between text-xs font-bold text-brand-muted">
+            <span>Showing {filteredProducts.length} styles</span>
+            {(category !== 'all' || selectedSubCats.length > 0 || maxPrice < 4000) && (
+              <button
+                onClick={clearAllFilters}
+                className="text-[#967BB6] hover:underline font-bold"
+              >
+                Clear Filters
+              </button>
+            )}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3.5 sm:gap-6">
-            {filteredProducts.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                onSelectProduct={onSelectProduct}
-              />
-            ))}
-          </div>
+          {filteredProducts.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3.5 sm:gap-6">
+              {filteredProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  onSelectProduct={onSelectProduct}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white p-8 sm:p-12 text-center rounded-2xl border border-[#EAE6DB] space-y-4 max-w-md mx-auto my-6">
+              <div className="w-14 h-14 rounded-full bg-[#FAF8F2] text-[#967BB6] flex items-center justify-center mx-auto text-2xl">
+                ✨
+              </div>
+              <h3 className="font-serif text-xl font-bold text-brand-charcoal">
+                No styles found
+              </h3>
+              <p className="text-xs text-brand-muted leading-relaxed">
+                We couldn't find any products matching your current filters. Try exploring all collections.
+              </p>
+              <button
+                onClick={clearAllFilters}
+                className="px-6 py-2.5 bg-[#967BB6] hover:bg-[#7F62A1] text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-xs cursor-pointer"
+              >
+                Explore All Styles
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

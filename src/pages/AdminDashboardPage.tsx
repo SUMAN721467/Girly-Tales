@@ -132,7 +132,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     price: '',
     originalPrice: '',
     stockQuantity: '10',
-    categories: ['Floor'] as string[],
+    categories: [] as string[],
     badge: '',
     variety: '',
     materials: '',
@@ -828,7 +828,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       price: String(prod.price),
       originalPrice: prod.originalPrice ? String(prod.originalPrice) : '',
       stockQuantity: String(prod.stockQuantity ?? 10),
-      categories: prod.subCategory ? prod.subCategory.split(',').map((s) => s.trim()).filter(Boolean) : ['Floor'],
+      categories: prod.subCategory ? prod.subCategory.split(',').map((s) => s.trim()).filter(Boolean) : [],
       badge: prod.tag || '',
       variety: prod.variety || '',
       materials: prod.material || '',
@@ -4290,7 +4290,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                     type="text"
                     value={newCategoryInput}
                     onChange={(e) => setNewCategoryInput(e.target.value)}
-                    placeholder="e.g., Foldable Mat"
+                    placeholder="e.g., Silk Robes &amp; Sets"
                     className="flex-1 px-4 py-3 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all placeholder:text-brand-muted/50"
                   />
                   <button

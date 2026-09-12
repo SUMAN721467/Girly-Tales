@@ -7,6 +7,7 @@ import { CategorySlider } from '../components/home/CategorySlider';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { DatabaseService } from '../lib/databaseService';
+import { MOCK_PRODUCTS } from '../data/products';
 
 interface HomePageProps {
   onNavigate: (page: string, category?: string) => void;
@@ -51,7 +52,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 }) => {
   const { items, addToCart, openCart } = useCart();
   const { user, isLoggedIn, openAuthModal } = useAuth();
-  const [productsList, setProductsList] = useState<Product[]>([]);
+  const [productsList, setProductsList] = useState<Product[]>(MOCK_PRODUCTS);
 
   const loadHomeProducts = async () => {
     try {

@@ -297,11 +297,11 @@ CREATE TRIGGER on_auth_user_created
 -- Categories Seed
 INSERT INTO public.categories (id, name, slug, is_active, order_index)
 VALUES 
-    ('cat-1', 'Floor', 'floor', TRUE, 0),
-    ('cat-2', 'Foldable Mat', 'foldable-mat', TRUE, 1),
-    ('cat-3', 'Cushion Mat', 'cushion-mat', TRUE, 2),
-    ('cat-4', 'Doormat', 'doormat', FALSE, 3),
-    ('cat-5', 'Yoga', 'yoga', TRUE, 4)
+    ('cat-1', 'Nightwear & Pyjamas', 'nightwear', TRUE, 0),
+    ('cat-2', '18K Anti-Tarnish Jewels', 'jewellery', TRUE, 1),
+    ('cat-3', 'Satin & Silk Sets', 'satin-sets', TRUE, 2),
+    ('cat-4', 'Pure Cotton Sets', 'cotton-sets', TRUE, 3),
+    ('cat-5', 'Waterproof Necklaces & Rings', 'jewels', TRUE, 4)
 ON CONFLICT (id) DO UPDATE SET 
     name = EXCLUDED.name,
     slug = EXCLUDED.slug,
