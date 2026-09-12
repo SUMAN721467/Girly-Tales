@@ -31,7 +31,9 @@ if (typeof window !== 'undefined') {
 }
 
 // Global live sync broadcaster for real-time reactivity across components
-export const notifyDatabaseChange = (type: 'categories' | 'products' | 'orders' | 'reviews' | 'coupons' | 'all') => {
+export const notifyDatabaseChange = (
+  type: 'categories' | 'products' | 'orders' | 'reviews' | 'coupons' | 'cart' | 'wishlist' | 'all'
+) => {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('gt_db_sync', { detail: { type } }));
   }
@@ -1119,7 +1121,7 @@ export const DatabaseService = {
           const { data: cartData } = await cartQuery;
           if (Array.isArray(cartData) && cartData.length > 0) {
             cartData.forEach((row: any) => {
-              const prod = resolveProduct(row.product_id || row.productId, row.product_data);
+              const prod = resolveProduct(row.product_id || row.productId);
               if (prod) {
                 result.cartItems.push({
                   id: row.id || `${prod.id}-${row.selected_size || 'default'}`,
