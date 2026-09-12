@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Heart, Sparkles, Truck, RefreshCw, ChevronDown, ChevronUp, Ruler, ArrowLeft, ZoomIn, CheckCircle, Camera, Image as ImageIcon, Plus, Trash2, X, Loader2, Star, ShoppingBag, ArrowRight } from 'lucide-react';
+import { Heart, Sparkles, Truck, RefreshCw, ChevronDown, ChevronUp, Ruler, ArrowLeft, ZoomIn, CheckCircle, Camera, Image as ImageIcon, Plus, Trash2, X, Loader2, Star, ShoppingBag, ArrowRight, Share2, Check } from 'lucide-react';
 import { Product } from '../types/product';
 import { ProductCard } from '../components/product/ProductCard';
 import { SizeGuideModal } from '../components/common/SizeGuideModal';
@@ -40,6 +40,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewSuccessMsg, setReviewSuccessMsg] = useState('');
   const [lightboxImg, setLightboxImg] = useState<string | null>(null);
+  const [isCopiedShare, setIsCopiedShare] = useState(false);
   const reviewFileInputRef = useRef<HTMLInputElement>(null);
 
   const loadReviews = async () => {
@@ -196,12 +197,41 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
     setOpenAccordions((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const { items, addToCart, openCart } = useCart();
+  const { items, addToCart, openCart, triggerToast } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
   const { user, isLoggedIn, openAuthModal } = useAuth();
 
   const isFavorited = isInWishlist(product.id);
   const isProductInCart = items.some((item) => item.product.id === product.id);
+
+  const handleShareProduct = async () => {
+    const shareUrl = window.location.href;
+    const shareTitle = `${product.name} | Girly Tales`;
+    const shareText = `Check out this gorgeous ${product.name} on Girly Tales for ₹${product.price.toLocaleString('en-IN')}!`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: shareUrl,
+        });
+        triggerToast('Shared! ✨', 'Product link shared successfully.', undefined, 'success');
+        return;
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setIsCopiedShare(true);
+      triggerToast('Link Copied! 🔗', 'Product link copied to clipboard.', undefined, 'success');
+      setTimeout(() => setIsCopiedShare(false), 2500);
+    } catch {
+      triggerToast('Link Copied', shareUrl, undefined, 'info');
+    }
+  };
 
   const handleAddToCart = () => {
     if (!isLoggedIn || !user) {
@@ -458,14 +488,34 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
               {/* Wishlist */}
               <button
                 onClick={() => toggleWishlist(product.id)}
-                className={`p-3 border transition-colors shrink-0 ${
+                className={`p-3 border transition-colors shrink-0 cursor-pointer ${
                   isFavorited
                     ? 'border-rose-300 bg-rose-50 text-rose-500'
                     : 'border-[#EAE6DB] text-brand-charcoal hover:bg-[#fffeea]'
                 }`}
                 aria-label="Wishlist"
+                title={isFavorited ? 'In Wishlist' : 'Add to Wishlist'}
               >
                 <Heart className={`w-4 h-4 sm:w-5 sm:h-5 ${isFavorited ? 'fill-rose-500' : ''}`} />
+              </button>
+
+              {/* Share Product */}
+              <button
+                type="button"
+                onClick={handleShareProduct}
+                className={`p-3 border transition-all shrink-0 cursor-pointer ${
+                  isCopiedShare
+                    ? 'border-emerald-300 bg-emerald-50 text-emerald-600'
+                    : 'border-[#EAE6DB] text-brand-charcoal hover:bg-[#fffeea] hover:border-[#967BB6]'
+                }`}
+                aria-label="Share Product"
+                title={isCopiedShare ? 'Link Copied!' : 'Share Product'}
+              >
+                {isCopiedShare ? (
+                  <Check className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
+                ) : (
+                  <Share2 className="w-4 h-4 sm:w-5 sm:h-5 text-brand-charcoal" />
+                )}
               </button>
             </div>
 
