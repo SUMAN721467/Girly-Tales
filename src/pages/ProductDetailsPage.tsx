@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Heart, Sparkles, Truck, RefreshCw, ChevronDown, ChevronUp, Ruler, ArrowLeft, ZoomIn } from 'lucide-react';
+import { Heart, Sparkles, Truck, RefreshCw, ChevronDown, ChevronUp, Ruler, ArrowLeft, ZoomIn, CheckCircle, Camera, Image as ImageIcon, Plus, Trash2, X, Loader2, Star, ShoppingBag, ArrowRight } from 'lucide-react';
 import { Product } from '../types/product';
 import { ProductCard } from '../components/product/ProductCard';
 import { SizeGuideModal } from '../components/common/SizeGuideModal';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
-import { DatabaseService } from '../lib/databaseService';
+import { DatabaseService, RealReview } from '../lib/databaseService';
 
 interface ProductDetailsPageProps {
   product: Product;
@@ -28,15 +28,96 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   const [quantity, setQuantity] = useState(1);
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
 
+  // Reviews State
+  const [productReviews, setProductReviews] = useState<RealReview[]>([]);
+  const [isWritingReview, setIsWritingReview] = useState(false);
+  const [newReviewAuthor, setNewReviewAuthor] = useState('');
+  const [newReviewRating, setNewReviewRating] = useState(5);
+  const [newReviewComment, setNewReviewComment] = useState('');
+  const [newReviewImages, setNewReviewImages] = useState<string[]>([]);
+  const [isUploadingReviewImg, setIsUploadingReviewImg] = useState(false);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [reviewSuccessMsg, setReviewSuccessMsg] = useState('');
+  const [lightboxImg, setLightboxImg] = useState<string | null>(null);
+  const reviewFileInputRef = useRef<HTMLInputElement>(null);
+
+  const loadReviews = async () => {
+    try {
+      const allRev = await DatabaseService.getReviews(product.id);
+      if (Array.isArray(allRev)) {
+        setProductReviews(allRev);
+      }
+    } catch (e) {}
+  };
+
   useEffect(() => {
     DatabaseService.getProducts().then((prods) => {
       if (Array.isArray(prods)) {
         setProductsList(prods);
       }
     });
-  }, []);
+    loadReviews();
 
-  // Amazon-style Side Zoom State
+    const handleSync = (e: any) => {
+      if (!e.detail?.type || e.detail?.type === 'reviews' || e.detail?.type === 'all') {
+        loadReviews();
+      }
+    };
+    window.addEventListener('gt_db_sync', handleSync);
+    return () => window.removeEventListener('gt_db_sync', handleSync);
+  }, [product.id]);
+
+  const handleReviewPhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const files = Array.from(e.target.files);
+    setIsUploadingReviewImg(true);
+    try {
+      for (const file of files) {
+        const uploadedUrl = await DatabaseService.uploadReviewImage(file);
+        if (uploadedUrl) {
+          setNewReviewImages((prev) => [...prev, uploadedUrl]);
+        }
+      }
+    } catch (err) {
+      console.warn('Review photo upload error:', err);
+    } finally {
+      setIsUploadingReviewImg(false);
+      if (reviewFileInputRef.current) reviewFileInputRef.current.value = '';
+    }
+  };
+
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newReviewAuthor.trim() || !newReviewComment.trim()) return;
+    setIsSubmittingReview(true);
+    try {
+      const added = await DatabaseService.addReview({
+        productId: product.id,
+        productName: product.name,
+        author: newReviewAuthor.trim(),
+        rating: newReviewRating,
+        comment: newReviewComment.trim(),
+        images: newReviewImages,
+        verified: true,
+        status: 'Approved',
+      });
+      setProductReviews((prev) => [added, ...prev]);
+      setReviewSuccessMsg('Thank you! Your verified review with photos has been published.');
+      setNewReviewAuthor('');
+      setNewReviewComment('');
+      setNewReviewRating(5);
+      setNewReviewImages([]);
+      setTimeout(() => {
+        setIsWritingReview(false);
+        setReviewSuccessMsg('');
+      }, 3500);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
   // High-Definition Interactive Zoom State
   const [zoomState, setZoomState] = useState({
     isHovering: false,
@@ -107,16 +188,18 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
     description: true,
     care: false,
     shipping: false,
+    reviews: true,
   });
 
   const toggleAccordion = (key: string) => {
     setOpenAccordions((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const { addToCart, openCart } = useCart();
+  const { items, addToCart, openCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
 
   const isFavorited = isInWishlist(product.id);
+  const isProductInCart = items.some((item) => item.product.id === product.id);
 
   const handleAddToCart = () => {
     addToCart(product, quantity, selectedSize);
@@ -136,6 +219,15 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   const relatedProducts = productsList.filter(
     (p) => p.id !== product.id && p.category === product.category
   ).slice(0, 4);
+
+  const visibleReviews = productReviews.filter(
+    (r) => r.productId === product.id && (r.status === 'Approved' || r.status === 'Featured')
+  );
+  const reviewCount = visibleReviews.length;
+  const averageRating =
+    reviewCount > 0
+      ? (visibleReviews.reduce((sum, r) => sum + (r.rating || 5), 0) / reviewCount).toFixed(1)
+      : null;
 
   return (
     <div className="max-w-6xl xl:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-6 space-y-6 sm:space-y-8 bg-[#fffeea] w-full">
@@ -246,7 +338,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                   {product.subCategory || product.category}
                 </span>
                 <span className="flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60">
-                  ★ {product.rating || 4.9} ({product.reviewCount || 12} reviews)
+                  ★ {averageRating ? `${averageRating} (${reviewCount} ${reviewCount === 1 ? 'review' : 'reviews'})` : 'No reviews yet'}
                 </span>
                 <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -334,12 +426,23 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                 </button>
               </div>
 
-              {/* Add to Cart */}
+              {/* Add to Cart / Go to Cart */}
               <button
-                onClick={handleAddToCart}
-                className="flex-1 py-3 bg-[#967BB6] hover:bg-brand-lavender-dark text-white font-black text-xs uppercase tracking-wider transition-colors shadow-xs"
+                onClick={isProductInCart ? openCart : handleAddToCart}
+                className={`flex-1 py-3 font-black text-xs uppercase tracking-wider transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer ${
+                  isProductInCart
+                    ? 'bg-[#1A1821] hover:bg-[#967BB6] text-white ring-2 ring-[#967BB6]/20 active:scale-[0.99]'
+                    : 'bg-[#967BB6] hover:bg-brand-lavender-dark text-white'
+                }`}
               >
-                Add to Cart
+                {isProductInCart ? (
+                  <>
+                    <ShoppingBag className="w-4 h-4 text-[#FBB6CE]" />
+                    <span>Go to Cart</span>
+                  </>
+                ) : (
+                  <span>Add to Cart</span>
+                )}
               </button>
 
               {/* Wishlist */}
@@ -442,10 +545,264 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                 </div>
               )}
             </div>
+
+            {/* 4. Customer Reviews & Ratings Section (Product-Specific) */}
+            <div>
+              <button
+                onClick={() => toggleAccordion('reviews')}
+                className="w-full py-3 flex items-center justify-between text-xs font-black uppercase tracking-wider text-brand-charcoal text-left"
+              >
+                <div className="flex items-center gap-2">
+                  <span>Customer Reviews &amp; Ratings</span>
+                  <span className="bg-[#967BB6]/15 text-[#967BB6] text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    {averageRating ? `★ ${averageRating} (${reviewCount})` : '0 Reviews'}
+                  </span>
+                </div>
+                {openAccordions.reviews ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+              {openAccordions.reviews && (
+                <div className="pb-4 pt-1 space-y-4 text-xs animate-fade-in">
+                  {/* Rating Summary Box & Write Review Button */}
+                  <div className="p-4 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-3 text-center sm:text-left">
+                      <div>
+                        <span className="text-3xl font-black text-brand-charcoal block leading-none">
+                          {averageRating || '—'}
+                        </span>
+                        <div className="flex text-amber-500 text-xs mt-1 justify-center sm:justify-start">
+                          {averageRating ? '★'.repeat(Math.round(Number(averageRating))) : '☆☆☆☆☆'}
+                        </div>
+                        <span className="text-[10px] text-brand-muted font-bold block mt-0.5">
+                          {reviewCount > 0
+                            ? `Based on ${reviewCount} verified customer ${reviewCount === 1 ? 'review' : 'reviews'}`
+                            : 'No customer reviews published yet'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsWritingReview(!isWritingReview)}
+                      className="px-4 py-2 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>{isWritingReview ? 'Close Form' : 'Write a Review'}</span>
+                    </button>
+                  </div>
+
+                  {/* Customer Write Review Form */}
+                  {isWritingReview && (
+                    <form onSubmit={handleSubmitReview} className="p-4 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl space-y-3 shadow-xs animate-scale-up">
+                      <div className="flex items-center justify-between border-b border-[#EAE6DB] pb-2">
+                        <span className="font-bold text-xs text-brand-charcoal">Write Customer Feedback</span>
+                        <div className="flex items-center gap-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => setNewReviewRating(star)}
+                              className="text-amber-500 text-sm hover:scale-110 transition-transform cursor-pointer"
+                            >
+                              {star <= newReviewRating ? '★' : '☆'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Your Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={newReviewAuthor}
+                          onChange={(e) => setNewReviewAuthor(e.target.value)}
+                          placeholder="e.g. Priya Sharma"
+                          className="w-full px-3 py-2 text-xs border border-[#EAE6DB] rounded-xl bg-white focus:outline-none focus:border-[#967BB6]"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Your Review *</label>
+                        <textarea
+                          required
+                          rows={3}
+                          value={newReviewComment}
+                          onChange={(e) => setNewReviewComment(e.target.value)}
+                          placeholder="Tell us about the fabric, fit, quality and experience..."
+                          className="w-full px-3 py-2 text-xs border border-[#EAE6DB] rounded-xl bg-white focus:outline-none focus:border-[#967BB6]"
+                        />
+                      </div>
+
+                      {/* Photo Upload Section */}
+                      <div className="space-y-2 pt-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted">
+                            Add Customer Photos ({newReviewImages.length})
+                          </label>
+                          <input
+                            ref={reviewFileInputRef}
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            onChange={handleReviewPhotoSelect}
+                            className="hidden"
+                          />
+                          <button
+                            type="button"
+                            disabled={isUploadingReviewImg}
+                            onClick={() => reviewFileInputRef.current?.click()}
+                            className="text-[11px] font-bold text-[#967BB6] hover:text-[#7F62A1] flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                          >
+                            {isUploadingReviewImg ? (
+                              <>
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                <span>Uploading...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>+ Upload Photos</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {newReviewImages.length > 0 && (
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {newReviewImages.map((img, idx) => (
+                              <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border border-[#EAE6DB] bg-white group shadow-2xs">
+                                <img src={img} alt={`Review photo ${idx + 1}`} className="w-full h-full object-cover" />
+                                <button
+                                  type="button"
+                                  onClick={() => setNewReviewImages((prev) => prev.filter((_, i) => i !== idx))}
+                                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px] shadow-sm cursor-pointer"
+                                  title="Remove photo"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {reviewSuccessMsg && (
+                        <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] rounded-xl font-medium">
+                          ✓ {reviewSuccessMsg}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#EAE6DB]">
+                        <button
+                          type="button"
+                          onClick={() => setIsWritingReview(false)}
+                          className="px-3.5 py-1.5 text-xs font-bold text-brand-muted hover:text-brand-charcoal cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={isSubmittingReview || isUploadingReviewImg}
+                          className="px-5 py-2 bg-[#1A1821] hover:bg-[#967BB6] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+                        >
+                          {isSubmittingReview ? 'Publishing...' : 'Submit Review'}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* Reviews List */}
+                  <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1 scrollbar-thin">
+                    {visibleReviews.length > 0 ? (
+                      visibleReviews.map((rev) => (
+                        <div key={rev.id} className="p-3.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl space-y-2 shadow-2xs">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-xs text-brand-charcoal">{rev.author}</span>
+                              {rev.verified !== false && (
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60">
+                                  ✓ Verified Buyer
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex text-amber-500 text-[11px]">
+                              {Array.from({ length: rev.rating || 5 }).map((_, i) => (
+                                <span key={i}>★</span>
+                              ))}
+                            </div>
+                          </div>
+                          {rev.title && (
+                            <p className="text-xs font-bold text-brand-charcoal">{rev.title}</p>
+                          )}
+                          <p className="text-xs text-brand-muted leading-relaxed whitespace-pre-line">
+                            "{rev.comment}"
+                          </p>
+
+                          {/* Customer Review Photos Gallery */}
+                          {rev.images && rev.images.length > 0 && (
+                            <div className="flex flex-wrap gap-2 pt-1">
+                              {rev.images.map((imgUrl, imgIdx) => (
+                                <button
+                                  key={imgIdx}
+                                  type="button"
+                                  onClick={() => setLightboxImg(imgUrl)}
+                                  className="w-14 h-14 rounded-xl overflow-hidden border border-[#EAE6DB] hover:border-[#967BB6] hover:scale-105 transition-all bg-white shadow-2xs shrink-0 cursor-pointer"
+                                  title="Click to view full photo"
+                                >
+                                  <img src={imgUrl} alt={`Review photo by ${rev.author}`} className="w-full h-full object-cover" />
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          <span className="text-[9px] text-stone-400 block font-medium">
+                            {new Date(rev.createdAt).toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-6 text-center text-brand-muted text-xs bg-[#FAF8F2] rounded-2xl border border-[#EAE6DB] space-y-1.5">
+                        <span className="text-2xl block">💬</span>
+                        <p className="font-bold text-sm text-brand-charcoal">No reviews yet</p>
+                        <p className="text-[11px] text-brand-muted max-w-xs mx-auto">
+                          Be the first to share your thoughts and photos about this product!
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+      </div>
+
+      {/* Lightbox Modal for Full-Size Review Photos */}
+      {lightboxImg && (
+        <div 
+          onClick={() => setLightboxImg(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-fade-in cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-w-2xl max-h-[85vh] bg-white rounded-3xl overflow-hidden border border-[#EAE6DB] shadow-2xl p-2 animate-scale-up"
+          >
+            <button
+              type="button"
+              onClick={() => setLightboxImg(null)}
+              className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <img src={lightboxImg} alt="Review customer photo" className="w-full h-auto max-h-[80vh] object-contain rounded-2xl" />
+          </div>
+        </div>
+      )}
 
       {/* Related Products Grid: 2 col mobile, 4 col desktop */}
       {relatedProducts.length > 0 && (

@@ -46,11 +46,11 @@ interface AuthContextType {
 
 const USER_STORAGE_KEY = 'girly_tales_user_v1';
 const SESSION_EXPIRY_KEY = 'girly_tales_session_expiry_v1';
-const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000; // 30 days (1 month in milliseconds)
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000; // 30 Days in milliseconds
 
 const renewSessionExpiry = () => {
   try {
-    const expiresAt = Date.now() + ONE_MONTH_MS;
+    const expiresAt = Date.now() + THIRTY_DAYS_MS;
     localStorage.setItem(SESSION_EXPIRY_KEY, expiresAt.toString());
   } catch (e) {
     console.warn('Failed to set session expiry:', e);
@@ -78,7 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (expiryStr) {
         const expiryTime = parseInt(expiryStr, 10);
         if (Date.now() > expiryTime) {
-          // Session expired after 1 month
+          // Session expired only after full 30 days
           clearSession();
           return null;
         }
@@ -88,7 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.email) {
-          // Valid active session within 1 month
+          // Valid active session within 30 days
           if (!expiryStr) {
             renewSessionExpiry();
           }
@@ -106,7 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [authModalTab, setAuthModalTab] = useState<'login' | 'signup'>('login');
   const { triggerToast } = useToast();
 
-  // Listen to Supabase auth state changes if configured
+  // Listen to Supabase auth state changes and maintain 30-day session
   useEffect(() => {
     if (!isSupabaseConfigured) {
       return;
@@ -146,6 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             createdAt: u.created_at,
           };
           setUser(newUser);
+          localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser));
         }
       } catch (err) {
         console.warn('Supabase session load info:', err);
@@ -154,8 +155,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     checkSession();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event: any, session: any) => {
-      if (session?.user) {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
+      if (event === 'SIGNED_OUT') {
+        clearSession();
+        if (mounted) setUser(null);
+      } else if (session?.user && mounted) {
         renewSessionExpiry();
         const u = session.user;
         const userMeta = u.user_metadata || {};
@@ -176,8 +180,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           createdAt: u.created_at,
         };
         setUser(newUser);
-      } else {
-        setUser((prev) => (prev?.id ? null : prev));
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser));
       }
     });
 
@@ -194,8 +197,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!localStorage.getItem(SESSION_EXPIRY_KEY)) {
           renewSessionExpiry();
         }
-      } else {
-        clearSession();
       }
     } catch (e) {
       console.error('Failed to sync auth state:', e);

@@ -169,6 +169,191 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const [customerWishlistItems, setCustomerWishlistItems] = useState<CustomerWishlistItem[]>([]);
   const [isLoadingCustomerActivity, setIsLoadingCustomerActivity] = useState(false);
 
+  // Reviews filters & Add/Edit Review Modal state
+  const [reviewSearch, setReviewSearch] = useState('');
+  const [reviewRatingFilter, setReviewRatingFilter] = useState<'all' | '5' | '4' | '3' | '2' | '1'>('all');
+  const [reviewStatusFilter, setReviewStatusFilter] = useState<'all' | 'Approved' | 'Featured' | 'Pending'>('all');
+  const [isAddReviewModalOpen, setIsAddReviewModalOpen] = useState(false);
+  const [adminNewReviewForm, setAdminNewReviewForm] = useState<{
+    productId: string;
+    productName: string;
+    author: string;
+    rating: number;
+    comment: string;
+    date: string;
+    images: string[];
+    status: 'Approved' | 'Featured';
+    verified: boolean;
+  }>({
+    productId: '',
+    productName: '',
+    author: '',
+    rating: 5,
+    comment: '',
+    date: new Date().toISOString().split('T')[0],
+    images: [],
+    status: 'Approved',
+    verified: true,
+  });
+  const [isSavingAdminReview, setIsSavingAdminReview] = useState(false);
+  const [isUploadingAdminReviewImg, setIsUploadingAdminReviewImg] = useState(false);
+  const adminReviewFileInputRef = useRef<HTMLInputElement>(null);
+  const adminEditReviewFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Edit Review Modal state
+  const [editingReview, setEditingReview] = useState<RealReview | null>(null);
+  const [editReviewForm, setEditReviewForm] = useState<{
+    id: string;
+    productId: string;
+    productName: string;
+    author: string;
+    rating: number;
+    comment: string;
+    date: string;
+    images: string[];
+    status: 'Approved' | 'Featured' | 'Pending' | 'Hidden';
+    verified: boolean;
+  }>({
+    id: '',
+    productId: '',
+    productName: '',
+    author: '',
+    rating: 5,
+    comment: '',
+    date: new Date().toISOString().split('T')[0],
+    images: [],
+    status: 'Approved',
+    verified: true,
+  });
+  const [isSavingEditReview, setIsSavingEditReview] = useState(false);
+
+  const handleAdminReviewPhotoUpload = async (files: FileList | null, isEdit = false) => {
+    if (!files || files.length === 0) return;
+    const fileList = Array.from(files);
+    setIsUploadingAdminReviewImg(true);
+    try {
+      for (const file of fileList) {
+        const uploadedUrl = await DatabaseService.uploadReviewImage(file);
+        if (uploadedUrl) {
+          if (isEdit) {
+            setEditReviewForm((prev) => ({ ...prev, images: [...prev.images, uploadedUrl] }));
+          } else {
+            setAdminNewReviewForm((prev) => ({ ...prev, images: [...prev.images, uploadedUrl] }));
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Admin review photo upload error:', err);
+    } finally {
+      setIsUploadingAdminReviewImg(false);
+      if (isEdit && adminEditReviewFileInputRef.current) adminEditReviewFileInputRef.current.value = '';
+      if (!isEdit && adminReviewFileInputRef.current) adminReviewFileInputRef.current.value = '';
+    }
+  };
+
+  const handleAdminAddReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminNewReviewForm.author.trim() || !adminNewReviewForm.comment.trim()) {
+      triggerToast('Validation Error', 'Author and comment are required.', undefined, 'error');
+      return;
+    }
+
+    const matchedProduct = productsList.find((p) => p.id === adminNewReviewForm.productId);
+    const resolvedProductName = matchedProduct ? matchedProduct.name : adminNewReviewForm.productName || 'General Store Review';
+
+    setIsSavingAdminReview(true);
+    try {
+      const added = await DatabaseService.addReview({
+        productId: adminNewReviewForm.productId || undefined,
+        productName: resolvedProductName,
+        author: adminNewReviewForm.author.trim(),
+        rating: adminNewReviewForm.rating,
+        comment: adminNewReviewForm.comment.trim(),
+        images: adminNewReviewForm.images,
+        verified: adminNewReviewForm.verified,
+        status: adminNewReviewForm.status,
+        createdAt: adminNewReviewForm.date ? new Date(adminNewReviewForm.date).toISOString() : new Date().toISOString(),
+      });
+
+      setReviews((prev) => [added, ...prev]);
+      setIsAddReviewModalOpen(false);
+      setAdminNewReviewForm({
+        productId: '',
+        productName: '',
+        author: '',
+        rating: 5,
+        comment: '',
+        date: new Date().toISOString().split('T')[0],
+        images: [],
+        status: 'Approved',
+        verified: true,
+      });
+      triggerToast('Review Published', 'Customer review added to database.', undefined, 'success');
+    } catch (err: any) {
+      triggerToast('Save Failed', err.message || 'Could not add review.', undefined, 'error');
+    } finally {
+      setIsSavingAdminReview(false);
+    }
+  };
+
+  const handleOpenEditReview = (rev: RealReview) => {
+    let dateStr = new Date().toISOString().split('T')[0];
+    if (rev.createdAt) {
+      try {
+        dateStr = new Date(rev.createdAt).toISOString().split('T')[0];
+      } catch (e) {}
+    }
+    setEditingReview(rev);
+    setEditReviewForm({
+      id: rev.id,
+      productId: rev.productId || '',
+      productName: rev.productName || 'General Store Review',
+      author: rev.author || '',
+      rating: rev.rating || 5,
+      comment: rev.comment || '',
+      date: dateStr,
+      images: rev.images || [],
+      status: rev.status || 'Approved',
+      verified: rev.verified !== false,
+    });
+  };
+
+  const handleAdminUpdateReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editReviewForm.author.trim() || !editReviewForm.comment.trim()) {
+      triggerToast('Validation Error', 'Author and comment are required.', undefined, 'error');
+      return;
+    }
+
+    const matchedProduct = productsList.find((p) => p.id === editReviewForm.productId);
+    const resolvedProductName = matchedProduct ? matchedProduct.name : editReviewForm.productName || 'General Store Review';
+
+    setIsSavingEditReview(true);
+    try {
+      const updated = await DatabaseService.updateReview(editReviewForm.id, {
+        productId: editReviewForm.productId,
+        productName: resolvedProductName,
+        author: editReviewForm.author.trim(),
+        rating: editReviewForm.rating,
+        comment: editReviewForm.comment.trim(),
+        images: editReviewForm.images,
+        status: editReviewForm.status,
+        verified: editReviewForm.verified,
+        createdAt: editReviewForm.date ? new Date(editReviewForm.date).toISOString() : undefined,
+      });
+
+      if (updated) {
+        setReviews((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+      }
+      setEditingReview(null);
+      triggerToast('Review Updated', 'Review modifications saved.', undefined, 'success');
+    } catch (err: any) {
+      triggerToast('Update Failed', err.message || 'Could not update review.', undefined, 'error');
+    } finally {
+      setIsSavingEditReview(false);
+    }
+  };
+
   const handleViewCustomerDetails = async (cust: RealCustomer) => {
     setSelectedCustomerDetail(cust);
     setIsLoadingCustomerActivity(true);
@@ -2177,10 +2362,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                       id: selectedOrderDetail.id,
                       description: `Amount: ₹${selectedOrderDetail.total} | Seller Status: ${selectedOrderDetail.sellerStatus} | Customer: ${selectedOrderDetail.customerName}`,
                       onConfirm: async () => {
-                        await DatabaseService.deleteOrder(selectedOrderDetail.id);
+                        const ok = await DatabaseService.deleteOrder(selectedOrderDetail.id);
                         setOrders((prev) => prev.filter((o) => o.id !== selectedOrderDetail.id));
                         setSelectedOrderDetail(null);
-                        triggerToast('Order Deleted', `Order #${selectedOrderDetail.id} removed from database.`, undefined, 'info');
+                        if (ok) {
+                          triggerToast('Order Deleted', `Order #${selectedOrderDetail.id} removed permanently from Supabase database.`, undefined, 'info');
+                        } else {
+                          triggerToast('Action Required', `Order removed in app, but Supabase RLS policy blocked PostgreSQL delete. Please run the SQL snippet in Supabase SQL Editor.`, undefined, 'warning');
+                        }
                       },
                     });
                     setDeleteConfirmInput('');
@@ -2664,12 +2853,16 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                                     id: ord.id,
                                     description: `Amount: ₹${ord.total} | Seller Status: ${ord.sellerStatus} | Customer: ${ord.customerName}`,
                                     onConfirm: async () => {
-                                      await DatabaseService.deleteOrder(ord.id);
+                                      const ok = await DatabaseService.deleteOrder(ord.id);
                                       setOrders((prev) => prev.filter((o) => o.id !== ord.id));
                                       if (selectedOrderDetail?.id === ord.id) {
                                         setSelectedOrderDetail(null);
                                       }
-                                      triggerToast('Order Deleted', `Order #${ord.id} removed from database.`, undefined, 'info');
+                                      if (ok) {
+                                        triggerToast('Order Deleted', `Order #${ord.id} removed permanently from Supabase database.`, undefined, 'info');
+                                      } else {
+                                        triggerToast('Action Required', `Order removed in app, but Supabase RLS policy blocked PostgreSQL delete. Please run the SQL snippet in Supabase SQL Editor.`, undefined, 'warning');
+                                      }
                                     },
                                   });
                                   setDeleteConfirmInput('');
@@ -3223,61 +3416,636 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
         {/* TAB 4: REVIEWS */}
         {activeTab === 'reviews' && (
-          <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-6 animate-fade-in">
-            <div>
-              <h3 className="font-serif text-xl text-brand-charcoal font-medium">Customer Reviews &amp; Ratings</h3>
-              <p className="text-xs text-brand-muted">Real customer reviews saved in the store database.</p>
+          <div className="space-y-6 animate-fade-in">
+            {/* Header & Metrics Summary */}
+            <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-serif text-2xl text-brand-charcoal font-medium">Customer Reviews &amp; Testimonials</h3>
+                  <p className="text-xs text-brand-muted">Manage all customer product reviews, ratings, and testimonials stored in Supabase.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAddReviewModalOpen(true)}
+                  className="px-5 py-2.5 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-xs flex items-center gap-2 shrink-0 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ Add Real Review</span>
+                </button>
+              </div>
+
+              {/* Review KPI Cards */}
+              {(() => {
+                const total = reviews.length;
+                const avgRating = total > 0 ? reviews.reduce((acc, r) => acc + (r.rating || 5), 0) / total : 5.0;
+                const fiveStar = reviews.filter((r) => r.rating === 5).length;
+                const verified = reviews.filter((r) => r.verified !== false).length;
+                const featured = reviews.filter((r) => r.status === 'Featured').length;
+
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+                    <div className="p-4 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Total Reviews</span>
+                      <span className="text-2xl font-black text-brand-charcoal mt-1 block">{total}</span>
+                      <span className="text-[10px] text-brand-muted">Stored in database</span>
+                    </div>
+
+                    <div className="p-4 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Average Rating</span>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="text-2xl font-black text-brand-charcoal">{avgRating.toFixed(1)}</span>
+                        <div className="flex text-amber-500 text-xs">{'★'.repeat(Math.round(avgRating))}</div>
+                      </div>
+                      <span className="text-[10px] text-emerald-700 font-semibold">Store-wide score</span>
+                    </div>
+
+                    <div className="p-4 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">5-Star Ratings</span>
+                      <span className="text-2xl font-black text-amber-600 mt-1 block">{fiveStar}</span>
+                      <span className="text-[10px] text-brand-muted">{total > 0 ? Math.round((fiveStar / total) * 100) : 100}% of reviews</span>
+                    </div>
+
+                    <div className="p-4 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Verified Buyers</span>
+                      <span className="text-2xl font-black text-emerald-700 mt-1 block">{verified}</span>
+                      <span className="text-[10px] text-brand-muted">{featured} featured in store</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Filters & Search Bar */}
+              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 pt-4 border-t border-[#EAE6DB]">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-brand-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={reviewSearch}
+                    onChange={(e) => setReviewSearch(e.target.value)}
+                    placeholder="Search reviews by customer name, product, or comment..."
+                    className="w-full pl-10 pr-4 py-2 text-xs border border-[#EAE6DB] rounded-xl bg-[#FAF8F2] focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
+                  <select
+                    value={reviewRatingFilter}
+                    onChange={(e) => setReviewRatingFilter(e.target.value as any)}
+                    className="px-3 py-2 text-xs font-bold border border-[#EAE6DB] rounded-xl bg-[#FAF8F2] focus:bg-white focus:outline-none text-brand-charcoal"
+                  >
+                    <option value="all">All Ratings</option>
+                    <option value="5">5 Stars (★★★★★)</option>
+                    <option value="4">4 Stars (★★★★)</option>
+                    <option value="3">3 Stars (★★★)</option>
+                    <option value="2">2 Stars (★★)</option>
+                    <option value="1">1 Star (★)</option>
+                  </select>
+
+                  <select
+                    value={reviewStatusFilter}
+                    onChange={(e) => setReviewStatusFilter(e.target.value as any)}
+                    className="px-3 py-2 text-xs font-bold border border-[#EAE6DB] rounded-xl bg-[#FAF8F2] focus:bg-white focus:outline-none text-brand-charcoal"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Featured">Featured</option>
+                    <option value="Pending">Pending</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {reviews.map((rev) => (
-                <div key={rev.id} className="p-5 border border-[#EAE6DB] rounded-3xl bg-[#FAF8F2] space-y-3">
-                  <div className="flex items-center justify-between">
+            {/* Filtered Reviews List */}
+            {(() => {
+              const filteredReviews = reviews.filter((rev) => {
+                if (reviewSearch) {
+                  const q = reviewSearch.toLowerCase();
+                  const matchAuthor = (rev.author || '').toLowerCase().includes(q);
+                  const matchProd = (rev.productName || '').toLowerCase().includes(q);
+                  const matchComment = (rev.comment || '').toLowerCase().includes(q);
+                  if (!matchAuthor && !matchProd && !matchComment) return false;
+                }
+                if (reviewRatingFilter !== 'all' && Number(rev.rating) !== Number(reviewRatingFilter)) {
+                  return false;
+                }
+                if (reviewStatusFilter !== 'all' && rev.status !== reviewStatusFilter) {
+                  return false;
+                }
+                return true;
+              });
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {filteredReviews.length > 0 ? (
+                    filteredReviews.map((rev) => (
+                      <div key={rev.id} className="p-5 border border-[#EAE6DB] rounded-3xl bg-white space-y-3.5 shadow-2xs hover:shadow-xs transition-all">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-sm text-brand-charcoal">{rev.author}</span>
+                              {rev.verified !== false && (
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60">
+                                  ✓ Verified Buyer
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-[#967BB6] font-bold block mt-0.5">{rev.productName}</span>
+                          </div>
+                          <div className="flex items-center text-amber-500 text-xs shrink-0">
+                            {Array.from({ length: rev.rating || 5 }).map((_, i) => (
+                              <span key={i}>★</span>
+                            ))}
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-brand-charcoal italic leading-relaxed bg-[#FAF8F2] p-3 rounded-2xl border border-[#EAE6DB]/60">
+                          "{rev.comment}"
+                        </p>
+
+                        {/* Admin Review Photos Preview */}
+                        {rev.images && rev.images.length > 0 && (
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {rev.images.map((imgUrl, imgIdx) => (
+                              <div
+                                key={imgIdx}
+                                className="w-12 h-12 rounded-xl overflow-hidden border border-[#EAE6DB] bg-[#FAF8F2] shadow-2xs group relative"
+                              >
+                                <img src={imgUrl} alt={`Review photo ${imgIdx + 1}`} className="w-full h-full object-cover" />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap items-center justify-between pt-2 border-t border-[#EAE6DB]/70 text-[11px] gap-2">
+                          <span className="text-[10px] text-brand-muted font-medium">
+                            {new Date(rev.createdAt).toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </span>
+
+                          {/* Quick Status Switcher & Delete */}
+                          <div className="flex items-center gap-1.5">
+                            <div className="flex items-center bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl p-0.5">
+                              {(['Approved', 'Featured', 'Pending'] as const).map((st) => (
+                                <button
+                                  key={st}
+                                  type="button"
+                                  onClick={async () => {
+                                    await DatabaseService.updateReviewStatus(rev.id, st);
+                                    setReviews((prev) => prev.map((r) => (r.id === rev.id ? { ...r, status: st } : r)));
+                                    triggerToast('Status Updated', `Review set to ${st}.`, undefined, 'success');
+                                  }}
+                                  className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase transition-all cursor-pointer ${
+                                    rev.status === st
+                                      ? st === 'Featured'
+                                        ? 'bg-amber-500 text-white shadow-2xs'
+                                        : st === 'Approved'
+                                        ? 'bg-emerald-600 text-white shadow-2xs'
+                                        : 'bg-stone-500 text-white shadow-2xs'
+                                      : 'text-brand-muted hover:text-brand-charcoal'
+                                  }`}
+                                >
+                                  {st}
+                                </button>
+                              ))}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditReview(rev)}
+                              className="p-1.5 text-brand-muted hover:text-[#967BB6] hover:bg-[#F3EEF9] rounded-xl transition-colors cursor-pointer"
+                              title="Edit Review"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDeleteTarget({
+                                  type: 'Customer Review',
+                                  name: `${rev.author} - "${rev.comment.slice(0, 35)}..."`,
+                                  id: rev.id,
+                                  description: `Product: ${rev.productName} | Rating: ${rev.rating}★`,
+                                  onConfirm: async () => {
+                                    await DatabaseService.deleteReview(rev.id);
+                                    setReviews((prev) => prev.filter((r) => r.id !== rev.id));
+                                    triggerToast('Review Deleted', 'Removed from database.', undefined, 'info');
+                                  },
+                                });
+                                setDeleteConfirmInput('');
+                              }}
+                              className="p-1.5 text-brand-muted hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                              title="Delete Review"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="col-span-full py-12 text-center bg-white rounded-3xl border border-[#EAE6DB] p-6 space-y-2">
+                      <Star className="w-8 h-8 mx-auto text-amber-300" />
+                      <p className="text-sm font-bold text-brand-charcoal">No reviews match your filter criteria.</p>
+                      <p className="text-xs text-brand-muted">Try changing search keywords or rating filter, or click "+ Add Real Review".</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Modal: Add Customer Review from Admin */}
+            {isAddReviewModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+                <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 max-w-lg w-full shadow-2xl space-y-5 animate-scale-up">
+                  <div className="flex items-center justify-between border-b border-[#EAE6DB] pb-3">
                     <div>
-                      <span className="font-bold text-sm text-brand-charcoal block">{rev.author}</span>
-                      <span className="text-[11px] text-brand-muted">{rev.productName}</span>
+                      <h4 className="font-serif text-lg font-bold text-brand-charcoal">Create Verified Review</h4>
+                      <p className="text-xs text-brand-muted">Add a real verified customer review with photos to any product.</p>
                     </div>
-                    <div className="flex items-center text-amber-500 text-xs">
-                      {Array.from({ length: rev.rating }).map((_, i) => (
-                        <span key={i}>★</span>
-                      ))}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddReviewModalOpen(false)}
+                      className="p-1.5 text-brand-muted hover:text-brand-charcoal rounded-xl hover:bg-[#FAF8F2]"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
-                  <p className="text-xs text-brand-charcoal italic leading-relaxed">
-                    "{rev.comment}"
-                  </p>
-                  <div className="flex items-center justify-between pt-2 border-t border-[#EAE6DB]/70 text-[11px]">
-                    <span className="text-emerald-700 font-bold">✓ Verified Purchase</span>
-                    <div className="flex items-center gap-2">
-                      <span className="bg-white border border-[#EAE6DB] px-2.5 py-0.5 rounded-full text-[10px] font-bold text-[#967BB6]">
-                        {rev.status}
-                      </span>
+
+                  <form onSubmit={handleAdminAddReview} className="space-y-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Select Product</label>
+                      <select
+                        value={adminNewReviewForm.productId}
+                        onChange={(e) => {
+                          const prodId = e.target.value;
+                          const found = productsList.find((p) => p.id === prodId);
+                          setAdminNewReviewForm((prev) => ({
+                            ...prev,
+                            productId: prodId,
+                            productName: found ? found.name : 'General Store Review',
+                          }));
+                        }}
+                        className="w-full px-3 py-2 text-xs border border-[#EAE6DB] rounded-xl bg-[#FAF8F2] focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                      >
+                        <option value="">General Store Testimonial</option>
+                        {productsList.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} (Rs. {p.price})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Customer Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={adminNewReviewForm.author}
+                          onChange={(e) => setAdminNewReviewForm((prev) => ({ ...prev, author: e.target.value }))}
+                          placeholder="e.g. Ananya K."
+                          className="w-full px-3 py-2 text-xs border border-[#EAE6DB] rounded-xl bg-[#FAF8F2] focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Rating</label>
+                        <select
+                          value={adminNewReviewForm.rating}
+                          onChange={(e) => setAdminNewReviewForm((prev) => ({ ...prev, rating: Number(e.target.value) }))}
+                          className="w-full px-3 py-2 text-xs border border-[#EAE6DB] rounded-xl bg-[#FAF8F2] focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                        >
+                          <option value="5">5 Stars ★★★★★</option>
+                          <option value="4">4 Stars ★★★★</option>
+                          <option value="3">3 Stars ★★★</option>
+                          <option value="2">2 Stars ★★</option>
+                          <option value="1">1 Star ★</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Review Date</label>
+                      <input
+                        type="date"
+                        value={adminNewReviewForm.date}
+                        onChange={(e) => setAdminNewReviewForm((prev) => ({ ...prev, date: e.target.value }))}
+                        className="w-full px-3 py-2 text-xs border border-[#EAE6DB] rounded-xl bg-[#FAF8F2] focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Review Comment *</label>
+                      <textarea
+                        required
+                        rows={3}
+                        value={adminNewReviewForm.comment}
+                        onChange={(e) => setAdminNewReviewForm((prev) => ({ ...prev, comment: e.target.value }))}
+                        placeholder="Write customer review feedback..."
+                        className="w-full px-3 py-2 text-xs border border-[#EAE6DB] rounded-xl bg-[#FAF8F2] focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                      />
+                    </div>
+
+                    {/* Review Photos Upload */}
+                    <div className="space-y-2 pt-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted">
+                          Customer Photos ({adminNewReviewForm.images.length})
+                        </label>
+                        <input
+                          ref={adminReviewFileInputRef}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={(e) => handleAdminReviewPhotoUpload(e.target.files, false)}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          disabled={isUploadingAdminReviewImg}
+                          onClick={() => adminReviewFileInputRef.current?.click()}
+                          className="text-[11px] font-bold text-[#967BB6] hover:text-[#7F62A1] flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        >
+                          {isUploadingAdminReviewImg ? (
+                            <>
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              <span>Uploading...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>+ Add Photos</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {adminNewReviewForm.images.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {adminNewReviewForm.images.map((img, idx) => (
+                            <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border border-[#EAE6DB] bg-white group shadow-2xs">
+                              <img src={img} alt={`Review photo ${idx + 1}`} className="w-full h-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => setAdminNewReviewForm((prev) => ({ ...prev, images: prev.images.filter((_, i) => i !== idx) }))}
+                                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px] shadow-sm cursor-pointer"
+                                title="Remove photo"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Initial Status</label>
+                        <select
+                          value={adminNewReviewForm.status}
+                          onChange={(e) => setAdminNewReviewForm((prev) => ({ ...prev, status: e.target.value as any }))}
+                          className="w-full px-3 py-2 text-xs border border-[#EAE6DB] rounded-xl bg-[#FAF8F2] focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                        >
+                          <option value="Approved">Approved</option>
+                          <option value="Featured">Featured</option>
+                        </select>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-5">
+                        <input
+                          type="checkbox"
+                          id="verifiedCheckbox"
+                          checked={adminNewReviewForm.verified}
+                          onChange={(e) => setAdminNewReviewForm((prev) => ({ ...prev, verified: e.target.checked }))}
+                          className="w-4 h-4 accent-[#967BB6] rounded cursor-pointer"
+                        />
+                        <label htmlFor="verifiedCheckbox" className="text-xs font-bold text-brand-charcoal cursor-pointer">
+                          Verified Buyer
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#EAE6DB]">
                       <button
                         type="button"
-                        onClick={() => {
-                          setDeleteTarget({
-                            type: 'Customer Review',
-                            name: `${rev.author} - "${rev.comment.slice(0, 35)}..."`,
-                            id: rev.id,
-                            description: `Product: ${rev.productName} | Rating: ${rev.rating}★`,
-                            onConfirm: async () => {
-                              await DatabaseService.deleteReview(rev.id);
-                              setReviews((prev) => prev.filter((r) => r.id !== rev.id));
-                              triggerToast('Review Deleted', 'Removed from database.', undefined, 'info');
-                            },
-                          });
-                          setDeleteConfirmInput('');
-                        }}
-                        className="p-1.5 text-brand-muted hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
-                        title="Delete Review"
+                        onClick={() => setIsAddReviewModalOpen(false)}
+                        className="px-4 py-2 text-xs font-bold text-brand-muted hover:text-brand-charcoal rounded-xl cursor-pointer"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSavingAdminReview || isUploadingAdminReviewImg}
+                        className="px-5 py-2 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+                      >
+                        {isSavingAdminReview ? 'Saving...' : 'Save & Publish'}
                       </button>
                     </div>
-                  </div>
+                  </form>
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
+
+            {/* Modal: Edit Customer Review */}
+            {editingReview && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+                <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 max-w-lg w-full shadow-2xl space-y-5 animate-scale-up">
+                  <div className="flex items-center justify-between border-b border-[#EAE6DB] pb-3">
+                    <div>
+                      <h4 className="font-serif text-lg font-bold text-brand-charcoal">Edit Customer Review</h4>
+                      <p className="text-xs text-brand-muted">Modify customer feedback, photos, rating, date, or visibility.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditingReview(null)}
+                      className="p-1.5 text-brand-muted hover:text-brand-charcoal rounded-xl hover:bg-[#FAF8F2]"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleAdminUpdateReview} className="space-y-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Select Product</label>
+                      <select
+                        value={editReviewForm.productId}
+                        onChange={(e) => {
+                          const prodId = e.target.value;
+                          const found = productsList.find((p) => p.id === prodId);
+                          setEditReviewForm((prev) => ({
+                            ...prev,
+                            productId: prodId,
+                            productName: found ? found.name : 'General Store Review',
+                          }));
+                        }}
+                        className="w-full px-3 py-2 text-xs border border-[#EAE6DB] rounded-xl bg-[#FAF8F2] focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                      >
+                        <option value="">General Store Testimonial</option>
+                        {productsList.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} (Rs. {p.price})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Customer Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={editReviewForm.author}
+                          onChange={(e) => setEditReviewForm((prev) => ({ ...prev, author: e.target.value }))}
+                          className="w-full px-3 py-2 text-xs border border-[#EAE6DB] rounded-xl bg-[#FAF8F2] focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Rating</label>
+                        <select
+                          value={editReviewForm.rating}
+                          onChange={(e) => setEditReviewForm((prev) => ({ ...prev, rating: Number(e.target.value) }))}
+                          className="w-full px-3 py-2 text-xs border border-[#EAE6DB] rounded-xl bg-[#FAF8F2] focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                        >
+                          <option value="5">5 Stars ★★★★★</option>
+                          <option value="4">4 Stars ★★★★</option>
+                          <option value="3">3 Stars ★★★</option>
+                          <option value="2">2 Stars ★★</option>
+                          <option value="1">1 Star ★</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Review Date</label>
+                      <input
+                        type="date"
+                        value={editReviewForm.date}
+                        onChange={(e) => setEditReviewForm((prev) => ({ ...prev, date: e.target.value }))}
+                        className="w-full px-3 py-2 text-xs border border-[#EAE6DB] rounded-xl bg-[#FAF8F2] focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Review Comment *</label>
+                      <textarea
+                        required
+                        rows={3}
+                        value={editReviewForm.comment}
+                        onChange={(e) => setEditReviewForm((prev) => ({ ...prev, comment: e.target.value }))}
+                        className="w-full px-3 py-2 text-xs border border-[#EAE6DB] rounded-xl bg-[#FAF8F2] focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                      />
+                    </div>
+
+                    {/* Edit Review Photos Section */}
+                    <div className="space-y-2 pt-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted">
+                          Customer Photos ({editReviewForm.images.length})
+                        </label>
+                        <input
+                          ref={adminEditReviewFileInputRef}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={(e) => handleAdminReviewPhotoUpload(e.target.files, true)}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          disabled={isUploadingAdminReviewImg}
+                          onClick={() => adminEditReviewFileInputRef.current?.click()}
+                          className="text-[11px] font-bold text-[#967BB6] hover:text-[#7F62A1] flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        >
+                          {isUploadingAdminReviewImg ? (
+                            <>
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              <span>Uploading...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>+ Add Photos</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {editReviewForm.images.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {editReviewForm.images.map((img, idx) => (
+                            <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border border-[#EAE6DB] bg-white group shadow-2xs">
+                              <img src={img} alt={`Review photo ${idx + 1}`} className="w-full h-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => setEditReviewForm((prev) => ({ ...prev, images: prev.images.filter((_, i) => i !== idx) }))}
+                                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px] shadow-sm cursor-pointer"
+                                title="Remove photo"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Status &amp; Visibility</label>
+                        <select
+                          value={editReviewForm.status}
+                          onChange={(e) => setEditReviewForm((prev) => ({ ...prev, status: e.target.value as any }))}
+                          className="w-full px-3 py-2 text-xs border border-[#EAE6DB] rounded-xl bg-[#FAF8F2] focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                        >
+                          <option value="Approved">Approved (Public)</option>
+                          <option value="Featured">Featured (Top Badge)</option>
+                          <option value="Pending">Pending</option>
+                          <option value="Hidden">Hidden</option>
+                        </select>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-5">
+                        <input
+                          type="checkbox"
+                          id="editVerifiedCheckbox"
+                          checked={editReviewForm.verified}
+                          onChange={(e) => setEditReviewForm((prev) => ({ ...prev, verified: e.target.checked }))}
+                          className="w-4 h-4 accent-[#967BB6] rounded cursor-pointer"
+                        />
+                        <label htmlFor="editVerifiedCheckbox" className="text-xs font-bold text-brand-charcoal cursor-pointer">
+                          Verified Buyer
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#EAE6DB]">
+                      <button
+                        type="button"
+                        onClick={() => setEditingReview(null)}
+                        className="px-4 py-2 text-xs font-bold text-brand-muted hover:text-brand-charcoal rounded-xl cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSavingEditReview || isUploadingAdminReviewImg}
+                        className="px-5 py-2 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+                      >
+                        {isSavingEditReview ? 'Saving...' : 'Save Changes'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

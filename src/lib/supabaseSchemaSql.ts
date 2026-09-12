@@ -115,10 +115,14 @@ CREATE TABLE IF NOT EXISTS public.reviews (
     rating NUMERIC NOT NULL DEFAULT 5,
     title TEXT DEFAULT '',
     comment TEXT NOT NULL,
+    images JSONB DEFAULT '[]'::jsonb,
     verified BOOLEAN DEFAULT TRUE NOT NULL,
     status TEXT DEFAULT 'Approved' NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Migration safety for existing reviews table
+ALTER TABLE public.reviews ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]'::jsonb;
 
 CREATE INDEX IF NOT EXISTS idx_reviews_product_id ON public.reviews(product_id);
 

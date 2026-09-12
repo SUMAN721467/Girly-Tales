@@ -48,7 +48,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   onNavigate,
   onSelectProduct,
 }) => {
-  const { addToCart, openCart } = useCart();
+  const { items, addToCart, openCart } = useCart();
   const [productsList, setProductsList] = useState<Product[]>([]);
 
   const loadHomeProducts = async () => {
@@ -199,16 +199,25 @@ export const HomePage: React.FC<HomePageProps> = ({
                     </div>
                   </div>
 
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      addToCart(reel.product, 1);
-                      openCart();
-                    }}
-                    className="w-full py-2 bg-[#FBB6CE] hover:bg-[#F89CBA] text-[#1A1821] text-[11px] sm:text-xs font-black tracking-wider uppercase rounded transition-colors shadow-xs"
-                  >
-                    Add to Cart
-                  </button>
+                {(() => {
+                  const isReelProdInCart = items.some((item) => item.product.id === reel.product.id);
+                  return (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isReelProdInCart) {
+                          openCart();
+                          return;
+                        }
+                        addToCart(reel.product, 1);
+                        openCart();
+                      }}
+                      className="w-full py-2 bg-[#FBB6CE] hover:bg-[#F89CBA] text-[#1A1821] text-[11px] sm:text-xs font-black tracking-wider uppercase rounded transition-colors shadow-xs"
+                    >
+                      {isReelProdInCart ? 'Go to Cart' : 'Add to Cart'}
+                    </button>
+                  );
+                })()}
                 </div>
               </div>
             ))}

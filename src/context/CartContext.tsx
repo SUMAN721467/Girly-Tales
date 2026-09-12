@@ -39,7 +39,9 @@ const STANDARD_SHIPPING_FEE = 99;
 if (typeof window !== 'undefined') {
   try {
     localStorage.removeItem('girly_tales_cart_v1');
+    localStorage.removeItem('girly_tales_cart_items');
     sessionStorage.removeItem('girly_tales_cart_v1');
+    sessionStorage.removeItem('girly_tales_cart_items');
   } catch (e) {}
 }
 
@@ -49,19 +51,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { user, isLoggedIn } = useAuth();
   const { toasts, triggerToast, dismissToast } = useToast();
 
-  // Instant local cache + Realtime Supabase Cloud Cart
-  const [items, setItems] = useState<CartItem[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('girly_tales_cart_items');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) return parsed;
-        }
-      } catch (e) {}
-    }
-    return [];
-  });
+  // Pure in-memory React state + Realtime Supabase Cloud Cart (No localStorage)
+  const [items, setItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
   const [isCartSyncing, setIsCartSyncing] = useState<boolean>(false);
@@ -86,19 +77,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const remoteCart = await CartService.fetchUserCart(userId, currentUser.email);
         if (remoteCart && remoteCart.length > 0) {
           setItems(remoteCart);
-          try {
-            localStorage.setItem('girly_tales_cart_items', JSON.stringify(remoteCart));
-          } catch (e) {}
-        } else {
-          // If remote is empty, check if we have local items to push
-          const localSaved = localStorage.getItem('girly_tales_cart_items');
-          if (localSaved) {
-            const parsed = JSON.parse(localSaved);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setItems(parsed);
-              CartService.saveUserCart(userId, parsed, currentUser.email);
-            }
-          }
         }
       } catch (err) {
         console.warn('loadRemoteCart from Supabase error:', err);
@@ -231,10 +209,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updated = [...prev, { id: itemId, product, quantity, selectedSize: size, selectedColor: color }];
       }
 
-      try {
-        localStorage.setItem('girly_tales_cart_items', JSON.stringify(updated));
-      } catch (e) {}
-
       scheduleCloudSync(updated);
       return updated;
     });
@@ -251,9 +225,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const item = items.find((i) => i.id === cartItemId);
     setItems((prev) => {
       const updated = prev.filter((i) => i.id !== cartItemId);
-      try {
-        localStorage.setItem('girly_tales_cart_items', JSON.stringify(updated));
-      } catch (e) {}
       scheduleCloudSync(updated);
       return updated;
     });
@@ -273,9 +244,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const updated = prev.map((item) =>
         item.id === cartItemId ? { ...item, quantity: newQuantity } : item
       );
-      try {
-        localStorage.setItem('girly_tales_cart_items', JSON.stringify(updated));
-      } catch (e) {}
       scheduleCloudSync(updated);
       return updated;
     });
@@ -284,9 +252,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const clearCart = () => {
     setItems([]);
     setAppliedCoupon(null);
-    try {
-      localStorage.removeItem('girly_tales_cart_items');
-    } catch (e) {}
     if (isLoggedIn && user) {
       const userId = user.id || user.email;
       CartService.clearUserCart(userId, user.email);

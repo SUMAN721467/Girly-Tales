@@ -17,13 +17,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const [isHovered, setIsHovered] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
 
-  const { addToCart } = useCart();
+  const { items, addToCart, openCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
 
   const isFavorited = isInWishlist(product.id);
+  const isProductInCart = items.some((item) => item.product.id === product.id);
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isProductInCart) {
+      openCart();
+      return;
+    }
     addToCart(product, 1);
     setIsAdded(true);
     setTimeout(() => setIsAdded(false), 1500);
@@ -100,13 +105,22 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <button
             onClick={handleQuickAdd}
             className={`w-full py-2 rounded text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5 ${
-              isAdded ? 'bg-emerald-600 text-white' : 'bg-[#1A1821] hover:bg-[#967BB6] text-white'
+              isAdded 
+                ? 'bg-emerald-600 text-white' 
+                : isProductInCart 
+                ? 'bg-[#1A1821] hover:bg-[#967BB6] text-white ring-1 ring-[#967BB6]/30'
+                : 'bg-[#1A1821] hover:bg-[#967BB6] text-white'
             }`}
           >
             {isAdded ? (
               <>
                 <Check className="w-3.5 h-3.5" />
                 <span>Added to Bag</span>
+              </>
+            ) : isProductInCart ? (
+              <>
+                <ShoppingBag className="w-3.5 h-3.5 text-[#FBB6CE]" />
+                <span>Go to Cart</span>
               </>
             ) : (
               <>

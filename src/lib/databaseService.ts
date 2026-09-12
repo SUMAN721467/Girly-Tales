@@ -147,8 +147,10 @@ export interface RealReview {
   author: string;
   rating: number;
   comment: string;
+  title?: string;
+  images?: string[];
   verified: boolean;
-  status: 'Approved' | 'Pending' | 'Featured';
+  status: 'Approved' | 'Pending' | 'Featured' | 'Hidden';
   createdAt: string;
 }
 
@@ -235,174 +237,6 @@ export const SEED_CATEGORIES: RealCategory[] = [
   { id: 'cat-5', name: 'Yoga', slug: 'yoga', isActive: true, orderIndex: 4 },
 ];
 
-const SEED_ORDERS: RealOrder[] = [
-  {
-    id: 'LW-2026-0078',
-    customerName: 'Kartick Sau',
-    email: 'karticksau701@gmail.com',
-    phone: '+91 62972 91512',
-    items: [
-      {
-        productId: 'prod-1',
-        name: 'Mulberry Silk Satin Notch Collar Pajama Set',
-        price: 1899,
-        quantity: 1,
-        size: 'M',
-        variant: 'Blossom Pink',
-        image: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80',
-      },
-      {
-        productId: 'prod-2',
-        name: '18K Gold Plated Clover Pendant Chain',
-        price: 999,
-        quantity: 1,
-        variant: '18K Gold',
-        image: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=400&q=80',
-      },
-    ],
-    total: 2898,
-    subtotal: 2898,
-    shippingFee: 0,
-    discountAmount: 0,
-    sellerStatus: 'Pending',
-    customerStatus: 'Pending',
-    status: 'Pending',
-    paymentMethod: 'UPI / Prepaid',
-    address: 'Barchahara, Sabang, Paschim Medinipur',
-    city: 'Kharagpur',
-    state: 'West Bengal',
-    pincode: '721467',
-    specialInstructions: 'Please deliver between 2 PM to 6 PM if possible.',
-    createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-  },
-  {
-    id: 'LW-2026-0077',
-    customerName: 'Kartick Sau',
-    email: 'karticksau701@gmail.com',
-    phone: '+91 62972 91512',
-    items: [
-      {
-        productId: 'prod-3',
-        name: '18K Chunky Croissant Dome Ring',
-        price: 1299,
-        quantity: 1,
-        size: 'Adjustable',
-        image: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=400&q=80',
-      },
-    ],
-    total: 1299,
-    subtotal: 1299,
-    shippingFee: 0,
-    discountAmount: 0,
-    sellerStatus: 'Cancelled by Seller',
-    customerStatus: 'Cancelled by Customer',
-    status: 'Cancelled',
-    paymentMethod: 'UPI / Prepaid',
-    address: 'Barchahara, Sabang, Paschim Medinipur',
-    city: 'Kharagpur',
-    state: 'West Bengal',
-    pincode: '721467',
-    createdAt: new Date(Date.now() - 3600000 * 16).toISOString(),
-  },
-  {
-    id: 'LW-2026-0076',
-    customerName: 'Suman Samanta',
-    email: 'sumansamanta721467@gmail.com',
-    phone: '+91 98112 34567',
-    items: [
-      {
-        productId: 'prod-4',
-        name: 'Celestial Constellation 18K Chain (Gold)',
-        price: 1359,
-        quantity: 1,
-        image: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=400&q=80',
-      },
-    ],
-    total: 1359,
-    subtotal: 1359,
-    shippingFee: 0,
-    discountAmount: 0,
-    sellerStatus: 'Pending',
-    customerStatus: 'Paid',
-    status: 'Pending',
-    paymentMethod: 'UPI / Prepaid',
-    address: 'GT Road, Model Town',
-    city: 'Jalandhar',
-    state: 'Punjab',
-    pincode: '144003',
-    createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-  },
-  {
-    id: 'LW-2026-0075',
-    customerName: 'Sabara Admin',
-    email: 'contact.sabara@gmail.com',
-    phone: '+91 98201 45982',
-    items: [
-      {
-        productId: 'prod-5',
-        name: 'Cloud Soft Modal Nightshirt - Lavender Mist',
-        price: 1564,
-        quantity: 1,
-        size: 'L',
-        image: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80',
-      },
-      {
-        productId: 'prod-6',
-        name: 'Pearl Aura Huggie Earrings',
-        price: 899,
-        quantity: 1,
-        image: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=400&q=80',
-      },
-    ],
-    total: 2463,
-    subtotal: 2463,
-    shippingFee: 0,
-    discountAmount: 0,
-    sellerStatus: 'Pending',
-    customerStatus: 'Paid',
-    status: 'Pending',
-    paymentMethod: 'UPI / Prepaid',
-    address: 'Urban Estate Phase 2',
-    city: 'Jalandhar',
-    state: 'Punjab',
-    pincode: '144022',
-    createdAt: new Date(Date.now() - 86400000 * 12).toISOString(),
-  },
-];
-
-const SEED_REVIEWS: RealReview[] = [
-  {
-    id: 'rev-1',
-    productName: 'Mulberry Silk Satin Notch Collar Set',
-    author: 'Sabara K.',
-    rating: 5,
-    comment: 'The softest silk pyjamas I have ever owned! Perfect tailoring and breathable for humid nights.',
-    verified: true,
-    status: 'Featured',
-    createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-  },
-  {
-    id: 'rev-2',
-    productName: 'Celestial Constellation 18K Chain',
-    author: 'Pooja M.',
-    rating: 5,
-    comment: 'I showered with it for 3 weeks straight and it did not tarnish at all. 10/10 recommend!',
-    verified: true,
-    status: 'Approved',
-    createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
-  },
-  {
-    id: 'rev-3',
-    productName: 'Cloud Soft Modal Nightshirt',
-    author: 'Natasha R.',
-    rating: 5,
-    comment: 'Feels like wearing a soft cloud. Ordered a second color immediately.',
-    verified: true,
-    status: 'Approved',
-    createdAt: new Date(Date.now() - 86400000 * 7).toISOString(),
-  }
-];
-
 const SEED_COUPONS: RealCoupon[] = [
   { id: 'cp-1', code: 'GIRLY10', discount: '10% OFF', description: 'VIP Member Exclusive Welcome Perk', minSpend: 999, usedCount: 14, status: 'Active', expires: '2026-12-31' },
   { id: 'cp-2', code: 'SILKLOVE', discount: '15% OFF', description: 'Nightwear & Loungewear Collection', minSpend: 1499, usedCount: 8, status: 'Active', expires: '2026-11-30' },
@@ -416,6 +250,7 @@ let inMemoryProducts: Product[] = [];
 let inMemoryOrders: RealOrder[] = [];
 let inMemoryReviews: RealReview[] = [];
 let inMemoryCoupons: RealCoupon[] = [];
+const deletedOrderIds = new Set<string>();
 
 export const DatabaseService = {
   // ==================== 1. ORDERS ====================
@@ -484,7 +319,7 @@ export const DatabaseService = {
                 createdAt: d.created_at || new Date().toISOString(),
               };
             })
-            .filter((ord) => !!ord.id);
+            .filter((ord) => !!ord.id && !deletedOrderIds.has(ord.id) && !deletedOrderIds.has(ord.id.toLowerCase()));
 
           inMemoryOrders = mapped;
           return mapped;
@@ -494,7 +329,7 @@ export const DatabaseService = {
       }
     }
 
-    return inMemoryOrders;
+    return inMemoryOrders.filter((ord) => !deletedOrderIds.has(ord.id) && !deletedOrderIds.has(ord.id.toLowerCase()));
   },
 
   async createOrder(order: Omit<RealOrder, 'createdAt' | 'sellerStatus' | 'customerStatus'> & { 
@@ -665,26 +500,47 @@ export const DatabaseService = {
     const cleanId = String(orderId).trim();
     if (!cleanId) return false;
 
-    // 1. Remove immediately from runtime in-memory array
-    inMemoryOrders = inMemoryOrders.filter((o) => o.id !== cleanId);
+    // 1. Add to permanent session blacklist so it never resurfaces in this session
+    deletedOrderIds.add(cleanId);
+    deletedOrderIds.add(cleanId.toLowerCase());
+    deletedOrderIds.add(cleanId.toUpperCase());
 
-    // 2. Delete directly from Supabase orders table
+    // 2. Remove immediately from runtime in-memory array
+    inMemoryOrders = inMemoryOrders.filter(
+      (o) => o.id !== cleanId && o.id.toLowerCase() !== cleanId.toLowerCase()
+    );
+
+    // 3. Delete directly from Supabase orders table
     let supabaseSuccess = true;
     if (isSupabaseConfigured) {
       try {
+        console.log(`[DatabaseService] Deleting order ${cleanId} from Supabase...`);
         const { error, count } = await supabase
           .from('orders')
-          .delete()
+          .delete({ count: 'exact' })
           .eq('id', cleanId);
 
         if (error) {
-          console.error('Supabase delete order failed (Check RLS DELETE policy):', error.message);
-          supabaseSuccess = false;
+          console.warn('[DatabaseService] Supabase eq delete error, trying ilike retry:', error.message);
+          const retry = await supabase
+            .from('orders')
+            .delete({ count: 'exact' })
+            .ilike('id', cleanId);
+
+          if (retry.error) {
+            console.error('[DatabaseService] Supabase retry delete failed. Make sure to run the SQL DELETE policy in Supabase SQL editor:', retry.error.message);
+            supabaseSuccess = false;
+          } else {
+            console.log(`[DatabaseService] Order ${cleanId} deleted via retry. Rows affected:`, retry.count);
+          }
         } else {
-          console.log(`Supabase order #${cleanId} deleted successfully. Affected rows:`, count);
+          console.log(`[DatabaseService] Order ${cleanId} deleted from Supabase. Rows affected:`, count);
+          if (count === 0) {
+            console.warn(`[DatabaseService] 0 rows deleted for order ${cleanId}. If RLS is enabled on public.orders in Supabase, execute the SQL script in Supabase dashboard to allow DELETE.`);
+          }
         }
       } catch (e) {
-        console.error('Supabase delete order exception:', e);
+        console.error('[DatabaseService] Supabase delete order exception:', e);
         supabaseSuccess = false;
       }
     }
@@ -1300,28 +1156,155 @@ export const DatabaseService = {
     return result;
   },
 
-  // ==================== 4. REVIEWS ====================
-  async getReviews(): Promise<RealReview[]> {
+  // ==================== 4. REVIEWS (PURE SUPABASE SOURCE OF TRUTH) ====================
+  async getReviews(productId?: string): Promise<RealReview[]> {
     if (isSupabaseConfigured) {
       try {
-        const { data, error } = await supabase.from('reviews').select('*');
+        let query = supabase.from('reviews').select('*').order('created_at', { ascending: false });
+        if (productId) {
+          query = query.eq('product_id', productId);
+        }
+        const { data, error } = await query;
         if (!error && Array.isArray(data)) {
           const mapped: RealReview[] = data.map((d: any) => ({
             id: d.id,
-            productName: d.product_name || d.productName,
-            author: d.author,
-            rating: Number(d.rating),
-            comment: d.comment,
+            productId: d.product_id || d.productId || '',
+            productName: d.product_name || d.productName || 'Product Review',
+            author: d.author || 'Verified Customer',
+            rating: Number(d.rating) || 5,
+            comment: d.comment || '',
+            title: d.title || '',
+            images: Array.isArray(d.images)
+              ? d.images
+              : typeof d.images === 'string' && d.images
+              ? (() => {
+                  try {
+                    return JSON.parse(d.images);
+                  } catch {
+                    return [d.images];
+                  }
+                })()
+              : [],
             verified: d.verified !== false,
-            status: d.status || 'Approved',
+            status: (d.status as any) || 'Approved',
             createdAt: d.created_at || new Date().toISOString(),
           }));
           inMemoryReviews = mapped;
           return mapped;
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn('Supabase getReviews note:', e);
+      }
+    }
+    if (productId) {
+      return inMemoryReviews.filter((r) => r.productId === productId);
     }
     return inMemoryReviews;
+  },
+
+  async addReview(reviewData: {
+    productId: string;
+    productName: string;
+    author: string;
+    rating: number;
+    comment: string;
+    title?: string;
+    images?: string[];
+    verified?: boolean;
+    status?: 'Approved' | 'Featured' | 'Pending' | 'Hidden';
+    createdAt?: string;
+  }): Promise<RealReview> {
+    const newReview: RealReview = {
+      id: generateId('rev'),
+      productId: reviewData.productId || '',
+      productName: reviewData.productName,
+      author: reviewData.author.trim(),
+      rating: Math.max(1, Math.min(5, Number(reviewData.rating) || 5)),
+      comment: reviewData.comment.trim(),
+      title: reviewData.title || '',
+      images: reviewData.images || [],
+      verified: reviewData.verified !== false,
+      status: reviewData.status || 'Approved',
+      createdAt: reviewData.createdAt || new Date().toISOString(),
+    };
+
+    inMemoryReviews = [newReview, ...inMemoryReviews];
+    notifyDatabaseChange('reviews');
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('reviews').insert({
+          id: newReview.id,
+          product_id: newReview.productId || null,
+          product_name: newReview.productName,
+          author: newReview.author,
+          rating: newReview.rating,
+          comment: newReview.comment,
+          title: newReview.title,
+          images: newReview.images,
+          verified: newReview.verified,
+          status: newReview.status,
+          created_at: newReview.createdAt,
+        });
+      } catch (e) {
+        console.warn('Supabase add review note:', e);
+      }
+    }
+
+    return newReview;
+  },
+
+  async updateReview(
+    id: string,
+    updates: Partial<RealReview>
+  ): Promise<RealReview | null> {
+    let updatedReview: RealReview | null = null;
+    inMemoryReviews = inMemoryReviews.map((r) => {
+      if (r.id === id) {
+        updatedReview = {
+          ...r,
+          ...updates,
+          rating: updates.rating !== undefined ? Math.max(1, Math.min(5, Number(updates.rating))) : r.rating,
+        };
+        return updatedReview;
+      }
+      return r;
+    });
+
+    notifyDatabaseChange('reviews');
+
+    if (isSupabaseConfigured) {
+      try {
+        const payload: any = {};
+        if (updates.productId !== undefined) payload.product_id = updates.productId;
+        if (updates.productName !== undefined) payload.product_name = updates.productName;
+        if (updates.author !== undefined) payload.author = updates.author;
+        if (updates.rating !== undefined) payload.rating = updates.rating;
+        if (updates.comment !== undefined) payload.comment = updates.comment;
+        if (updates.title !== undefined) payload.title = updates.title;
+        if (updates.images !== undefined) payload.images = updates.images;
+        if (updates.verified !== undefined) payload.verified = updates.verified;
+        if (updates.status !== undefined) payload.status = updates.status;
+        if (updates.createdAt !== undefined) payload.created_at = updates.createdAt;
+
+        await supabase.from('reviews').update(payload).eq('id', id);
+      } catch (e) {
+        console.warn('Supabase update review note:', e);
+      }
+    }
+
+    return updatedReview;
+  },
+
+  async uploadReviewImage(file: File): Promise<string> {
+    return this.uploadProductImage(file);
+  },
+
+  async updateReviewStatus(
+    id: string,
+    status: 'Approved' | 'Featured' | 'Pending' | 'Hidden'
+  ): Promise<void> {
+    await this.updateReview(id, { status });
   },
 
   async deleteReview(id: string): Promise<void> {

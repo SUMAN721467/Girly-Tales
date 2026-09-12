@@ -25,12 +25,18 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
   );
   const [quantity, setQuantity] = useState(1);
 
-  const { addToCart, openCart } = useCart();
+  const { items, addToCart, openCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
 
   const isFavorited = isInWishlist(product.id);
+  const isProductInCart = items.some((item) => item.product.id === product.id);
 
   const handleAddToCart = () => {
+    if (isProductInCart) {
+      onClose();
+      openCart();
+      return;
+    }
     addToCart(product, quantity, selectedSize);
     onClose();
     openCart();
@@ -166,7 +172,7 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
                 onClick={handleAddToCart}
                 leftIcon={<Sparkles className="w-4 h-4" />}
               >
-                Add to Cart
+                {isProductInCart ? 'Go to Cart' : 'Add to Cart'}
               </Button>
               <button
                 onClick={() => toggleWishlist(product.id)}
