@@ -588,8 +588,6 @@ export const DatabaseService = {
     const cleanId = String(orderId).trim();
     if (!cleanId) return;
 
-    persistStatusOverride(cleanId, sellerStatus, shippingInfo);
-
     inMemoryOrders = inMemoryOrders.map((o) =>
       o.id === cleanId
         ? { 
