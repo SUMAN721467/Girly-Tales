@@ -15,6 +15,8 @@ import {
   ShieldCheck,
   Lock,
   UserCheck,
+  CreditCard,
+  Smartphone,
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
@@ -22,6 +24,7 @@ import { Button } from '../common/Button';
 import { DatabaseService } from '../../lib/databaseService';
 import { AddressService } from '../../lib/addressService';
 import { ShippingAddress } from '../../types/product';
+import { RazorpayService } from '../../lib/razorpayService';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -354,6 +357,82 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
     const isCod = paymentMethod === 'cod';
 
+    // 1. If Online Prepaid is selected, launch Razorpay Standard Web Checkout
+    if (!isCod) {
+      try {
+        await RazorpayService.initiateCheckout({
+          amountInRupees: finalTotal,
+          receiptId: generatedId,
+          customer: {
+            name: formData.name,
+            email: formData.email || user?.email || 'customer@girlytales.com',
+            phone: formData.phone,
+          },
+          description: `Girly Tales Order #${generatedId} (${items.length} items)`,
+          notes: {
+            orderId: generatedId,
+            customerEmail: formData.email || user?.email || '',
+          },
+          onSuccess: async (rzpRes) => {
+            // Payment signature verified on backend!
+            try {
+              await DatabaseService.createOrder({
+                id: generatedId,
+                customerName: formData.name || 'Customer',
+                email: formData.email || user?.email || '',
+                phone: formData.phone || '',
+                items: structuredOrderItems.length > 0 ? structuredOrderItems : [
+                  {
+                    productId: 'prod-default',
+                    name: 'Mulberry Silk Lounge Set',
+                    price: finalTotal,
+                    quantity: 1,
+                    size: 'Free Size',
+                    image: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80',
+                  },
+                ],
+                total: finalTotal,
+                subtotal: subtotal,
+                shippingFee: shippingFee,
+                discountAmount: discountAmount,
+                sellerStatus: 'Confirmed',
+                customerStatus: 'Paid',
+                status: 'Confirmed',
+                paymentMethod: 'Razorpay Online (Prepaid)',
+                address: formData.address || '',
+                city: formData.city || 'Mumbai',
+                state: formData.state || 'Maharashtra',
+                pincode: formData.pincode || '',
+                specialInstructions: `Razorpay Payment ID: ${rzpRes.razorpay_payment_id} | Order: ${rzpRes.razorpay_order_id}`,
+              });
+            } catch (err) {
+              console.warn('Order save note:', err);
+            }
+
+            setOrderId(generatedId);
+            setIsSubmitting(false);
+            setStep('success');
+            clearCart();
+            triggerToast('Payment Successful! 🎉', `Order #${generatedId} confirmed via Razorpay.`, undefined, 'success');
+            onOrderSuccess(generatedId);
+          },
+          onDismiss: () => {
+            setIsSubmitting(false);
+            triggerToast('Payment Cancelled', 'Razorpay checkout was closed. You can retry when ready.', undefined, 'info');
+          },
+          onError: (errMsg) => {
+            setIsSubmitting(false);
+            triggerToast('Payment Failed', errMsg || 'Payment could not be completed.', undefined, 'error');
+          },
+        });
+      } catch (err: any) {
+        setIsSubmitting(false);
+        triggerToast('Payment Error', err?.message || 'Failed to initialize Razorpay checkout.', undefined, 'error');
+      }
+      return;
+    }
+
+    // 2. If Cash on Delivery (COD) is selected
     try {
       await DatabaseService.createOrder({
         id: generatedId,
@@ -375,14 +454,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         shippingFee: shippingFee,
         discountAmount: discountAmount,
         sellerStatus: 'Pending',
-        customerStatus: isCod ? 'Pending' : 'Paid',
+        customerStatus: 'Pending',
         status: 'Pending',
-        paymentMethod: isCod ? 'Cash on Delivery' : 'UPI / Prepaid',
+        paymentMethod: 'Cash on Delivery',
         address: formData.address || '',
         city: formData.city || 'Mumbai',
         state: formData.state || 'Maharashtra',
         pincode: formData.pincode || '',
-        specialInstructions: '',
+        specialInstructions: 'COD Order',
       });
     } catch (err) {
       console.warn('Order save note:', err);
@@ -392,7 +471,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setIsSubmitting(false);
     setStep('success');
     clearCart();
-    triggerToast('Order Placed! 🎉', `Order #${generatedId} confirmed and saved.`, undefined, 'success');
+    triggerToast('Order Placed! 🎉', `Order #${generatedId} confirmed with Cash on Delivery.`, undefined, 'success');
     onOrderSuccess(generatedId);
   };
 
@@ -788,7 +867,75 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 )}
               </div>
 
-              {/* 3. ORDER SUMMARY SNAPSHOT */}
+              {/* 3. PAYMENT METHOD SELECTOR */}
+              <div className="p-4 bg-[#FAF8F2] rounded-2xl border border-[#EAE6DB] space-y-3 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-brand-charcoal flex items-center gap-1.5">
+                    <CreditCard className="w-3.5 h-3.5 text-[#967BB6]" />
+                    <span>Payment Method</span>
+                  </span>
+                  <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5" /> 100% Encrypted &amp; Secure
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* Razorpay Online */}
+                  <label
+                    onClick={() => setPaymentMethod('prepaid')}
+                    className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
+                      paymentMethod === 'prepaid'
+                        ? 'border-[#967BB6] bg-white shadow-sm ring-1 ring-[#967BB6]'
+                        : 'border-[#EAE6DB] bg-white/60 hover:bg-white'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="payment_option"
+                      checked={paymentMethod === 'prepaid'}
+                      onChange={() => setPaymentMethod('prepaid')}
+                      className="mt-0.5 text-[#967BB6] focus:ring-[#967BB6]"
+                    />
+                    <div className="flex-1 space-y-0.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-brand-charcoal">Online Payment</span>
+                        <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">
+                          Recommended
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-brand-muted leading-tight">
+                        UPI, Cards, NetBanking, Wallets (via Razorpay)
+                      </p>
+                    </div>
+                  </label>
+
+                  {/* Cash on Delivery */}
+                  <label
+                    onClick={() => setPaymentMethod('cod')}
+                    className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
+                      paymentMethod === 'cod'
+                        ? 'border-[#967BB6] bg-white shadow-sm ring-1 ring-[#967BB6]'
+                        : 'border-[#EAE6DB] bg-white/60 hover:bg-white'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="payment_option"
+                      checked={paymentMethod === 'cod'}
+                      onChange={() => setPaymentMethod('cod')}
+                      className="mt-0.5 text-[#967BB6] focus:ring-[#967BB6]"
+                    />
+                    <div className="flex-1 space-y-0.5">
+                      <span className="font-bold text-brand-charcoal block">Cash on Delivery</span>
+                      <p className="text-[11px] text-brand-muted leading-tight">
+                        Pay upon doorstep arrival
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* 4. ORDER SUMMARY SNAPSHOT */}
               <div className="p-4 bg-[#FAF8F2] rounded-2xl border border-[#EAE6DB] space-y-2 text-xs">
                 <div className="flex justify-between text-brand-muted">
                   <span>Items Total ({items.length} products)</span>
@@ -810,7 +957,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
               </div>
 
-              {/* 4. LAVENDER PAY NOW CTA BUTTON */}
+              {/* 5. PAY NOW CTA BUTTON */}
               <button
                 type="submit"
                 disabled={isSubmitting}
@@ -819,12 +966,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Processing Order...</span>
+                    <span>Connecting to Razorpay...</span>
+                  </>
+                ) : paymentMethod === 'prepaid' ? (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Pay Securely with Razorpay • ₹{finalTotal.toLocaleString('en-IN')}</span>
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-4 h-4" />
-                    <span>Pay Now • ₹{finalTotal.toLocaleString('en-IN')}</span>
+                    <Truck className="w-4 h-4" />
+                    <span>Confirm COD Order • ₹{finalTotal.toLocaleString('en-IN')}</span>
                   </>
                 )}
               </button>

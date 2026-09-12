@@ -56,9 +56,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onNavigat
               className="w-full text-left py-3 px-3 rounded-xl hover:bg-[#fffeea] flex items-center justify-between transition-colors"
             >
               <span>Shop All</span>
-              <span className="text-[10px] bg-brand-lavender text-white px-2 py-0.5 rounded-full font-black">
-                16+ STYLES
-              </span>
+              <ArrowRight className="w-4 h-4 text-brand-muted-light" />
             </button>
 
             <button
@@ -179,18 +177,6 @@ export const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose, onNavigat
               </button>
             </div>
           </nav>
-        </div>
-
-        {/* Promo Box at Bottom */}
-        <div className="p-4 bg-[#fffeea] rounded-2xl border border-[#EBD7DE] text-center space-y-1">
-          <p className="text-xs font-black text-brand-charcoal">✦ BUNDLE OFFER ✦</p>
-          <p className="text-[11px] text-brand-muted">Buy Any 3 Sets for ₹2,999/-</p>
-          <button
-            onClick={() => handleLinkClick('shop', 'nightwear')}
-            className="w-full mt-2 py-2 bg-brand-lavender text-white rounded-xl text-xs font-bold shadow-xs hover:bg-brand-lavender-dark"
-          >
-            Shop The Deal
-          </button>
         </div>
       </div>
     </div>
