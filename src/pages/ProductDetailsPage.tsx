@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Heart, Sparkles, Truck, RefreshCw, ChevronDown, ChevronUp, Ruler, ArrowLeft, ZoomIn } from 'lucide-react';
 import { Product } from '../types/product';
-import { MOCK_PRODUCTS } from '../data/products';
 import { ProductCard } from '../components/product/ProductCard';
 import { SizeGuideModal } from '../components/common/SizeGuideModal';
 import { useCart } from '../context/CartContext';
@@ -21,7 +20,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   onBackToShop,
   onOpenCheckout,
 }) => {
-  const [productsList, setProductsList] = useState<Product[]>(MOCK_PRODUCTS);
+  const [productsList, setProductsList] = useState<Product[]>([]);
   const [activeImage, setActiveImage] = useState(0);
   const [selectedSize, setSelectedSize] = useState<string | undefined>(
     product.sizes ? product.sizes[0] : undefined
@@ -31,7 +30,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
 
   useEffect(() => {
     DatabaseService.getProducts().then((prods) => {
-      if (Array.isArray(prods) && prods.length > 0) {
+      if (Array.isArray(prods)) {
         setProductsList(prods);
       }
     });

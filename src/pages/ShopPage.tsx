@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Filter, SlidersHorizontal, X, ArrowUpDown } from 'lucide-react';
-import { MOCK_PRODUCTS } from '../data/products';
 import { Product, SortOption } from '../types/product';
 import { ProductCard } from '../components/product/ProductCard';
 import { DatabaseService, RealCategory } from '../lib/databaseService';
@@ -30,7 +29,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   initialCategory = 'all',
   onSelectProduct,
 }) => {
-  const [productsList, setProductsList] = useState<Product[]>(MOCK_PRODUCTS);
+  const [productsList, setProductsList] = useState<Product[]>([]);
   const [dbCategories, setDbCategories] = useState<RealCategory[]>([]);
   const [category, setCategory] = useState<string>(initialCategory);
   const [selectedSubCats, setSelectedSubCats] = useState<string[]>([]);

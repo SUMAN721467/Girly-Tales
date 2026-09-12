@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { MOCK_PRODUCTS } from '../data/products';
 import { Product } from '../types/product';
 import { ProductCard } from '../components/product/ProductCard';
 import { BannerCarousel } from '../components/home/BannerCarousel';
@@ -14,13 +13,12 @@ interface HomePageProps {
   onQuickView: (product: Product) => void;
 }
 
-const INFLUENCER_REELS = [
+const REEL_CONFIGS = [
   {
     id: 'inf-1',
     image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=600&q=80',
     tagText: 'Cute & comfy',
     subTag: "PJ's ft. Girly Tales",
-    product: MOCK_PRODUCTS[0], // Mulberry Silk
     views: '8.4k'
   },
   {
@@ -28,7 +26,6 @@ const INFLUENCER_REELS = [
     image: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=600&q=80',
     tagText: 'Pinteresty',
     subTag: '18K Jewels ✨',
-    product: MOCK_PRODUCTS[9], // Celestial Pearl
     views: '12.1k'
   },
   {
@@ -36,7 +33,6 @@ const INFLUENCER_REELS = [
     image: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&w=600&q=80',
     tagText: 'Cloud-soft',
     subTag: 'Cotton Pyjamas',
-    product: MOCK_PRODUCTS[1], // Sage Garden
     views: '6.5k'
   },
   {
@@ -44,7 +40,6 @@ const INFLUENCER_REELS = [
     image: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=600&q=80',
     tagText: '100% Waterproof',
     subTag: 'Never Green Skin 💧',
-    product: MOCK_PRODUCTS[8], // Croissant Ring
     views: '15.2k'
   }
 ];
@@ -54,12 +49,12 @@ export const HomePage: React.FC<HomePageProps> = ({
   onSelectProduct,
 }) => {
   const { addToCart, openCart } = useCart();
-  const [productsList, setProductsList] = useState<Product[]>(MOCK_PRODUCTS);
+  const [productsList, setProductsList] = useState<Product[]>([]);
 
   const loadHomeProducts = async () => {
     try {
       const prods = await DatabaseService.getProducts();
-      if (Array.isArray(prods) && prods.length > 0) {
+      if (Array.isArray(prods)) {
         setProductsList(prods);
       }
     } catch (e) {
@@ -80,6 +75,17 @@ export const HomePage: React.FC<HomePageProps> = ({
     window.addEventListener('gt_db_sync', handleSync);
     return () => window.removeEventListener('gt_db_sync', handleSync);
   }, []);
+
+  const influencerReels = useMemo(() => {
+    if (!productsList || productsList.length === 0) return [];
+    return REEL_CONFIGS.map((cfg, idx) => {
+      const prod = productsList[idx % productsList.length];
+      return {
+        ...cfg,
+        product: prod,
+      };
+    }).filter(r => !!r.product);
+  }, [productsList]);
 
   const trendingProducts = useMemo(() => {
     return productsList.filter((p) => p.inStock !== false).slice(0, 4);
@@ -128,85 +134,87 @@ export const HomePage: React.FC<HomePageProps> = ({
       </section>
 
       {/* 4. INFLUENCER-APPROVED COMFORT & SHINE */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 sm:mt-16">
-        <div className="text-center mb-6 sm:mb-8 space-y-1">
-          <h2 className="font-sans font-black text-xl sm:text-2xl md:text-3xl text-brand-charcoal uppercase tracking-tight">
-            Influencer-Approved Comfort
-          </h2>
-          <p className="text-xs sm:text-sm text-brand-muted">
-            Discover how influencers style our nightwear &amp; jewellery and shop their curated picks.
-          </p>
-        </div>
+      {influencerReels.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 sm:mt-16">
+          <div className="text-center mb-6 sm:mb-8 space-y-1">
+            <h2 className="font-sans font-black text-xl sm:text-2xl md:text-3xl text-brand-charcoal uppercase tracking-tight">
+              Influencer-Approved Comfort
+            </h2>
+            <p className="text-xs sm:text-sm text-brand-muted">
+              Discover how influencers style our nightwear &amp; jewellery and shop their curated picks.
+            </p>
+          </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-6">
-          {INFLUENCER_REELS.map((reel) => (
-            <div
-              key={reel.id}
-              className="bg-white border border-[#EAE6DB] rounded-xl overflow-hidden flex flex-col justify-between shadow-xs"
-            >
-              {/* Reel Card Image */}
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-6">
+            {influencerReels.map((reel) => (
               <div
-                onClick={() => onSelectProduct(reel.product)}
-                className="relative aspect-[9/14] overflow-hidden cursor-pointer group bg-black"
+                key={reel.id}
+                className="bg-white border border-[#EAE6DB] rounded-xl overflow-hidden flex flex-col justify-between shadow-xs"
               >
-                <img
-                  src={reel.image}
-                  alt={reel.tagText}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-95"
-                />
-
-                {/* Aesthetic Top Tag Overlay */}
-                <div className="absolute top-3 sm:top-4 left-3 sm:left-4 text-white drop-shadow-md">
-                  <span className="font-handwritten text-xl sm:text-2xl text-[#fffeea] block font-bold leading-tight">
-                    {reel.tagText}
-                  </span>
-                  <span className="text-[10px] sm:text-[11px] font-bold text-white tracking-wide uppercase">
-                    {reel.subTag}
-                  </span>
-                </div>
-
-                {/* View Badge */}
-                <div className="absolute top-3 sm:top-4 right-3 sm:right-4 bg-black/60 backdrop-blur-xs text-white text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1">
-                  👁️ {reel.views}
-                </div>
-              </div>
-
-              {/* Product Info Strip & Add to Cart Button */}
-              <div className="p-3 bg-white space-y-2">
+                {/* Reel Card Image */}
                 <div
                   onClick={() => onSelectProduct(reel.product)}
-                  className="flex items-center gap-2.5 cursor-pointer"
+                  className="relative aspect-[9/14] overflow-hidden cursor-pointer group bg-black"
                 >
                   <img
-                    src={reel.product.images[0]}
-                    alt={reel.product.name}
-                    className="w-9 h-9 sm:w-10 sm:h-10 object-cover rounded border border-gray-200 shrink-0"
+                    src={reel.image}
+                    alt={reel.tagText}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-95"
                   />
-                  <div className="min-w-0 flex-1 text-left">
-                    <p className="text-xs font-bold text-brand-charcoal truncate">
-                      {reel.product.name}
-                    </p>
-                    <p className="text-xs font-black text-brand-charcoal">
-                      ₹{reel.product.price}
-                    </p>
+
+                  {/* Aesthetic Top Tag Overlay */}
+                  <div className="absolute top-3 sm:top-4 left-3 sm:left-4 text-white drop-shadow-md">
+                    <span className="font-handwritten text-xl sm:text-2xl text-[#fffeea] block font-bold leading-tight">
+                      {reel.tagText}
+                    </span>
+                    <span className="text-[10px] sm:text-[11px] font-bold text-white tracking-wide uppercase">
+                      {reel.subTag}
+                    </span>
+                  </div>
+
+                  {/* View Badge */}
+                  <div className="absolute top-3 sm:top-4 right-3 sm:right-4 bg-black/60 backdrop-blur-xs text-white text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1">
+                    👁️ {reel.views}
                   </div>
                 </div>
 
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    addToCart(reel.product, 1);
-                    openCart();
-                  }}
-                  className="w-full py-2 bg-[#FBB6CE] hover:bg-[#F89CBA] text-[#1A1821] text-[11px] sm:text-xs font-black tracking-wider uppercase rounded transition-colors shadow-xs"
-                >
-                  Add to Cart
-                </button>
+                {/* Product Info Strip & Add to Cart Button */}
+                <div className="p-3 bg-white space-y-2">
+                  <div
+                    onClick={() => onSelectProduct(reel.product)}
+                    className="flex items-center gap-2.5 cursor-pointer"
+                  >
+                    <img
+                      src={reel.product.images[0]}
+                      alt={reel.product.name}
+                      className="w-9 h-9 sm:w-10 sm:h-10 object-cover rounded border border-gray-200 shrink-0"
+                    />
+                    <div className="min-w-0 flex-1 text-left">
+                      <p className="text-xs font-bold text-brand-charcoal truncate">
+                        {reel.product.name}
+                      </p>
+                      <p className="text-xs font-black text-brand-charcoal">
+                        ₹{reel.product.price}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      addToCart(reel.product, 1);
+                      openCart();
+                    }}
+                    className="w-full py-2 bg-[#FBB6CE] hover:bg-[#F89CBA] text-[#1A1821] text-[11px] sm:text-xs font-black tracking-wider uppercase rounded transition-colors shadow-xs"
+                  >
+                    Add to Cart
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </section>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* 5. BRAND VALUE PROPOSITION STRIP */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 sm:mt-16">

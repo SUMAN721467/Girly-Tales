@@ -1,37 +1,31 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 import { CartItem, Product } from '../types/product';
-import { MOCK_PRODUCTS } from '../data/products';
 import { DatabaseService } from './databaseService';
+
 export const CartService = {
   /**
-   * Fetches the user's cart from Supabase using multi-layer recovery:
+   * Fetches the user's cart directly from Supabase:
    * 1. Supabase Database `cart_items` table
    * 2. Supabase Auth `user_metadata.cart`
-   * 3. Browser local cache fallback
    */
   async fetchUserCart(userId?: string, userEmail?: string): Promise<CartItem[]> {
     const cleanEmail = userEmail?.toLowerCase().trim();
     const cleanId = userId?.trim();
 
-    let allProducts: Product[] = MOCK_PRODUCTS;
+    let allProducts: Product[] = [];
     try {
       const dynamicProds = await DatabaseService.getProducts();
-      if (dynamicProds && dynamicProds.length > 0) {
+      if (Array.isArray(dynamicProds)) {
         allProducts = dynamicProds;
       }
-    } catch (e) {
-      // Fallback to MOCK_PRODUCTS
-    }
+    } catch (e) {}
 
     const resolveProduct = (productId: string, fallbackData?: any): Product | null => {
       let matched = allProducts.find((p) => p.id === productId || p.slug === productId);
       if (!matched && fallbackData && fallbackData.name && fallbackData.price) {
         matched = fallbackData as Product;
       }
-      if (!matched) {
-        matched = MOCK_PRODUCTS.find((p) => p.id === productId || p.slug === productId) || null;
-      }
-      return matched;
+      return matched || null;
     };
 
     if (isSupabaseConfigured && (cleanId || cleanEmail)) {
@@ -119,36 +113,16 @@ export const CartService = {
       }
     }
 
-    // --- 3. Third priority: Browser localStorage cache ---
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem('girly_tales_cart_items');
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed;
-          }
-        }
-      } catch (e) {}
-    }
-
     return [];
   },
 
   /**
-   * Persists the user's cart to Supabase Database, Auth metadata, and browser cache
+   * Persists the user's cart to Supabase Database and Auth metadata
    */
   async saveUserCart(userId: string | undefined, items: CartItem[], userEmail?: string): Promise<boolean> {
     const cleanEmail = userEmail?.toLowerCase().trim();
     const cleanId = userId?.trim();
     const primaryKey = cleanEmail || cleanId;
-
-    // Cache locally immediately for zero-delay UI rendering
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('girly_tales_cart_items', JSON.stringify(items));
-      } catch (e) {}
-    }
 
     if (!isSupabaseConfigured || !primaryKey) {
       return false;
@@ -216,12 +190,6 @@ export const CartService = {
   },
 
   async clearUserCart(userId: string | undefined, userEmail?: string): Promise<boolean> {
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.removeItem('girly_tales_cart_items');
-      } catch (e) {}
-    }
-
     if (!isSupabaseConfigured) return false;
 
     const cleanEmail = userEmail?.toLowerCase().trim();

@@ -38,7 +38,6 @@ import { DatabaseService, RealOrder, RealOrderItem } from '../lib/databaseServic
 import { AddressService } from '../lib/addressService';
 import { ShippingAddress } from '../types/product';
 import { Button } from '../components/common/Button';
-import { MOCK_PRODUCTS } from '../data/products';
 
 interface AccountPageProps {
   onNavigate: (page: string, category?: string) => void;
@@ -94,14 +93,7 @@ const getFallbackLocationByPincode = (pin: string): { city: string; state: strin
 };
 
 // Helper to resolve product thumbnail image for order items
-const getProductImageForItem = (itemStr: string): string => {
-  const clean = itemStr.toLowerCase();
-  const matched = MOCK_PRODUCTS.find((p) =>
-    clean.includes(p.name.toLowerCase()) || p.name.toLowerCase().includes(clean.split('(')[0].trim().toLowerCase())
-  );
-  if (matched && matched.images && matched.images.length > 0) {
-    return matched.images[0];
-  }
+const getProductImageForItem = (_itemStr: string): string => {
   return 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&q=80&w=600';
 };
 

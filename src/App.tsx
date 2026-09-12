@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Product } from './types/product';
-import { MOCK_PRODUCTS } from './data/products';
 import { ToastProvider } from './context/ToastContext';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
@@ -41,7 +40,7 @@ export const AppContent: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
-  const [allProducts, setAllProducts] = useState<Product[]>(MOCK_PRODUCTS);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
 
   // Overlay states
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -50,14 +49,14 @@ export const AppContent: React.FC = () => {
 
   // Helper to parse route from current window pathname & legacy hash
   const parseCurrentRoute = (productsToUse?: Product[]) => {
-    const prods = productsToUse && productsToUse.length > 0 ? productsToUse : allProducts;
+    const prods = productsToUse !== undefined ? productsToUse : allProducts;
 
     // 1. Check if URL contains legacy hash (e.g. #orders, #/orders, #product/xyz)
     const rawHash = window.location.hash.replace(/^#\/?/, '').trim();
     if (rawHash) {
       if (rawHash.startsWith('product/')) {
         const slug = rawHash.replace('product/', '');
-        const found = prods.find((p) => p.slug === slug || p.id === slug) || MOCK_PRODUCTS.find((p) => p.slug === slug || p.id === slug);
+        const found = prods.find((p) => p.slug === slug || p.id === slug);
         if (found) {
           setSelectedProduct(found);
           setCurrentPage('product');
@@ -84,7 +83,7 @@ export const AppContent: React.FC = () => {
       setSelectedCategory('all');
     } else if (pathname.startsWith('product/')) {
       const slug = pathname.replace('product/', '');
-      const found = prods.find((p) => p.slug === slug || p.id === slug) || MOCK_PRODUCTS.find((p) => p.slug === slug || p.id === slug);
+      const found = prods.find((p) => p.slug === slug || p.id === slug);
       if (found) {
         setSelectedProduct(found);
         setCurrentPage('product');
@@ -103,7 +102,7 @@ export const AppContent: React.FC = () => {
     const initApp = async () => {
       try {
         const prods = await DatabaseService.getProducts();
-        if (Array.isArray(prods) && prods.length > 0) {
+        if (Array.isArray(prods)) {
           setAllProducts(prods);
           parseCurrentRoute(prods);
           return;
@@ -118,7 +117,7 @@ export const AppContent: React.FC = () => {
       const type = e.detail?.type;
       if (!type || type === 'products' || type === 'all') {
         DatabaseService.getProducts().then((prods) => {
-          if (Array.isArray(prods) && prods.length > 0) {
+          if (Array.isArray(prods)) {
             setAllProducts(prods);
           }
         });

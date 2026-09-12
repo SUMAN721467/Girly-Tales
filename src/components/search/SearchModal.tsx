@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, X, ArrowRight, TrendingUp } from 'lucide-react';
-import { MOCK_PRODUCTS } from '../../data/products';
 import { Product } from '../../types/product';
 import { DatabaseService } from '../../lib/databaseService';
 
@@ -26,13 +25,13 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   onSelectProduct,
 }) => {
   const [query, setQuery] = useState('');
-  const [productsList, setProductsList] = useState<Product[]>(MOCK_PRODUCTS);
+  const [productsList, setProductsList] = useState<Product[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const loadProducts = async () => {
     try {
       const prods = await DatabaseService.getProducts();
-      if (Array.isArray(prods) && prods.length > 0) {
+      if (Array.isArray(prods)) {
         setProductsList(prods);
       }
     } catch (e) {}
@@ -121,30 +120,32 @@ export const SearchModal: React.FC<SearchModalProps> = ({
             </div>
 
             {/* Curated Quick Picks */}
-            <div className="pt-4 border-t border-brand-border">
-              <span className="text-xs font-bold text-brand-charcoal block mb-3">
-                🔥 Bestselling Essentials
-              </span>
-              <div className="grid grid-cols-2 gap-3">
-                {MOCK_PRODUCTS.slice(0, 2).map((p) => (
-                  <div
-                    key={p.id}
-                    onClick={() => handleSelect(p)}
-                    className="flex items-center gap-3 p-2.5 rounded-xl border border-brand-border hover:border-brand-lilac bg-brand-ivory/50 cursor-pointer transition-all"
-                  >
-                    <img
-                      src={p.images[0]}
-                      alt={p.name}
-                      className="w-12 h-12 rounded-lg object-cover"
-                    />
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-brand-charcoal truncate">{p.name}</p>
-                      <p className="text-xs font-bold text-brand-lilac">₹{p.price}</p>
+            {productsList.length > 0 && (
+              <div className="pt-4 border-t border-brand-border">
+                <span className="text-xs font-bold text-brand-charcoal block mb-3">
+                  🔥 Bestselling Essentials
+                </span>
+                <div className="grid grid-cols-2 gap-3">
+                  {productsList.slice(0, 2).map((p) => (
+                    <div
+                      key={p.id}
+                      onClick={() => handleSelect(p)}
+                      className="flex items-center gap-3 p-2.5 rounded-xl border border-brand-border hover:border-brand-lilac bg-brand-ivory/50 cursor-pointer transition-all"
+                    >
+                      <img
+                        src={p.images?.[0] || ''}
+                        alt={p.name}
+                        className="w-12 h-12 rounded-lg object-cover"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-brand-charcoal truncate">{p.name}</p>
+                        <p className="text-xs font-bold text-brand-lilac">₹{p.price}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 

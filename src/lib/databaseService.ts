@@ -1,14 +1,34 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 import { Product } from '../types/product';
-import { MOCK_PRODUCTS } from '../data/products';
 import { CartService } from './cartService';
 
-// Persistent local storage keys for reliable state retention
-export const GT_PRODUCTS_STORE_KEY = 'girly_tales_products_store_v2';
-export const GT_CATEGORIES_STORE_KEY = 'girly_tales_categories_store_v2';
-export const GT_REVIEWS_STORE_KEY = 'girly_tales_reviews_store_v2';
-export const GT_COUPONS_STORE_KEY = 'girly_tales_coupons_store_v2';
-export const GT_ORDERS_STORE_KEY = 'girly_tales_orders_store_v2';
+// Purge any legacy browser/local storage keys to guarantee pure direct Supabase operation
+if (typeof window !== 'undefined') {
+  try {
+    const keysToPurge = [
+      'girly_tales_products_store_v2',
+      'girly_tales_categories_store_v2',
+      'girly_tales_reviews_store_v2',
+      'girly_tales_coupons_store_v2',
+      'girly_tales_orders_store_v2',
+      'girly_tales_db_orders_v1',
+      'girly_tales_db_products_v1',
+      'girly_tales_db_reviews_v1',
+      'girly_tales_db_coupons_v1',
+      'girly_tales_db_categories_v1',
+      'girly_tales_db_settings_v1',
+      'girly_tales_db_promotions_v1',
+      'girly_tales_db_shipping_v1',
+      'girly_tales_db_faqs_v1',
+      'girly_tales_shipping_addresses_v1',
+      'girly_tales_saved_addresses_v1',
+    ];
+    keysToPurge.forEach((k) => {
+      localStorage.removeItem(k);
+      sessionStorage.removeItem(k);
+    });
+  } catch (e) {}
+}
 
 // Global live sync broadcaster for real-time reactivity across components
 export const notifyDatabaseChange = (type: 'categories' | 'products' | 'orders' | 'reviews' | 'coupons' | 'all') => {
@@ -390,225 +410,16 @@ const SEED_COUPONS: RealCoupon[] = [
   { id: 'cp-4', code: 'FREESHIP', discount: 'Free Express Delivery', description: 'Prepaid Orders Across All Pincodes', minSpend: 0, usedCount: 22, status: 'Active', expires: 'Unlimited' },
 ];
 
-// Persistent tracking for deleted orders so deleted orders never reappear/restore
-const DELETED_ORDERS_KEY = 'gt_deleted_orders_ids_v2';
-
-function getDeletedOrderIds(): Set<string> {
-  try {
-    const raw = typeof window !== 'undefined' ? localStorage.getItem(DELETED_ORDERS_KEY) : null;
-    if (raw) {
-      const arr = JSON.parse(raw);
-      if (Array.isArray(arr)) {
-        return new Set(arr.map((id) => String(id).trim()));
-      }
-    }
-  } catch (e) {
-    // Ignore error
-  }
-  return new Set();
-}
-
-function persistDeletedOrderId(id: string): void {
-  try {
-    const cleanId = String(id).trim();
-    if (!cleanId || typeof window === 'undefined') return;
-    const set = getDeletedOrderIds();
-    set.add(cleanId);
-    localStorage.setItem(DELETED_ORDERS_KEY, JSON.stringify(Array.from(set)));
-  } catch (e) {
-    // Ignore error
-  }
-}
-
-function removeDeletedOrderId(id: string): void {
-  try {
-    const cleanId = String(id).trim();
-    if (!cleanId || typeof window === 'undefined') return;
-    const set = getDeletedOrderIds();
-    set.delete(cleanId);
-    localStorage.setItem(DELETED_ORDERS_KEY, JSON.stringify(Array.from(set)));
-  } catch (e) {
-    // Ignore error
-  }
-}
-
-const STATUS_OVERRIDES_KEY = 'gt_order_status_overrides_v2';
-
-interface StatusOverride {
-  sellerStatus: SellerStatus;
-  courierName?: string;
-  trackingNumber?: string;
-  trackingUrl?: string;
-}
-
-function getStatusOverrides(): Record<string, StatusOverride> {
-  try {
-    const raw = typeof window !== 'undefined' ? localStorage.getItem(STATUS_OVERRIDES_KEY) : null;
-    if (raw) {
-      return JSON.parse(raw) || {};
-    }
-  } catch (e) {}
-  return {};
-}
-
-function persistStatusOverride(
-  id: string,
-  sellerStatus: SellerStatus,
-  shippingInfo?: { courierName?: string; trackingNumber?: string; trackingUrl?: string }
-): void {
-  try {
-    if (!id || typeof window === 'undefined') return;
-    const cleanId = String(id).trim();
-    const map = getStatusOverrides();
-    map[cleanId] = {
-      sellerStatus,
-      courierName: shippingInfo?.courierName !== undefined ? shippingInfo.courierName : map[cleanId]?.courierName,
-      trackingNumber: shippingInfo?.trackingNumber !== undefined ? shippingInfo.trackingNumber : map[cleanId]?.trackingNumber,
-      trackingUrl: shippingInfo?.trackingUrl !== undefined ? shippingInfo.trackingUrl : map[cleanId]?.trackingUrl,
-    };
-    localStorage.setItem(STATUS_OVERRIDES_KEY, JSON.stringify(map));
-  } catch (e) {}
-}
-
-function removeStatusOverride(id: string): void {
-  try {
-    if (!id || typeof window === 'undefined') return;
-    const cleanId = String(id).trim();
-    const map = getStatusOverrides();
-    delete map[cleanId];
-    localStorage.setItem(STATUS_OVERRIDES_KEY, JSON.stringify(map));
-  } catch (e) {}
-}
-
-// Multi-tier storage persistence helpers
-function loadStoredProducts(): Product[] {
-  try {
-    if (typeof window !== 'undefined') {
-      const raw = localStorage.getItem(GT_PRODUCTS_STORE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    }
-  } catch (e) {}
-  return [...MOCK_PRODUCTS];
-}
-
-function persistStoredProducts(prods: Product[]): void {
-  try {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(GT_PRODUCTS_STORE_KEY, JSON.stringify(prods));
-    }
-  } catch (e) {}
-}
-
-function loadStoredCategories(): RealCategory[] {
-  try {
-    if (typeof window !== 'undefined') {
-      const raw = localStorage.getItem(GT_CATEGORIES_STORE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    }
-  } catch (e) {}
-  return [...SEED_CATEGORIES];
-}
-
-function persistStoredCategories(cats: RealCategory[]): void {
-  try {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(GT_CATEGORIES_STORE_KEY, JSON.stringify(cats));
-    }
-  } catch (e) {}
-}
-
-function loadStoredOrders(): RealOrder[] {
-  try {
-    if (typeof window !== 'undefined') {
-      const raw = localStorage.getItem(GT_ORDERS_STORE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    }
-  } catch (e) {}
-  return [...SEED_ORDERS];
-}
-
-function persistStoredOrders(orders: RealOrder[]): void {
-  try {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(GT_ORDERS_STORE_KEY, JSON.stringify(orders));
-    }
-  } catch (e) {}
-}
-
-function loadStoredReviews(): RealReview[] {
-  try {
-    if (typeof window !== 'undefined') {
-      const raw = localStorage.getItem(GT_REVIEWS_STORE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    }
-  } catch (e) {}
-  return [...SEED_REVIEWS];
-}
-
-function persistStoredReviews(reviews: RealReview[]): void {
-  try {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(GT_REVIEWS_STORE_KEY, JSON.stringify(reviews));
-    }
-  } catch (e) {}
-}
-
-function loadStoredCoupons(): RealCoupon[] {
-  try {
-    if (typeof window !== 'undefined') {
-      const raw = localStorage.getItem(GT_COUPONS_STORE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    }
-  } catch (e) {}
-  return [...SEED_COUPONS];
-}
-
-function persistStoredCoupons(coupons: RealCoupon[]): void {
-  try {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(GT_COUPONS_STORE_KEY, JSON.stringify(coupons));
-    }
-  } catch (e) {}
-}
-
-// Runtime in-memory state initialized from persistent storage
-let inMemoryCategories: RealCategory[] = loadStoredCategories();
-let inMemoryProducts: Product[] = loadStoredProducts();
-let inMemoryOrders: RealOrder[] = loadStoredOrders();
-let inMemoryReviews: RealReview[] = loadStoredReviews();
-let inMemoryCoupons: RealCoupon[] = loadStoredCoupons();
+// Runtime in-memory state (Direct Supabase data is authoritative source)
+let inMemoryCategories: RealCategory[] = [...SEED_CATEGORIES];
+let inMemoryProducts: Product[] = [];
+let inMemoryOrders: RealOrder[] = [];
+let inMemoryReviews: RealReview[] = [];
+let inMemoryCoupons: RealCoupon[] = [];
 
 export const DatabaseService = {
   // ==================== 1. ORDERS ====================
   async getOrders(): Promise<RealOrder[]> {
-    const deletedIds = getDeletedOrderIds();
-    const statusOverrides = getStatusOverrides();
-
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase
@@ -620,18 +431,15 @@ export const DatabaseService = {
           const mapped: RealOrder[] = data
             .map((d: any) => {
               const cleanId = String(d.id || d.order_id || '').trim();
-              const override = statusOverrides[cleanId];
 
-              let sellerStatus: SellerStatus = override?.sellerStatus || 'Pending';
-              if (!override) {
-                const rawSeller = d.seller_status || d.sellerStatus || d.status || 'Pending';
-                if (['Pending', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled by Seller'].includes(rawSeller)) {
-                  sellerStatus = rawSeller as SellerStatus;
-                } else if (rawSeller === 'Processing') {
-                  sellerStatus = 'Pending';
-                } else if (rawSeller === 'Cancelled') {
-                  sellerStatus = 'Cancelled by Seller';
-                }
+              const rawSeller = d.seller_status || d.sellerStatus || d.status || 'Pending';
+              let sellerStatus: SellerStatus = 'Pending';
+              if (['Pending', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled by Seller'].includes(rawSeller)) {
+                sellerStatus = rawSeller as SellerStatus;
+              } else if (rawSeller === 'Processing') {
+                sellerStatus = 'Pending';
+              } else if (rawSeller === 'Cancelled') {
+                sellerStatus = 'Cancelled by Seller';
               }
 
               const rawCustomer = d.customer_status || d.customerStatus || (d.payment_method?.includes('Cash') ? 'Pending' : 'Paid');
@@ -669,17 +477,16 @@ export const DatabaseService = {
                 city: d.city || 'Mumbai',
                 state: d.state || 'Maharashtra',
                 pincode: d.pincode || '',
-                courierName: override?.courierName || d.courier_name || d.courierName || '',
-                trackingNumber: override?.trackingNumber || d.tracking_number || d.trackingNumber || '',
-                trackingUrl: override?.trackingUrl || d.tracking_url || d.trackingUrl || '',
+                courierName: d.courier_name || d.courierName || '',
+                trackingNumber: d.tracking_number || d.trackingNumber || '',
+                trackingUrl: d.tracking_url || d.trackingUrl || '',
                 specialInstructions: d.special_instructions || d.specialInstructions || '',
                 createdAt: d.created_at || new Date().toISOString(),
               };
             })
-            .filter((ord) => ord.id && !deletedIds.has(ord.id));
+            .filter((ord) => !!ord.id);
 
           inMemoryOrders = mapped;
-          persistStoredOrders(mapped);
           return mapped;
         }
       } catch (err) {
@@ -687,24 +494,6 @@ export const DatabaseService = {
       }
     }
 
-    inMemoryOrders = inMemoryOrders
-      .map((ord) => {
-        const cleanId = String(ord.id).trim();
-        const override = statusOverrides[cleanId];
-        if (override) {
-          return {
-            ...ord,
-            sellerStatus: override.sellerStatus,
-            status: override.sellerStatus,
-            courierName: override.courierName || ord.courierName,
-            trackingNumber: override.trackingNumber || ord.trackingNumber,
-            trackingUrl: override.trackingUrl || ord.trackingUrl,
-          };
-        }
-        return ord;
-      })
-      .filter((ord) => ord.id && !deletedIds.has(String(ord.id).trim()));
-    persistStoredOrders(inMemoryOrders);
     return inMemoryOrders;
   },
 
@@ -726,12 +515,7 @@ export const DatabaseService = {
       createdAt: order.createdAt || new Date().toISOString(),
     };
 
-    // Remove from deleted set if re-creating
-    removeDeletedOrderId(fullOrder.id);
-    removeStatusOverride(fullOrder.id);
-
     inMemoryOrders = [fullOrder, ...inMemoryOrders.filter((o) => o.id !== fullOrder.id)];
-    persistStoredOrders(inMemoryOrders);
     notifyDatabaseChange('orders');
 
     if (isSupabaseConfigured) {
@@ -818,7 +602,6 @@ export const DatabaseService = {
           }
         : o
     );
-    persistStoredOrders(inMemoryOrders);
     notifyDatabaseChange('orders');
 
     if (isSupabaseConfigured) {
@@ -855,7 +638,6 @@ export const DatabaseService = {
     inMemoryOrders = inMemoryOrders.map((o) =>
       o.id === cleanId ? { ...o, specialInstructions } : o
     );
-    persistStoredOrders(inMemoryOrders);
     notifyDatabaseChange('orders');
 
     if (isSupabaseConfigured) {
@@ -885,15 +667,10 @@ export const DatabaseService = {
     const cleanId = String(orderId).trim();
     if (!cleanId) return false;
 
-    // 1. Permanently track in deleted orders storage so it is never revived
-    persistDeletedOrderId(cleanId);
-    removeStatusOverride(cleanId);
-
-    // 2. Remove immediately from runtime in-memory array
+    // 1. Remove immediately from runtime in-memory array
     inMemoryOrders = inMemoryOrders.filter((o) => o.id !== cleanId);
-    persistStoredOrders(inMemoryOrders);
 
-    // 3. Delete directly from Supabase orders table
+    // 2. Delete directly from Supabase orders table
     let supabaseSuccess = true;
     if (isSupabaseConfigured) {
       try {
@@ -920,14 +697,14 @@ export const DatabaseService = {
 
   // ==================== 2. PRODUCTS ====================
   async getProducts(): Promise<Product[]> {
-    if (!inMemoryProducts || inMemoryProducts.length === 0) {
-      inMemoryProducts = loadStoredProducts();
-    }
-
     if (isSupabaseConfigured) {
       try {
-        const { data, error } = await supabase.from('products').select('*');
-        if (!error && Array.isArray(data) && data.length > 0) {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && Array.isArray(data)) {
           const mapped: Product[] = data.map((d: any) => ({
             id: String(d.id),
             name: d.name || 'Girly Tales Item',
@@ -961,31 +738,23 @@ export const DatabaseService = {
             specs: d.specs || {},
           }));
 
-          // Merge: Preserve custom added local products that might not have reached Supabase yet
-          const remoteIds = new Set(mapped.map((p) => p.id));
-          const localCustomProducts = inMemoryProducts.filter((p) => !remoteIds.has(p.id));
-          
-          const combined = [...mapped, ...localCustomProducts];
-          inMemoryProducts = combined;
-          persistStoredProducts(combined);
-          return combined;
+          inMemoryProducts = mapped;
+          return mapped;
+        } else if (error) {
+          console.warn('Supabase getProducts error:', error.message);
         }
       } catch (err) {
-        console.warn('Supabase getProducts note:', err);
+        console.warn('Supabase getProducts exception:', err);
       }
     }
 
-    inMemoryProducts = loadStoredProducts();
     return inMemoryProducts;
   },
 
   async addProduct(product: Product): Promise<Product> {
-    // 1. Immediately store in memory and persistent localStorage
     inMemoryProducts = [product, ...inMemoryProducts.filter((p) => p.id !== product.id)];
-    persistStoredProducts(inMemoryProducts);
     notifyDatabaseChange('products');
 
-    // 2. Sync to Supabase in background
     if (isSupabaseConfigured) {
       try {
         const fullPayload = {
@@ -1039,7 +808,6 @@ export const DatabaseService = {
 
   async updateProduct(id: string, updates: Partial<Product>): Promise<Product | null> {
     inMemoryProducts = inMemoryProducts.map((p) => (p.id === id ? { ...p, ...updates } : p));
-    persistStoredProducts(inMemoryProducts);
     notifyDatabaseChange('products');
 
     if (isSupabaseConfigured) {
@@ -1159,7 +927,6 @@ export const DatabaseService = {
 
   async updateProductStock(productId: string, inStock: boolean): Promise<void> {
     inMemoryProducts = inMemoryProducts.map((p) => (p.id === productId ? { ...p, inStock } : p));
-    persistStoredProducts(inMemoryProducts);
     notifyDatabaseChange('products');
 
     if (isSupabaseConfigured) {
@@ -1169,16 +936,36 @@ export const DatabaseService = {
     }
   },
 
-  async deleteProduct(productId: string): Promise<void> {
-    inMemoryProducts = inMemoryProducts.filter((p) => p.id !== productId && p.slug !== productId);
-    persistStoredProducts(inMemoryProducts);
+  async deleteProduct(productId: string): Promise<boolean> {
+    const cleanId = String(productId).trim();
+    if (!cleanId) return false;
+
+    inMemoryProducts = inMemoryProducts.filter((p) => p.id !== cleanId && p.slug !== cleanId);
     notifyDatabaseChange('products');
 
+    let deleted = true;
     if (isSupabaseConfigured) {
       try {
-        await supabase.from('products').delete().or(`id.eq.${productId},slug.eq.${productId}`);
-      } catch (e) {}
+        const { error } = await supabase
+          .from('products')
+          .delete()
+          .or(`id.eq.${cleanId},slug.eq.${cleanId}`);
+
+        if (error) {
+          console.warn('Supabase delete product error (trying id.eq):', error.message);
+          const retry = await supabase.from('products').delete().eq('id', cleanId);
+          if (retry.error) {
+            console.error('Supabase retry delete failed:', retry.error.message);
+            deleted = false;
+          }
+        }
+      } catch (e) {
+        console.error('Supabase delete product note:', e);
+        deleted = false;
+      }
     }
+
+    return deleted;
   },
 
   // ==================== 3. CUSTOMERS (SUPABASE PROFILES + AUTH + ORDERS) ====================
@@ -1406,10 +1193,7 @@ export const DatabaseService = {
       if (!matched && fallbackData && fallbackData.name && fallbackData.price) {
         matched = fallbackData as Product;
       }
-      if (!matched) {
-        matched = MOCK_PRODUCTS.find((p) => p.id === productId || p.slug === productId) || null;
-      }
-      return matched;
+      return matched || null;
     };
 
     const result: { cartItems: CustomerCartItem[]; wishlistItems: CustomerWishlistItem[] } = {
@@ -1508,7 +1292,7 @@ export const DatabaseService = {
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase.from('reviews').select('*');
-        if (!error && Array.isArray(data) && data.length > 0) {
+        if (!error && Array.isArray(data)) {
           const mapped: RealReview[] = data.map((d: any) => ({
             id: d.id,
             productName: d.product_name || d.productName,
@@ -1520,18 +1304,15 @@ export const DatabaseService = {
             createdAt: d.created_at || new Date().toISOString(),
           }));
           inMemoryReviews = mapped;
-          persistStoredReviews(mapped);
           return mapped;
         }
       } catch (e) {}
     }
-    inMemoryReviews = loadStoredReviews();
     return inMemoryReviews;
   },
 
   async deleteReview(id: string): Promise<void> {
     inMemoryReviews = inMemoryReviews.filter((r) => r.id !== id);
-    persistStoredReviews(inMemoryReviews);
     notifyDatabaseChange('reviews');
 
     if (isSupabaseConfigured) {
@@ -1548,7 +1329,7 @@ export const DatabaseService = {
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase.from('coupons').select('*');
-        if (!error && Array.isArray(data) && data.length > 0) {
+        if (!error && Array.isArray(data)) {
           const mapped: RealCoupon[] = data.map((d: any) => ({
             id: d.id,
             code: d.code,
@@ -1560,18 +1341,15 @@ export const DatabaseService = {
             expires: d.expires || '2026-12-31',
           }));
           inMemoryCoupons = mapped;
-          persistStoredCoupons(mapped);
           return mapped;
         }
       } catch (e) {}
     }
-    inMemoryCoupons = loadStoredCoupons();
     return inMemoryCoupons;
   },
 
   async addCoupon(coupon: RealCoupon): Promise<void> {
     inMemoryCoupons = [coupon, ...inMemoryCoupons.filter((c) => c.id !== coupon.id)];
-    persistStoredCoupons(inMemoryCoupons);
     notifyDatabaseChange('coupons');
 
     if (isSupabaseConfigured) {
@@ -1592,7 +1370,6 @@ export const DatabaseService = {
 
   async deleteCoupon(id: string): Promise<void> {
     inMemoryCoupons = inMemoryCoupons.filter((c) => c.id !== id);
-    persistStoredCoupons(inMemoryCoupons);
     notifyDatabaseChange('coupons');
 
     if (isSupabaseConfigured) {
@@ -1611,7 +1388,7 @@ export const DatabaseService = {
           .select('*')
           .order('order_index', { ascending: true });
 
-        if (!error && Array.isArray(data) && data.length > 0) {
+        if (!error && Array.isArray(data)) {
           const mapped: RealCategory[] = data.map((d: any, idx: number) => ({
             id: d.id,
             name: d.name,
@@ -1621,19 +1398,14 @@ export const DatabaseService = {
             createdAt: d.created_at || new Date().toISOString(),
           }));
 
-          const remoteIds = new Set(mapped.map((c) => c.id));
-          const localCats = inMemoryCategories.filter((c) => !remoteIds.has(c.id));
-          const combined = [...mapped, ...localCats];
-          inMemoryCategories = combined;
-          persistStoredCategories(combined);
-          return combined;
+          inMemoryCategories = mapped;
+          return mapped;
         }
       } catch (e) {
         console.warn('Supabase fetch categories note:', e);
       }
     }
 
-    inMemoryCategories = loadStoredCategories();
     return inMemoryCategories;
   },
 
@@ -1650,7 +1422,6 @@ export const DatabaseService = {
     };
 
     inMemoryCategories = [...current.filter((c) => c.id !== newCategory.id), newCategory];
-    persistStoredCategories(inMemoryCategories);
     notifyDatabaseChange('categories');
 
     if (isSupabaseConfigured) {
@@ -1690,7 +1461,6 @@ export const DatabaseService = {
     });
 
     inMemoryCategories = updated;
-    persistStoredCategories(inMemoryCategories);
     notifyDatabaseChange('categories');
 
     if (isSupabaseConfigured && updatedCat) {
@@ -1722,7 +1492,6 @@ export const DatabaseService = {
     inMemoryCategories = inMemoryCategories.filter(
       (c) => c.id !== id && c.slug !== id && c.name.toLowerCase() !== id.toLowerCase()
     );
-    persistStoredCategories(inMemoryCategories);
     notifyDatabaseChange('categories');
 
     if (isSupabaseConfigured) {
@@ -1745,7 +1514,6 @@ export const DatabaseService = {
     }));
 
     inMemoryCategories = indexed;
-    persistStoredCategories(inMemoryCategories);
     notifyDatabaseChange('categories');
 
     if (isSupabaseConfigured) {
@@ -1761,7 +1529,6 @@ export const DatabaseService = {
 
   async resetDefaultCategories(): Promise<RealCategory[]> {
     inMemoryCategories = [...SEED_CATEGORIES];
-    persistStoredCategories(inMemoryCategories);
     notifyDatabaseChange('categories');
 
     if (isSupabaseConfigured) {

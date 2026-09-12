@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { MOCK_PRODUCTS } from '../data/products';
 import { Product } from '../types/product';
 import { useToast } from './ToastContext';
 import { useAuth } from './AuthContext';
@@ -28,14 +27,14 @@ const WishlistContext = createContext<WishlistContextType | undefined>(undefined
 export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Pure in-memory React state - Zero localStorage / browser storage
   const [wishlistIds, setWishlistIds] = useState<string[]>([]);
-  const [allProducts, setAllProducts] = useState<Product[]>(MOCK_PRODUCTS);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const { triggerToast } = useToast();
   const { user, isLoggedIn } = useAuth();
 
   // Load dynamic catalog products
   useEffect(() => {
     DatabaseService.getProducts().then((prods) => {
-      if (prods && prods.length > 0) {
+      if (Array.isArray(prods)) {
         setAllProducts(prods);
       }
     });
@@ -76,8 +75,7 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [isLoggedIn, user, fetchRemoteWishlist]);
 
   const toggleWishlist = async (productId: string) => {
-    const product = allProducts.find((p) => p.id === productId || p.slug === productId) ||
-      MOCK_PRODUCTS.find((p) => p.id === productId || p.slug === productId);
+    const product = allProducts.find((p) => p.id === productId || p.slug === productId);
 
     const exists = wishlistIds.includes(productId);
 
