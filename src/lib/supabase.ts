@@ -37,6 +37,8 @@ export const getEffectiveSupabaseUrl = (): string => {
   return rawUrl;
 };
 
+export const getSupabaseAnonKey = (): string => rawKey;
+
 const clientUrl = getEffectiveSupabaseUrl();
 
 let clientInstance: SupabaseClient | null = null;

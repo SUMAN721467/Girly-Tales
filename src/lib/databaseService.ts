@@ -1,8 +1,46 @@
-import { supabase, isSupabaseConfigured, requireSupabase } from './supabase';
+import { supabase, isSupabaseConfigured, requireSupabase, getEffectiveSupabaseUrl, getSupabaseAnonKey } from './supabase';
 import { Product } from '../types/product';
 import { MOCK_PRODUCTS } from '../data/products';
 import { CartService } from './cartService';
 import { EmailService } from './emailService';
+
+export const formatQueryError = (err: any): string => {
+  if (!err) return 'Empty error response';
+  if (typeof err === 'string') return err;
+  if (err.message && typeof err.message === 'string' && err.message.trim()) return err.message;
+  if (err.error_description) return err.error_description;
+  if (err.details) return err.details;
+  if (err.hint) return err.hint;
+  if (err.code) return `PostgREST error ${err.code}`;
+  try {
+    const s = JSON.stringify(err);
+    if (s && s !== '{}') return s;
+  } catch {}
+  return String(err) || 'Query failed';
+};
+
+export async function fetchSupabaseRestFallback<T>(path: string): Promise<T | null> {
+  try {
+    const baseUrl = getEffectiveSupabaseUrl().replace(/\/+$/, '');
+    const apiKey = getSupabaseAnonKey();
+    if (!baseUrl || !apiKey) return null;
+
+    const res = await fetch(`${baseUrl}/rest/v1/${path}`, {
+      method: 'GET',
+      headers: {
+        apikey: apiKey,
+        Authorization: `Bearer ${apiKey}`,
+      },
+    });
+
+    if (res.ok) {
+      return (await res.json()) as T;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 // Fast timeout helper for read operations
 async function withTimeout<T>(promise: Promise<T> | any, ms = 15000, fallbackVal?: T): Promise<T> {
@@ -345,30 +383,36 @@ export const DatabaseService = {
         .order('created_at', { ascending: false })
         .limit(100);
 
-      const { data, error } = await withTimeout(query, 15000, { data: null, error: 'timeout' });
+      const { data, error } = await withTimeout(query, 10000, { data: null, error: 'timeout' });
       const durationMs = Date.now() - startTime;
+
+      if (!error && Array.isArray(data)) {
+        if (isDev) {
+          console.log(`[Supabase getOrders Success] Fetched ${data.length} rows in ${durationMs}ms`);
+        }
+        return data;
+      }
+
+      // If client query had an issue or timed out, attempt direct REST fallback with clean Anon API key
+      const fallbackData = await fetchSupabaseRestFallback<any[]>('orders?select=*&order=created_at.desc&limit=100');
+      if (Array.isArray(fallbackData)) {
+        if (isDev) {
+          console.log(`[Supabase getOrders Fallback Success] Fetched ${fallbackData.length} rows via REST`);
+        }
+        return fallbackData;
+      }
 
       if (error) {
         if (error === 'timeout') {
-          throw new Error('Supabase orders query timed out after 15000ms.');
+          throw new Error('Supabase orders query timed out after 10000ms.');
         }
         if (isDev) {
-          console.error('[Supabase getOrders Error]', {
-            code: (error as any)?.code,
-            message: (error as any)?.message,
-            details: (error as any)?.details,
-            hint: (error as any)?.hint,
-            durationMs,
-          });
+          console.error('[Supabase getOrders Error]', error);
         }
         throw error;
       }
 
-      if (isDev) {
-        console.log(`[Supabase getOrders Success] Fetched ${Array.isArray(data) ? data.length : 0} rows in ${durationMs}ms`);
-      }
-
-      return Array.isArray(data) ? data : [];
+      return [];
     };
 
     let rawData: any[] = [];
@@ -376,15 +420,14 @@ export const DatabaseService = {
       rawData = await fetchOrdersFromDb();
     } catch (firstErr: any) {
       if (isDev) {
-        console.warn('[Supabase getOrders] Initial attempt failed, retrying once after 1000ms...', firstErr?.message);
+        console.warn('[Supabase getOrders] Initial attempt failed, retrying once after 500ms...', firstErr?.message);
       }
-      // Wait 1 second before retry
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       try {
         rawData = await fetchOrdersFromDb();
       } catch (retryErr: any) {
         console.error('[Supabase getOrders Retry Failed]', retryErr);
-        const errMsg = retryErr?.message || retryErr?.details || (typeof retryErr === 'string' ? retryErr : 'Query failed');
+        const errMsg = formatQueryError(retryErr);
         throw new Error(`Orders could not load: ${errMsg}`);
       }
     }
@@ -640,17 +683,27 @@ export const DatabaseService = {
         .select('*')
         .order('created_at', { ascending: false });
 
-      const { data, error } = await withTimeout(query, 15000, { data: null, error: 'timeout' });
+      const { data, error } = await withTimeout(query, 10000, { data: null, error: 'timeout' });
+
+      if (!error && Array.isArray(data)) {
+        return data;
+      }
+
+      // If client query had an issue or timed out, attempt direct REST fallback with clean Anon API key
+      const fallbackData = await fetchSupabaseRestFallback<any[]>('products?select=*&order=created_at.desc');
+      if (Array.isArray(fallbackData)) {
+        return fallbackData;
+      }
 
       if (error) {
         if (error === 'timeout') {
-          throw new Error('Supabase products query timed out after 15000ms.');
+          throw new Error('Supabase products query timed out after 10000ms.');
         }
         console.error('[Supabase getProducts Error]', error);
         throw error;
       }
 
-      return Array.isArray(data) ? data : [];
+      return [];
     };
 
     let rawData: any[] = [];
@@ -658,14 +711,14 @@ export const DatabaseService = {
       rawData = await fetchProductsFromDb();
     } catch (firstErr: any) {
       if (import.meta.env.DEV) {
-        console.warn('[Supabase getProducts] Initial attempt failed, retrying once after 1000ms...', firstErr?.message);
+        console.warn('[Supabase getProducts] Initial attempt failed, retrying once after 500ms...', firstErr?.message);
       }
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       try {
         rawData = await fetchProductsFromDb();
       } catch (retryErr: any) {
         console.error('[Supabase getProducts Retry Failed]', retryErr);
-        const errMsg = retryErr?.message || retryErr?.details || (typeof retryErr === 'string' ? retryErr : 'Query failed');
+        const errMsg = formatQueryError(retryErr);
         throw new Error(`Products could not load: ${errMsg}`);
       }
     }
