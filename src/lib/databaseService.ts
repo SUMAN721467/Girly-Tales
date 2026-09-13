@@ -46,7 +46,8 @@ export async function supabaseRestMutation(
   table: string,
   method: 'POST' | 'PATCH' | 'DELETE',
   queryParam: string,
-  body?: any
+  body?: any,
+  prefer?: string
 ): Promise<boolean> {
   try {
     const baseUrl = getEffectiveSupabaseUrl().replace(/\/+$/, '');
@@ -58,7 +59,7 @@ export async function supabaseRestMutation(
       apikey: apiKey,
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
-      Prefer: 'return=minimal',
+      Prefer: prefer || 'return=minimal',
     };
 
     const res = await fetch(url, {
@@ -909,10 +910,30 @@ export const DatabaseService = {
     };
 
     // 1. Call Supabase FIRST
-    const { error } = await client.from('products').upsert(fullPayload, { onConflict: 'id' });
-    if (error) {
-      console.error('Supabase addProduct failed:', error);
-      throw new Error(`Failed to save product to database: ${error.message}`);
+    let saveError: any = null;
+    try {
+      const { error } = await client.from('products').upsert(fullPayload, { onConflict: 'id' });
+      saveError = error;
+    } catch (err) {
+      saveError = err;
+    }
+
+    if (saveError) {
+      console.warn('Supabase JS addProduct failed, attempting direct REST upsert...', saveError);
+      let ok = await supabaseRestMutation(
+        'products',
+        'POST',
+        'on_conflict=id',
+        fullPayload,
+        'resolution=merge-duplicates,return=representation'
+      );
+      if (!ok) {
+        ok = await supabaseRestMutation('products', 'POST', '', fullPayload, 'return=representation');
+      }
+      if (!ok) {
+        console.error('Supabase addProduct failed completely:', saveError);
+        throw new Error(`Failed to save product to database: ${formatQueryError(saveError)}`);
+      }
     }
 
     // 2. Update local state ONLY on DB success
@@ -951,10 +972,27 @@ export const DatabaseService = {
     delete payload.isBestSeller;
 
     // 1. Call Supabase FIRST
-    const { error } = await client.from('products').update(payload).eq('id', id);
-    if (error) {
-      console.error('Supabase updateProduct failed:', error);
-      throw new Error(`Failed to update product in database: ${error.message}`);
+    let updateError: any = null;
+    try {
+      const { error } = await client.from('products').update(payload).eq('id', id);
+      updateError = error;
+    } catch (err) {
+      updateError = err;
+    }
+
+    if (updateError) {
+      console.warn('Supabase JS updateProduct failed, attempting direct REST patch...', updateError);
+      const ok = await supabaseRestMutation(
+        'products',
+        'PATCH',
+        `id=eq.${encodeURIComponent(id)}`,
+        payload,
+        'return=representation'
+      );
+      if (!ok) {
+        console.error('Supabase updateProduct failed completely:', updateError);
+        throw new Error(`Failed to update product in database: ${formatQueryError(updateError)}`);
+      }
     }
 
     // 2. Update in-memory state ONLY on DB success
@@ -968,10 +1006,28 @@ export const DatabaseService = {
 
   async updateProductStock(productId: string, inStock: boolean): Promise<void> {
     const client = requireSupabase();
-    const { error } = await client.from('products').update({ in_stock: inStock, updated_at: new Date().toISOString() }).eq('id', productId);
-    if (error) {
-      console.error('Supabase updateProductStock failed:', error);
-      throw new Error(`Failed to update stock status: ${error.message}`);
+    const stockPayload = { in_stock: inStock, updated_at: new Date().toISOString() };
+    let stockError: any = null;
+    try {
+      const { error } = await client.from('products').update(stockPayload).eq('id', productId);
+      stockError = error;
+    } catch (err) {
+      stockError = err;
+    }
+
+    if (stockError) {
+      console.warn('Supabase JS updateProductStock failed, attempting direct REST patch...', stockError);
+      const ok = await supabaseRestMutation(
+        'products',
+        'PATCH',
+        `id=eq.${encodeURIComponent(productId)}`,
+        stockPayload,
+        'return=minimal'
+      );
+      if (!ok) {
+        console.error('Supabase updateProductStock failed completely:', stockError);
+        throw new Error(`Failed to update stock status: ${formatQueryError(stockError)}`);
+      }
     }
 
     inMemoryProducts = inMemoryProducts.map((p) => (p.id === productId ? { ...p, inStock } : p));
