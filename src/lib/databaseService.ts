@@ -2,6 +2,7 @@ import { supabase, isSupabaseConfigured, requireSupabase } from './supabase';
 import { Product } from '../types/product';
 import { MOCK_PRODUCTS } from '../data/products';
 import { CartService } from './cartService';
+import { EmailService } from './emailService';
 
 // Fast timeout helper for read operations
 async function withTimeout<T>(promise: Promise<T> | any, ms = 15000, fallbackVal?: T): Promise<T> {
@@ -505,6 +506,24 @@ export const DatabaseService = {
     // 2. Update in-memory state ONLY AFTER successful DB response
     inMemoryOrders = [fullOrder, ...inMemoryOrders.filter((o) => o.id !== fullOrder.id)];
     notifyDatabaseChange('orders');
+
+    // 3. Send automated order confirmation email via Resend in background
+    if (fullOrder.email) {
+      EmailService.sendOrderConfirmation({
+        id: fullOrder.id,
+        customerName: fullOrder.customerName,
+        email: fullOrder.email,
+        total: fullOrder.total,
+        items: Array.isArray(fullOrder.items) ? fullOrder.items : [],
+        address: fullOrder.address,
+        city: fullOrder.city,
+        state: fullOrder.state,
+        pincode: fullOrder.pincode,
+        paymentMethod: fullOrder.paymentMethod,
+      }).catch((emailErr) => {
+        console.warn('[Order Confirmation Email Note]', emailErr);
+      });
+    }
 
     return fullOrder;
   },

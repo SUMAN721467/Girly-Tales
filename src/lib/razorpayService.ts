@@ -153,7 +153,7 @@ export const RazorpayService = {
       // 1. Create order on backend
       const order = await this.createOrder(amountInRupees, receiptId, notes);
       const razorpayKey =
-        import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_TbD8G3ANJoWXsX';
+        import.meta.env.VITE_RAZORPAY_KEY_ID || import.meta.env.RAZORPAY_KEY_ID || '';
 
       // 2. Configure Razorpay Standard Modal options
       const options = {

@@ -108,6 +108,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Listen to Supabase auth state changes and maintain 30-day session
   useEffect(() => {
+    // Handle OAuth callback error parameters in URL (e.g. bad_oauth_state / expired)
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+      const errorMsg = urlParams.get('error_description') || hashParams.get('error_description');
+      const errorCode = urlParams.get('error_code') || hashParams.get('error_code');
+
+      if (errorMsg || errorCode) {
+        console.warn('[Supabase Auth OAuth Callback Note]', { errorCode, errorMsg });
+        triggerToast('Login Session Expired', 'Please try signing in with Google again.', undefined, 'info');
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    } catch (e) {}
+
     if (!isSupabaseConfigured) {
       return;
     }
