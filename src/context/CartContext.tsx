@@ -37,15 +37,15 @@ interface CartContextType {
 const FREE_SHIPPING_THRESHOLD = 999;
 const STANDARD_SHIPPING_FEE = 99;
 
-// Purge any legacy browser storage
-if (typeof window !== 'undefined') {
-  try {
-    localStorage.removeItem('girly_tales_cart_v1');
-    localStorage.removeItem('girly_tales_cart_items');
-    sessionStorage.removeItem('girly_tales_cart_v1');
-    sessionStorage.removeItem('girly_tales_cart_items');
-  } catch (e) {}
-}
+const GUEST_CART_STORAGE_KEY = 'girly_tales_guest_cart';
+
+const syncGuestCartStorage = (updated: CartItem[]) => {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(GUEST_CART_STORAGE_KEY, JSON.stringify(updated));
+    } catch {}
+  }
+};
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
@@ -53,7 +53,17 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { user, isLoggedIn, openAuthModal } = useAuth();
   const { toasts, triggerToast, dismissToast } = useToast();
 
-  const [items, setItems] = useState<CartItem[]>([]);
+  const [items, setItems] = useState<CartItem[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(GUEST_CART_STORAGE_KEY);
+        return saved ? JSON.parse(saved) : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
   const [activeCouponObj, setActiveCouponObj] = useState<RealCoupon | null>(null);
@@ -102,11 +112,41 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const currentId = (user.id || user.email || '').toLowerCase().trim();
       if (loadedUserRef.current !== currentId) {
         loadedUserRef.current = currentId;
-        loadRemoteCart(user);
+        let guestItems: CartItem[] = [];
+        try {
+          const saved = localStorage.getItem(GUEST_CART_STORAGE_KEY);
+          if (saved) guestItems = JSON.parse(saved);
+        } catch {}
+
+        loadRemoteCart(user).then(() => {
+          if (guestItems.length > 0) {
+            setItems((prev) => {
+              const merged = [...prev];
+              guestItems.forEach((g) => {
+                const idx = merged.findIndex((m) => m.id === g.id);
+                if (idx >= 0) {
+                  merged[idx].quantity += g.quantity;
+                } else {
+                  merged.push(g);
+                }
+              });
+              scheduleCloudSync(merged);
+              try {
+                localStorage.removeItem(GUEST_CART_STORAGE_KEY);
+              } catch {}
+              return merged;
+            });
+          }
+        });
       }
     } else {
       loadedUserRef.current = null;
-      setItems([]);
+      try {
+        const saved = localStorage.getItem(GUEST_CART_STORAGE_KEY);
+        setItems(saved ? JSON.parse(saved) : []);
+      } catch {
+        setItems([]);
+      }
       setAppliedCoupon(null);
       setActiveCouponObj(null);
       setDynamicDiscountAmount(0);
@@ -232,19 +272,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     selectedSize?: string,
     selectedColor?: string
   ) => {
-    if (!isLoggedIn || !user) {
-      openAuthModal('login');
-      triggerToast(
-        'Login Required',
-        'Please log in or sign up to add items to your cart.',
-        undefined,
-        'info'
-      );
-      return;
-    }
-
-    const size = selectedSize || (product.sizes ? product.sizes[0] : undefined);
-    const color = selectedColor || (product.colors ? product.colors[0].name : undefined);
+    const size = selectedSize || (product.sizes && product.sizes.length > 0 ? product.sizes[0] : undefined);
+    const defaultColor = (product.colors && product.colors.length > 0)
+      ? (typeof product.colors[0] === 'object' ? (product.colors[0] as any)?.name : String(product.colors[0]))
+      : undefined;
+    const color = selectedColor || defaultColor;
     const itemId = `${product.id}-${size || 'default'}-${color || 'default'}`;
 
     setItems((prev) => {
@@ -260,7 +292,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updated = [...prev, { id: itemId, product, quantity, selectedSize: size, selectedColor: color }];
       }
 
-      scheduleCloudSync(updated);
+      if (isLoggedIn && user) {
+        scheduleCloudSync(updated);
+      } else {
+        syncGuestCartStorage(updated);
+      }
       return updated;
     });
 
@@ -276,7 +312,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const item = items.find((i) => i.id === cartItemId);
     setItems((prev) => {
       const updated = prev.filter((i) => i.id !== cartItemId);
-      scheduleCloudSync(updated);
+      if (isLoggedIn && user) {
+        scheduleCloudSync(updated);
+      } else {
+        syncGuestCartStorage(updated);
+      }
       return updated;
     });
 
@@ -295,7 +335,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const updated = prev.map((item) =>
         item.id === cartItemId ? { ...item, quantity: newQuantity } : item
       );
-      scheduleCloudSync(updated);
+      if (isLoggedIn && user) {
+        scheduleCloudSync(updated);
+      } else {
+        syncGuestCartStorage(updated);
+      }
       return updated;
     });
   };
@@ -305,6 +349,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAppliedCoupon(null);
     setActiveCouponObj(null);
     setDynamicDiscountAmount(0);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem(GUEST_CART_STORAGE_KEY);
+      } catch {}
+    }
     if (isLoggedIn && user) {
       const userId = user.id || user.email;
       CartService.clearUserCart(userId, user.email);

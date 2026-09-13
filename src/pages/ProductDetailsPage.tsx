@@ -25,7 +25,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   const [productsList, setProductsList] = useState<Product[]>([]);
   const [activeImage, setActiveImage] = useState(0);
   const [selectedSize, setSelectedSize] = useState<string | undefined>(
-    product.sizes ? product.sizes[0] : undefined
+    product.sizes && product.sizes.length > 0 ? product.sizes[0] : undefined
   );
   const [quantity, setQuantity] = useState(1);
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
@@ -235,19 +235,11 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   };
 
   const handleAddToCart = () => {
-    if (!isLoggedIn || !user) {
-      openAuthModal('login');
-      return;
-    }
     addToCart(product, quantity, selectedSize);
     openCart();
   };
 
   const handleBuyNow = () => {
-    if (!isLoggedIn || !user) {
-      openAuthModal('login');
-      return;
-    }
     addToCart(product, quantity, selectedSize);
     onOpenCheckout();
   };
@@ -425,7 +417,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
             </div>
 
           {/* Sizes */}
-          {product.sizes && (
+          {product.sizes && product.sizes.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-brand-charcoal">

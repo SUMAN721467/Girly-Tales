@@ -32,10 +32,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       openCart();
       return;
     }
-    if (!isLoggedIn || !user) {
-      openAuthModal('login');
-      return;
-    }
     addToCart(product, 1);
     setIsAdded(true);
     setTimeout(() => setIsAdded(false), 1500);
