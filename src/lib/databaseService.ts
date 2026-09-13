@@ -509,12 +509,18 @@ export const DatabaseService = {
 
     // 3. Send automated order confirmation email via Resend in background
     if (fullOrder.email) {
+      const normalized = normalizeOrderItems(fullOrder.items);
       EmailService.sendOrderConfirmation({
         id: fullOrder.id,
         customerName: fullOrder.customerName,
         email: fullOrder.email,
         total: fullOrder.total,
-        items: Array.isArray(fullOrder.items) ? fullOrder.items : [],
+        items: normalized.map((it) => ({
+          name: it.name,
+          quantity: it.quantity,
+          price: it.price,
+          selectedSize: it.size,
+        })),
         address: fullOrder.address,
         city: fullOrder.city,
         state: fullOrder.state,
