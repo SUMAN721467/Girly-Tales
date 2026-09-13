@@ -4,6 +4,7 @@ import { Product } from '../../types/product';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
 import { useAuth } from '../../context/AuthContext';
+import { normalizeStorageUrl } from '../../lib/supabase';
 
 interface ProductCardProps {
   product: Product;
@@ -45,9 +46,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     toggleWishlist(product.id);
   };
 
-  const currentImage = isHovered && product.images.length > 1
+  const rawCurrent = isHovered && product.images && product.images.length > 1
     ? product.images[1]
-    : product.images[0];
+    : product.images?.[0];
+  const currentImage = normalizeStorageUrl(rawCurrent || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=600&q=80');
 
   return (
     <div
@@ -63,6 +65,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           alt={product.name}
           className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105 rounded-lg"
           loading="lazy"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=600&q=80';
+          }}
         />
 
         {/* Top-Left Badges (New Arrival / Back in Stock / Discount) */}

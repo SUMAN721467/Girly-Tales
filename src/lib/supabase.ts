@@ -39,6 +39,18 @@ export const getEffectiveSupabaseUrl = (): string => {
 
 export const getSupabaseAnonKey = (): string => rawKey;
 
+export const getRawSupabaseUrl = (): string => rawUrl;
+
+export const normalizeStorageUrl = (url: string): string => {
+  if (!url || typeof url !== 'string') return url;
+  const match = url.match(/(?:http:\/\/[^/]+|https:\/\/[^/]+)?(?:\/supabase-proxy)?\/storage\/v1\/object\/(?:public\/)?(.+)$/);
+  if (match && rawUrl) {
+    const cleanBase = rawUrl.replace(/\/+$/, '');
+    return `${cleanBase}/storage/v1/object/public/${match[1]}`;
+  }
+  return url;
+};
+
 const clientUrl = getEffectiveSupabaseUrl();
 
 let clientInstance: SupabaseClient | null = null;

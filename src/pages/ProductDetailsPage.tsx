@@ -7,6 +7,7 @@ import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useAuth } from '../context/AuthContext';
 import { DatabaseService, RealReview } from '../lib/databaseService';
+import { normalizeStorageUrl } from '../lib/supabase';
 
 interface ProductDetailsPageProps {
   product: Product;
@@ -251,10 +252,11 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
     onOpenCheckout();
   };
 
-  const currentImageSrc =
+  const currentImageSrc = normalizeStorageUrl(
     product.images?.[activeImage] ||
     product.images?.[0] ||
-    'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80';
+    'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80'
+  );
 
   const relatedProducts = productsList.filter(
     (p) => p.id !== product.id && p.category === product.category
@@ -302,6 +304,9 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                   src={currentImageSrc}
                   alt={product.name}
                   className="w-full h-full object-cover object-center pointer-events-none"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80';
+                  }}
                 />
 
                 {/* Classic Lens Box Overlay following cursor */}
@@ -362,7 +367,14 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                         : 'border-[#EAE6DB] opacity-70 hover:opacity-100 hover:border-[#967BB6]/50'
                     }`}
                   >
-                    <img src={img} alt="" className="w-full h-full object-cover object-center" />
+                    <img
+                      src={normalizeStorageUrl(img)}
+                      alt=""
+                      className="w-full h-full object-cover object-center"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=400&q=80';
+                      }}
+                    />
                   </button>
                 ))}
               </div>

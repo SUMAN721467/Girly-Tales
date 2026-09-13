@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured, requireSupabase, getEffectiveSupabaseUrl, getSupabaseAnonKey } from './supabase';
+import { supabase, isSupabaseConfigured, requireSupabase, getEffectiveSupabaseUrl, getSupabaseAnonKey, getRawSupabaseUrl, normalizeStorageUrl } from './supabase';
 import { Product } from '../types/product';
 import { MOCK_PRODUCTS } from '../data/products';
 import { CartService } from './cartService';
@@ -838,11 +838,12 @@ export const DatabaseService = {
       discount: Number(d.discount || 0),
       rating: Number(d.rating || 5.0),
       reviewCount: Number(d.review_count ?? d.reviewCount ?? 1),
-      images: Array.isArray(d.images)
+      images: (Array.isArray(d.images)
         ? d.images
         : typeof d.images === 'string'
         ? (d.images.startsWith('[') ? JSON.parse(d.images) : [d.images])
-        : [d.image_url || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=600&q=80'],
+        : [d.image_url || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=600&q=80']
+      ).map(normalizeStorageUrl),
       description: d.description || '',
       shortDescription: d.short_description || d.shortDescription || '',
       material: d.material || '',
@@ -884,7 +885,7 @@ export const DatabaseService = {
       discount: product.discount ?? 0,
       rating: product.rating ?? 5.0,
       review_count: product.reviewCount ?? 0,
-      images: product.images || [],
+      images: (product.images || []).map(normalizeStorageUrl),
       description: product.description || '',
       short_description: product.shortDescription || '',
       material: product.material || '',
@@ -958,6 +959,7 @@ export const DatabaseService = {
     if (updates.antiTarnishGuarantee !== undefined) payload.anti_tarnish_guarantee = updates.antiTarnishGuarantee;
     if (updates.isNewArrival !== undefined) payload.is_new_arrival = updates.isNewArrival;
     if (updates.isBestSeller !== undefined) payload.is_best_seller = updates.isBestSeller;
+    if (updates.images !== undefined && Array.isArray(updates.images)) payload.images = updates.images.map(normalizeStorageUrl);
 
     delete payload.subCategory;
     delete payload.originalPrice;
@@ -1080,6 +1082,8 @@ export const DatabaseService = {
     const baseUrl = getEffectiveSupabaseUrl().replace(/\/+$/, '');
     const apiKey = getSupabaseAnonKey();
 
+    const cdnBase = (getRawSupabaseUrl() || baseUrl).replace(/\/+$/, '');
+
     // 1. First attempt direct REST upload with clean Anon API key
     // This avoids bulky browser cookies/headers being passed by client storage wrappers
     try {
@@ -1097,7 +1101,7 @@ export const DatabaseService = {
       });
 
       if (uploadRes.ok) {
-        return `${baseUrl}/storage/v1/object/public/product-images/${filePath}`;
+        return `${cdnBase}/storage/v1/object/public/product-images/${filePath}`;
       }
 
       const errText = await uploadRes.text().catch(() => '');
@@ -1139,7 +1143,7 @@ export const DatabaseService = {
       .from('product-images')
       .getPublicUrl(filePath);
 
-    return publicData?.publicUrl || `${baseUrl}/storage/v1/object/public/product-images/${filePath}`;
+    return normalizeStorageUrl(publicData?.publicUrl) || `${cdnBase}/storage/v1/object/public/product-images/${filePath}`;
   },
 
   async optimizeImageFile(file: File, maxWidth = 1600, quality = 0.88): Promise<Blob> {

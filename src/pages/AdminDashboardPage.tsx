@@ -31,7 +31,7 @@ import {
   FAQItem,
   StoreSettings
 } from '../lib/databaseService';
-import { supabase, isSupabaseConfigured, testSupabaseConnection, SupabaseConnectivityStatus } from '../lib/supabase';
+import { supabase, isSupabaseConfigured, testSupabaseConnection, SupabaseConnectivityStatus, normalizeStorageUrl } from '../lib/supabase';
 import { SUPABASE_SCHEMA_SQL } from '../lib/supabaseSchemaSql';
 
 interface AdminDashboardPageProps {
@@ -1016,9 +1016,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
     const deliveryPolicyText = productForm.deliveryPolicy.trim() || 'Dispatched within 24 hours. Delivered across India within 2 to 4 business days. Easy 7-day exchange support available on WhatsApp.';
 
-    const finalImages = productForm.images.length > 0
+    const finalImages = (productForm.images.length > 0
       ? productForm.images
-      : ['https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80'];
+      : ['https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80']).map(normalizeStorageUrl);
 
     try {
       if (editingProductId) {
