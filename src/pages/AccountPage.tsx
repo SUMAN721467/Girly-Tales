@@ -206,14 +206,23 @@ export const AccountPage: React.FC<AccountPageProps> = ({
 
   useEffect(() => {
     const fetchOrders = async () => {
-      if (user?.email && isLoggedIn) {
+      try {
         const allOrders = await DatabaseService.getOrders();
-        const matching = allOrders.filter(
-          (o) => o.email.toLowerCase() === user.email.toLowerCase()
-        );
-        setUserOrders(matching);
-      } else {
-        setUserOrders([]);
+        if (user?.email && isLoggedIn) {
+          const matching = allOrders.filter(
+            (o) => o.email.toLowerCase() === user.email.toLowerCase()
+          );
+          setUserOrders(matching);
+          setSelectedOrderForDetail((prev) => {
+            if (!prev) return null;
+            const updated = matching.find((o) => o.id === prev.id);
+            return updated || prev;
+          });
+        } else {
+          setUserOrders([]);
+        }
+      } catch (err) {
+        console.warn('[AccountPage fetchOrders]', err);
       }
     };
     fetchOrders();
@@ -1220,142 +1229,197 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                   })()}
 
                   {/* Vertical Tracking Stepper */}
-                  <div className="space-y-6 pt-2">
-                    {/* Stepper Node 1: Order Confirmed */}
-                    <div className="flex items-start gap-4 relative">
-                      {/* Connecting Line */}
-                      <div className={`absolute left-[11px] top-6 bottom-[-24px] w-0.5 ${
-                        selectedOrderForDetail.status === 'Shipped' || selectedOrderForDetail.status === 'Delivered'
-                          ? 'bg-[#967BB6]'
-                          : 'bg-[#967BB6]/40'
-                      }`} />
+                  {(() => {
+                    const currentStatus = (
+                      selectedOrderForDetail.sellerStatus || 
+                      selectedOrderForDetail.status || 
+                      'Pending'
+                    ).trim();
 
-                      <div className="w-6 h-6 rounded-full bg-[#967BB6] text-white flex items-center justify-center shrink-0 shadow-xs z-10">
-                        <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      </div>
-                      <div className="space-y-0.5">
-                        <h5 className="font-sans font-black text-sm text-brand-charcoal">Order Confirmed</h5>
-                        <p className="text-xs text-brand-muted font-medium">
-                          {new Date(selectedOrderForDetail.createdAt).toLocaleDateString('en-US', {
-                            weekday: 'short',
-                            month: 'short',
-                            day: 'numeric',
-                          })}
-                        </p>
-                      </div>
-                    </div>
+                    const isCancelled = 
+                      currentStatus.toLowerCase().includes('cancel') || 
+                      selectedOrderForDetail.customerStatus?.toLowerCase().includes('cancel');
 
-                    {/* Stepper Node 2: Shipped */}
-                    <div className="flex items-start gap-4 relative">
-                      {/* Connecting Line */}
-                      <div className={`absolute left-[11px] top-6 bottom-[-24px] w-0.5 ${
-                        selectedOrderForDetail.status === 'Delivered'
-                          ? 'bg-[#967BB6]'
-                          : 'bg-[#EAE6DB]'
-                      }`} />
+                    const isShipped = !isCancelled && (
+                      currentStatus === 'Shipped' || 
+                      currentStatus === 'Out for Delivery' || 
+                      currentStatus === 'Delivered'
+                    );
 
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 shadow-xs z-10 ${
-                        selectedOrderForDetail.status === 'Shipped' || selectedOrderForDetail.status === 'Delivered'
-                          ? 'bg-[#967BB6] text-white'
-                          : 'bg-white border-2 border-[#EAE6DB] text-brand-muted'
-                      }`}>
-                        {selectedOrderForDetail.status === 'Shipped' || selectedOrderForDetail.status === 'Delivered' ? (
-                          <Check className="w-3.5 h-3.5 stroke-[3]" />
-                        ) : (
-                          <div className="w-2 h-2 rounded-full bg-[#EAE6DB]" />
-                        )}
-                      </div>
-                      <div className="space-y-0.5">
-                        <h5 className="font-sans font-black text-sm text-brand-charcoal">Shipped</h5>
-                        <p className="text-xs text-brand-muted font-medium">
-                          {selectedOrderForDetail.status === 'Shipped' || selectedOrderForDetail.status === 'Delivered'
-                            ? 'Dispatched via Premium Express Courier'
-                            : 'Pending shipment'}
-                        </p>
-                      </div>
-                    </div>
+                    const isOutForDelivery = !isCancelled && (
+                      currentStatus === 'Out for Delivery' || 
+                      currentStatus === 'Delivered'
+                    );
 
-                    {/* Stepper Node 3: Out for Delivery */}
-                    <div className="flex items-start gap-4 relative">
-                      {/* Connecting Line */}
-                      <div className={`absolute left-[11px] top-6 bottom-[-24px] w-0.5 ${
-                        selectedOrderForDetail.status === 'Delivered'
-                          ? 'bg-[#967BB6]'
-                          : 'bg-[#EAE6DB]'
-                      }`} />
+                    const isDelivered = !isCancelled && currentStatus === 'Delivered';
 
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 shadow-xs z-10 ${
-                        selectedOrderForDetail.status === 'Delivered'
-                          ? 'bg-[#967BB6] text-white'
-                          : 'bg-white border-2 border-[#EAE6DB] text-brand-muted'
-                      }`}>
-                        {selectedOrderForDetail.status === 'Delivered' ? (
-                          <Check className="w-3.5 h-3.5 stroke-[3]" />
-                        ) : (
-                          <div className="w-2 h-2 rounded-full bg-[#EAE6DB]" />
-                        )}
-                      </div>
-                      <div className="space-y-0.5">
-                        <h5 className="font-sans font-black text-sm text-brand-charcoal">Out for Delivery</h5>
-                        <p className="text-xs text-brand-muted font-medium">
-                          {selectedOrderForDetail.status === 'Delivered' ? 'Completed' : 'Expected shortly'}
-                        </p>
-                      </div>
-                    </div>
+                    return (
+                      <>
+                        <div className="space-y-6 pt-2">
+                          {/* Cancelled Alert Banner if applicable */}
+                          {isCancelled && (
+                            <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-rose-700">
+                              <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
+                                <X className="w-4 h-4 text-rose-600" />
+                              </div>
+                              <div>
+                                <h6 className="font-sans font-bold text-xs">Order Cancelled</h6>
+                                <p className="text-[11px] text-rose-600/90">
+                                  {currentStatus === 'Cancelled by Seller'
+                                    ? 'This order was cancelled by Girly Tales.'
+                                    : 'This order was cancelled by customer request.'}
+                                </p>
+                              </div>
+                            </div>
+                          )}
 
-                    {/* Stepper Node 4: Delivered */}
-                    <div className="flex items-start gap-4 relative">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 shadow-xs z-10 ${
-                        selectedOrderForDetail.status === 'Delivered'
-                          ? 'bg-[#967BB6] text-white'
-                          : 'bg-white border-2 border-[#EAE6DB] text-brand-muted'
-                      }`}>
-                        {selectedOrderForDetail.status === 'Delivered' ? (
-                          <Check className="w-3.5 h-3.5 stroke-[3]" />
-                        ) : (
-                          <div className="w-2 h-2 rounded-full bg-[#EAE6DB]" />
-                        )}
-                      </div>
-                      <div className="space-y-0.5">
-                        <h5 className="font-sans font-black text-sm text-brand-charcoal">Delivered</h5>
-                        <p className="text-xs text-brand-muted font-medium">
-                          {selectedOrderForDetail.status === 'Delivered'
-                            ? 'Delivered to your address'
-                            : 'Delivery expected shortly'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                          {/* Stepper Node 1: Order Confirmed */}
+                          <div className="flex items-start gap-4 relative">
+                            {/* Connecting Line */}
+                            <div className={`absolute left-[11px] top-6 bottom-[-24px] w-0.5 ${
+                              isShipped ? 'bg-[#967BB6]' : 'bg-[#967BB6]/40'
+                            }`} />
 
-                  {/* Actions: Cancel Order & Contact Us */}
-                  <div className="pt-6 border-t border-[#EAE6DB] grid grid-cols-2 gap-4">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (selectedOrderForDetail.status === 'Cancelled') {
-                          triggerToast('Order Status', 'This order is already cancelled.', undefined, 'info');
-                          return;
-                        }
-                        if (window.confirm('Are you sure you want to cancel this order?')) {
-                          DatabaseService.updateOrderStatus(selectedOrderForDetail.id, 'Cancelled');
-                          setSelectedOrderForDetail((prev) => prev ? { ...prev, status: 'Cancelled' } : null);
-                          triggerToast('Order Cancelled', 'Your order status has been updated to Cancelled.', undefined, 'info');
-                        }
-                      }}
-                      className="py-3 px-4 border border-rose-200 bg-rose-50/50 hover:bg-rose-50 text-rose-600 font-bold text-xs uppercase tracking-wider rounded-2xl transition-all cursor-pointer text-center"
-                    >
-                      {selectedOrderForDetail.status === 'Cancelled' ? 'Order Cancelled' : 'Cancel Order'}
-                    </button>
+                            <div className="w-6 h-6 rounded-full bg-[#967BB6] text-white flex items-center justify-center shrink-0 shadow-xs z-10">
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            </div>
+                            <div className="space-y-0.5">
+                              <h5 className="font-sans font-black text-sm text-brand-charcoal">Order Confirmed</h5>
+                              <p className="text-xs text-brand-muted font-medium">
+                                {new Date(selectedOrderForDetail.createdAt).toLocaleDateString('en-US', {
+                                  weekday: 'short',
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}
+                              </p>
+                            </div>
+                          </div>
 
-                    <button
-                      type="button"
-                      onClick={() => onNavigate('contact')}
-                      className="py-3 px-4 border border-[#EAE6DB] bg-[#FAF8F2] hover:bg-[#fffeea] text-brand-charcoal font-bold text-xs uppercase tracking-wider rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer text-center"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5 text-[#967BB6]" />
-                      <span>Contact us</span>
-                    </button>
-                  </div>
+                          {/* Stepper Node 2: Shipped */}
+                          <div className="flex items-start gap-4 relative">
+                            {/* Connecting Line */}
+                            <div className={`absolute left-[11px] top-6 bottom-[-24px] w-0.5 ${
+                              isOutForDelivery ? 'bg-[#967BB6]' : 'bg-[#EAE6DB]'
+                            }`} />
+
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 shadow-xs z-10 ${
+                              isShipped
+                                ? 'bg-[#967BB6] text-white'
+                                : 'bg-white border-2 border-[#EAE6DB] text-brand-muted'
+                            }`}>
+                              {isShipped ? (
+                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              ) : (
+                                <div className="w-2 h-2 rounded-full bg-[#EAE6DB]" />
+                              )}
+                            </div>
+                            <div className="space-y-0.5">
+                              <h5 className="font-sans font-black text-sm text-brand-charcoal">Shipped</h5>
+                              <p className="text-xs text-brand-muted font-medium">
+                                {isShipped
+                                  ? `Dispatched via ${selectedOrderForDetail.courierName || 'Premium Express Courier'}${selectedOrderForDetail.trackingNumber ? ` (AWB: ${selectedOrderForDetail.trackingNumber})` : ''}`
+                                  : 'Pending shipment'}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Stepper Node 3: Out for Delivery */}
+                          <div className="flex items-start gap-4 relative">
+                            {/* Connecting Line */}
+                            <div className={`absolute left-[11px] top-6 bottom-[-24px] w-0.5 ${
+                              isDelivered ? 'bg-[#967BB6]' : 'bg-[#EAE6DB]'
+                            }`} />
+
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 shadow-xs z-10 ${
+                              isOutForDelivery
+                                ? 'bg-[#967BB6] text-white'
+                                : 'bg-white border-2 border-[#EAE6DB] text-brand-muted'
+                            }`}>
+                              {isOutForDelivery ? (
+                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              ) : (
+                                <div className="w-2 h-2 rounded-full bg-[#EAE6DB]" />
+                              )}
+                            </div>
+                            <div className="space-y-0.5">
+                              <h5 className="font-sans font-black text-sm text-brand-charcoal">Out for Delivery</h5>
+                              <p className="text-xs text-brand-muted font-medium">
+                                {isDelivered
+                                  ? 'Dispatched & reached destination hub'
+                                  : isOutForDelivery
+                                  ? 'Out for delivery today with courier partner'
+                                  : 'Expected shortly'}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Stepper Node 4: Delivered */}
+                          <div className="flex items-start gap-4 relative">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 shadow-xs z-10 ${
+                              isDelivered
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-white border-2 border-[#EAE6DB] text-brand-muted'
+                            }`}>
+                              {isDelivered ? (
+                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              ) : (
+                                <div className="w-2 h-2 rounded-full bg-[#EAE6DB]" />
+                              )}
+                            </div>
+                            <div className="space-y-0.5">
+                              <h5 className="font-sans font-black text-sm text-brand-charcoal">Delivered</h5>
+                              <p className="text-xs text-brand-muted font-medium">
+                                {isDelivered
+                                  ? 'Delivered to your address'
+                                  : 'Delivery expected shortly'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Actions: Cancel Order & Contact Us */}
+                        <div className="pt-6 border-t border-[#EAE6DB] grid grid-cols-2 gap-4">
+                          <button
+                            type="button"
+                            disabled={isCancelled || isShipped || isDelivered}
+                            onClick={() => {
+                              if (isCancelled) {
+                                triggerToast('Order Status', 'This order is already cancelled.', undefined, 'info');
+                                return;
+                              }
+                              if (isShipped || isDelivered) {
+                                triggerToast('Cannot Cancel', 'Order is already dispatched with courier partner.', undefined, 'info');
+                                return;
+                              }
+                              if (window.confirm('Are you sure you want to cancel this order?')) {
+                                DatabaseService.updateOrderStatus(selectedOrderForDetail.id, 'Cancelled');
+                                setSelectedOrderForDetail((prev) => prev ? { ...prev, status: 'Cancelled', sellerStatus: 'Cancelled by Seller' } : null);
+                                triggerToast('Order Cancelled', 'Your order status has been updated to Cancelled.', undefined, 'info');
+                              }
+                            }}
+                            className={`py-3 px-4 border font-bold text-xs uppercase tracking-wider rounded-2xl transition-all text-center ${
+                              isCancelled
+                                ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : isShipped || isDelivered
+                                ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                                : 'border-rose-200 bg-rose-50/50 hover:bg-rose-50 text-rose-600 cursor-pointer'
+                            }`}
+                          >
+                            {isCancelled ? 'Order Cancelled' : isShipped || isDelivered ? 'Dispatched (In Transit)' : 'Cancel Order'}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => onNavigate('contact')}
+                            className="py-3 px-4 border border-[#EAE6DB] bg-[#FAF8F2] hover:bg-[#fffeea] text-brand-charcoal font-bold text-xs uppercase tracking-wider rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer text-center"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5 text-[#967BB6]" />
+                            <span>Contact us</span>
+                          </button>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {/* RIGHT COLUMN: Delivery details, Price details, Order ID */}
@@ -1633,24 +1697,42 @@ export const AccountPage: React.FC<AccountPageProps> = ({
 
                           <span
                             className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1 rounded-full ${
-                              ord.status === 'Cancelled'
-                                ? 'bg-rose-50 border border-rose-200 text-rose-700'
-                                : 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                              (() => {
+                                const s = (ord.sellerStatus || ord.status || 'Pending').trim();
+                                if (s.toLowerCase().includes('cancel') || ord.customerStatus?.toLowerCase().includes('cancel')) {
+                                  return 'bg-rose-50 border border-rose-200 text-rose-700';
+                                }
+                                if (s === 'Delivered') return 'bg-emerald-50 border border-emerald-200 text-emerald-700';
+                                if (s === 'Out for Delivery') return 'bg-[#EAE1F3] border border-[#D5C2E6] text-[#7F62A1]';
+                                if (s === 'Shipped') return 'bg-blue-50 border border-blue-200 text-blue-700';
+                                return 'bg-amber-50 border border-amber-200 text-amber-700';
+                              })()
                             }`}
                           >
                             <span
                               className={`w-2 h-2 rounded-full ${
-                                ord.status === 'Cancelled' ? 'bg-rose-500' : 'bg-emerald-500 animate-pulse'
+                                (() => {
+                                  const s = (ord.sellerStatus || ord.status || 'Pending').trim();
+                                  if (s.toLowerCase().includes('cancel') || ord.customerStatus?.toLowerCase().includes('cancel')) {
+                                    return 'bg-rose-500';
+                                  }
+                                  if (s === 'Delivered') return 'bg-emerald-500';
+                                  if (s === 'Out for Delivery') return 'bg-purple-500 animate-pulse';
+                                  if (s === 'Shipped') return 'bg-blue-500 animate-pulse';
+                                  return 'bg-amber-500';
+                                })()
                               }`}
                             />
                             <span>
-                              {ord.status === 'Cancelled'
-                                ? 'Payment Failed, Order Not Placed'
-                                : ord.status === 'Delivered'
-                                ? 'Delivered Successfully'
-                                : ord.status === 'Shipped'
-                                ? 'Shipped, In Transit'
-                                : 'Payment Success, Order Pending'}
+                              {(() => {
+                                const s = (ord.sellerStatus || ord.status || 'Pending').trim();
+                                if (s === 'Cancelled by Seller') return 'Cancelled by Seller';
+                                if (s.toLowerCase().includes('cancel') || ord.customerStatus?.toLowerCase().includes('cancel')) return 'Order Cancelled';
+                                if (s === 'Delivered') return 'Delivered Successfully';
+                                if (s === 'Out for Delivery') return 'Out for Delivery';
+                                if (s === 'Shipped') return 'Shipped, In Transit';
+                                return 'Confirmed, Pending Dispatch';
+                              })()}
                             </span>
                           </span>
                         </div>
