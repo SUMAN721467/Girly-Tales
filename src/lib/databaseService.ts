@@ -1123,6 +1123,38 @@ export const DatabaseService = {
           remoteAddresses = addrRes.data;
         }
 
+        // Direct REST fallback for profiles (fetches all registered customer profiles using clean Anon API key)
+        const fallbackProfiles = await fetchSupabaseRestFallback<any[]>('profiles?select=*');
+        if (Array.isArray(fallbackProfiles) && fallbackProfiles.length > 0) {
+          const profMap = new Map<string, any>();
+          remoteProfiles.forEach((p) => {
+            const k = (p.email || p.id || '').toLowerCase().trim();
+            if (k) profMap.set(k, p);
+          });
+          fallbackProfiles.forEach((p) => {
+            const k = (p.email || p.id || '').toLowerCase().trim();
+            if (k && !profMap.has(k)) {
+              profMap.set(k, p);
+            }
+          });
+          remoteProfiles = Array.from(profMap.values());
+        }
+
+        // Direct REST fallback for shipping_addresses
+        const fallbackAddresses = await fetchSupabaseRestFallback<any[]>('shipping_addresses?select=*');
+        if (Array.isArray(fallbackAddresses) && fallbackAddresses.length > 0) {
+          const addrMap = new Map<string, any>();
+          remoteAddresses.forEach((a) => {
+            if (a.id) addrMap.set(a.id, a);
+          });
+          fallbackAddresses.forEach((a) => {
+            if (a.id && !addrMap.has(a.id)) {
+              addrMap.set(a.id, a);
+            }
+          });
+          remoteAddresses = Array.from(addrMap.values());
+        }
+
         const authUser = authUserRes.data?.user;
         if (authUser && authUser.email) {
           const authEmail = authUser.email.toLowerCase().trim();

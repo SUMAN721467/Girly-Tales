@@ -349,8 +349,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       }
 
       // Derive Real Customers passing already fetched products (0 duplicate network requests)
+      let derivedCustomers: RealCustomer[] = customers;
       try {
-        const derivedCustomers = await DatabaseService.getCustomers(fetchedOrders, user, fetchedProducts);
+        derivedCustomers = await DatabaseService.getCustomers(fetchedOrders, user, fetchedProducts);
         setCustomers(derivedCustomers);
       } catch (custErr) {
         console.warn('[Admin Derive Customers Note]', custErr);
@@ -374,7 +375,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       } else {
         setDbError(null);
         if (showToast) {
-          triggerToast('Database Synced! ⚡', `Loaded ${fetchedOrders.length} orders, ${fetchedProducts.length} products & ${fetchedCats.length} categories.`, undefined, 'success');
+          triggerToast('Database Synced! ⚡', `Loaded ${fetchedOrders.length} orders, ${derivedCustomers.length} customers, ${fetchedProducts.length} products & ${fetchedCats.length} categories.`, undefined, 'success');
         }
       }
     } catch (err: any) {
