@@ -42,6 +42,38 @@ export async function fetchSupabaseRestFallback<T>(path: string): Promise<T | nu
   }
 }
 
+export async function supabaseRestMutation(
+  table: string,
+  method: 'POST' | 'PATCH' | 'DELETE',
+  queryParam: string,
+  body?: any
+): Promise<boolean> {
+  try {
+    const baseUrl = getEffectiveSupabaseUrl().replace(/\/+$/, '');
+    const apiKey = getSupabaseAnonKey();
+    if (!baseUrl || !apiKey) return false;
+
+    const url = queryParam ? `${baseUrl}/rest/v1/${table}?${queryParam}` : `${baseUrl}/rest/v1/${table}`;
+    const headers: Record<string, string> = {
+      apikey: apiKey,
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal',
+    };
+
+    const res = await fetch(url, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+
+    return res.ok;
+  } catch (err) {
+    console.warn(`[supabaseRestMutation ${method} ${table} error]`, err);
+    return false;
+  }
+}
+
 // Fast timeout helper for read operations
 async function withTimeout<T>(promise: Promise<T> | any, ms = 15000, fallbackVal?: T): Promise<T> {
   let timeoutId: any;
@@ -1278,7 +1310,7 @@ export const DatabaseService = {
   // ==================== 4. REVIEWS ====================
   async getReviews(productId?: string): Promise<RealReview[]> {
     if (!isSupabaseConfigured) {
-      throw new Error('Supabase is not configured. Please set valid VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in .env.');
+      return inMemoryReviews;
     }
 
     try {
@@ -1287,14 +1319,18 @@ export const DatabaseService = {
       if (productId) {
         query = query.eq('product_id', productId);
       }
-      const { data, error } = await withTimeout(query, 15000, { data: null, error: 'timeout' });
-      if (error) {
-        if (error === 'timeout') throw new Error('Supabase reviews query timed out after 15000ms.');
-        throw error;
+      const { data, error } = await withTimeout(query, 8000, { data: null, error: 'timeout' });
+
+      let rawData = data;
+      if (error || !Array.isArray(rawData)) {
+        const queryPath = productId
+          ? `reviews?select=*&product_id=eq.${encodeURIComponent(productId)}&order=created_at.desc`
+          : 'reviews?select=*&order=created_at.desc';
+        rawData = await fetchSupabaseRestFallback<any[]>(queryPath);
       }
 
-      if (Array.isArray(data)) {
-        const mapped: RealReview[] = data.map((d: any) => ({
+      if (Array.isArray(rawData)) {
+        const mapped: RealReview[] = rawData.map((d: any) => ({
           id: d.id,
           productId: d.product_id || d.productId || '',
           productName: d.product_name || d.productName || 'Product Review',
@@ -1321,10 +1357,10 @@ export const DatabaseService = {
         return mapped;
       }
 
-      return [];
+      return inMemoryReviews;
     } catch (e) {
       console.error('Supabase getReviews error:', e);
-      throw e;
+      return inMemoryReviews;
     }
   },
 
@@ -1356,7 +1392,7 @@ export const DatabaseService = {
       createdAt: reviewData.createdAt || new Date().toISOString(),
     };
 
-    const { error } = await client.from('reviews').insert({
+    const payload = {
       id: newReview.id,
       product_id: newReview.productId || null,
       product_name: newReview.productName,
@@ -1368,11 +1404,22 @@ export const DatabaseService = {
       verified: newReview.verified,
       status: newReview.status,
       created_at: newReview.createdAt,
-    });
+    };
 
-    if (error) {
-      console.error('Supabase addReview failed:', error);
-      throw new Error(`Failed to save review to database: ${error.message}`);
+    let insertError: any = null;
+    try {
+      const { error } = await client.from('reviews').insert(payload);
+      insertError = error;
+    } catch (err) {
+      insertError = err;
+    }
+
+    if (insertError) {
+      const ok = await supabaseRestMutation('reviews', 'POST', '', payload);
+      if (!ok) {
+        console.error('Supabase addReview failed:', insertError);
+        throw new Error(`Failed to save review to database: ${formatQueryError(insertError)}`);
+      }
     }
 
     inMemoryReviews = [newReview, ...inMemoryReviews];
@@ -1397,10 +1444,20 @@ export const DatabaseService = {
     if (updates.status !== undefined) payload.status = updates.status;
     if (updates.createdAt !== undefined) payload.created_at = updates.createdAt;
 
-    const { error } = await client.from('reviews').update(payload).eq('id', id);
-    if (error) {
-      console.error('Supabase updateReview failed:', error);
-      throw new Error(`Failed to update review in database: ${error.message}`);
+    let updateError: any = null;
+    try {
+      const { error } = await client.from('reviews').update(payload).eq('id', id);
+      updateError = error;
+    } catch (err) {
+      updateError = err;
+    }
+
+    if (updateError) {
+      const ok = await supabaseRestMutation('reviews', 'PATCH', `id=eq.${encodeURIComponent(id)}`, payload);
+      if (!ok) {
+        console.error('Supabase updateReview failed:', updateError);
+        throw new Error(`Failed to update review in database: ${formatQueryError(updateError)}`);
+      }
     }
 
     let updatedReview: RealReview | null = null;
@@ -1434,10 +1491,20 @@ export const DatabaseService = {
 
   async deleteReview(id: string): Promise<void> {
     const client = requireSupabase();
-    const { error } = await client.from('reviews').delete().eq('id', id);
-    if (error) {
-      console.error('Supabase deleteReview failed:', error);
-      throw new Error(`Failed to delete review from database: ${error.message}`);
+    let delError: any = null;
+    try {
+      const { error } = await client.from('reviews').delete().eq('id', id);
+      delError = error;
+    } catch (err) {
+      delError = err;
+    }
+
+    if (delError) {
+      const ok = await supabaseRestMutation('reviews', 'DELETE', `id=eq.${encodeURIComponent(id)}`);
+      if (!ok) {
+        console.error('Supabase deleteReview failed:', delError);
+        throw new Error(`Failed to delete review from database: ${formatQueryError(delError)}`);
+      }
     }
 
     inMemoryReviews = inMemoryReviews.filter((r) => r.id !== id);
@@ -1447,20 +1514,21 @@ export const DatabaseService = {
   // ==================== 5. COUPONS ====================
   async getCoupons(): Promise<RealCoupon[]> {
     if (!isSupabaseConfigured) {
-      throw new Error('Supabase is not configured. Please set valid VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in .env.');
+      return inMemoryCoupons;
     }
 
     try {
       const client = requireSupabase();
       const query = client.from('coupons').select('*').order('created_at', { ascending: false });
-      const { data, error } = await withTimeout(query, 15000, { data: null, error: 'timeout' });
-      if (error) {
-        if (error === 'timeout') throw new Error('Supabase coupons query timed out after 15000ms.');
-        throw error;
+      const { data, error } = await withTimeout(query, 8000, { data: null, error: 'timeout' });
+
+      let rawData = data;
+      if (error || !Array.isArray(rawData)) {
+        rawData = await fetchSupabaseRestFallback<any[]>('coupons?select=*&order=created_at.desc');
       }
 
-      if (Array.isArray(data)) {
-        const mapped: RealCoupon[] = data.map((d: any) => ({
+      if (Array.isArray(rawData)) {
+        const mapped: RealCoupon[] = rawData.map((d: any) => ({
           id: d.id,
           code: d.code,
           discount: d.discount,
@@ -1474,16 +1542,16 @@ export const DatabaseService = {
         return mapped;
       }
 
-      return [];
+      return inMemoryCoupons;
     } catch (e) {
       console.error('Supabase getCoupons error:', e);
-      throw e;
+      return inMemoryCoupons;
     }
   },
 
   async addCoupon(coupon: RealCoupon): Promise<void> {
     const client = requireSupabase();
-    const { error } = await client.from('coupons').insert({
+    const payload = {
       id: coupon.id,
       code: coupon.code.toUpperCase().trim(),
       discount: coupon.discount,
@@ -1493,11 +1561,22 @@ export const DatabaseService = {
       status: coupon.status,
       expires: coupon.expires,
       created_at: new Date().toISOString(),
-    });
+    };
 
-    if (error) {
-      console.error('Supabase addCoupon failed:', error);
-      throw new Error(`Failed to create coupon in database: ${error.message}`);
+    let insertError: any = null;
+    try {
+      const { error } = await client.from('coupons').insert(payload);
+      insertError = error;
+    } catch (err) {
+      insertError = err;
+    }
+
+    if (insertError) {
+      const ok = await supabaseRestMutation('coupons', 'POST', '', payload);
+      if (!ok) {
+        console.error('Supabase addCoupon failed:', insertError);
+        throw new Error(`Failed to create coupon in database: ${formatQueryError(insertError)}`);
+      }
     }
 
     inMemoryCoupons = [coupon, ...inMemoryCoupons.filter((c) => c.id !== coupon.id)];
@@ -1506,10 +1585,20 @@ export const DatabaseService = {
 
   async deleteCoupon(id: string): Promise<void> {
     const client = requireSupabase();
-    const { error } = await client.from('coupons').delete().eq('id', id);
-    if (error) {
-      console.error('Supabase deleteCoupon failed:', error);
-      throw new Error(`Failed to delete coupon: ${error.message}`);
+    let delError: any = null;
+    try {
+      const { error } = await client.from('coupons').delete().eq('id', id);
+      delError = error;
+    } catch (err) {
+      delError = err;
+    }
+
+    if (delError) {
+      const ok = await supabaseRestMutation('coupons', 'DELETE', `id=eq.${encodeURIComponent(id)}`);
+      if (!ok) {
+        console.error('Supabase deleteCoupon failed:', delError);
+        throw new Error(`Failed to delete coupon: ${formatQueryError(delError)}`);
+      }
     }
 
     inMemoryCoupons = inMemoryCoupons.filter((c) => c.id !== id);
@@ -1830,15 +1919,26 @@ export const DatabaseService = {
 
   async updateStoreSettings(settings: StoreSettings): Promise<StoreSettings> {
     const client = requireSupabase();
-    const { error } = await client.from('store_settings').upsert({
+    const payload = {
       key: 'homepage',
       value: settings,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'key' });
+    };
 
-    if (error) {
-      console.error('Supabase updateStoreSettings failed:', error);
-      throw new Error(`Failed to save store settings in database: ${error.message}`);
+    let saveError: any = null;
+    try {
+      const { error } = await client.from('store_settings').upsert(payload, { onConflict: 'key' });
+      saveError = error;
+    } catch (err) {
+      saveError = err;
+    }
+
+    if (saveError) {
+      const ok = await supabaseRestMutation('store_settings', 'POST', 'on_conflict=key', payload);
+      if (!ok) {
+        console.error('Supabase updateStoreSettings failed:', saveError);
+        throw new Error(`Failed to save store settings in database: ${formatQueryError(saveError)}`);
+      }
     }
 
     inMemoryStoreSettings = settings;
@@ -1864,8 +1964,13 @@ export const DatabaseService = {
         { data: null, error: null }
       );
 
-      if (!error && Array.isArray(data) && data.length > 0) {
-        const mapped = data.map((d: any) => ({
+      let rawData = data;
+      if (error || !Array.isArray(rawData)) {
+        rawData = await fetchSupabaseRestFallback<any[]>('promotions?select=*&order=created_at.asc');
+      }
+
+      if (Array.isArray(rawData) && rawData.length > 0) {
+        const mapped = rawData.map((d: any) => ({
           id: d.id,
           name: d.name,
           discount: d.discount,
@@ -1884,7 +1989,7 @@ export const DatabaseService = {
 
   async savePromotion(promo: PromotionItem): Promise<void> {
     const client = requireSupabase();
-    const { error } = await client.from('promotions').upsert({
+    const payload = {
       id: promo.id,
       name: promo.name,
       discount: promo.discount,
@@ -1892,11 +1997,22 @@ export const DatabaseService = {
       active: promo.active,
       banner_text: promo.bannerText,
       created_at: promo.createdAt || new Date().toISOString(),
-    }, { onConflict: 'id' });
+    };
 
-    if (error) {
-      console.error('Supabase savePromotion failed:', error);
-      throw new Error(`Failed to save promotion in database: ${error.message}`);
+    let saveError: any = null;
+    try {
+      const { error } = await client.from('promotions').upsert(payload, { onConflict: 'id' });
+      saveError = error;
+    } catch (err) {
+      saveError = err;
+    }
+
+    if (saveError) {
+      const ok = await supabaseRestMutation('promotions', 'POST', 'on_conflict=id', payload);
+      if (!ok) {
+        console.error('Supabase savePromotion failed:', saveError);
+        throw new Error(`Failed to save promotion in database: ${formatQueryError(saveError)}`);
+      }
     }
 
     inMemoryPromotions = [promo, ...inMemoryPromotions.filter((p) => p.id !== promo.id)];
@@ -1905,9 +2021,19 @@ export const DatabaseService = {
 
   async deletePromotion(id: string): Promise<void> {
     const client = requireSupabase();
-    const { error } = await client.from('promotions').delete().eq('id', id);
-    if (error) {
-      throw new Error(`Failed to delete promotion: ${error.message}`);
+    let delError: any = null;
+    try {
+      const { error } = await client.from('promotions').delete().eq('id', id);
+      delError = error;
+    } catch (err) {
+      delError = err;
+    }
+
+    if (delError) {
+      const ok = await supabaseRestMutation('promotions', 'DELETE', `id=eq.${encodeURIComponent(id)}`);
+      if (!ok) {
+        throw new Error(`Failed to delete promotion: ${formatQueryError(delError)}`);
+      }
     }
 
     inMemoryPromotions = inMemoryPromotions.filter((p) => p.id !== id);
@@ -1936,20 +2062,28 @@ export const DatabaseService = {
         { data: null, error: null }
       );
 
-      if (!error && data) {
+      let ruleData = data;
+      if (error || !ruleData) {
+        const fallback = await fetchSupabaseRestFallback<any[]>('shipping_rules?id=eq.default&limit=1');
+        if (Array.isArray(fallback) && fallback.length > 0) {
+          ruleData = fallback[0];
+        }
+      }
+
+      if (ruleData) {
         let parsedCouriers = defaultRules.couriers;
-        if (Array.isArray(data.couriers)) parsedCouriers = data.couriers;
-        else if (typeof data.couriers === 'string') {
-          try { parsedCouriers = JSON.parse(data.couriers); } catch {}
+        if (Array.isArray(ruleData.couriers)) parsedCouriers = ruleData.couriers;
+        else if (typeof ruleData.couriers === 'string') {
+          try { parsedCouriers = JSON.parse(ruleData.couriers); } catch {}
         }
 
         inMemoryShippingRules = {
-          id: data.id,
-          freeThreshold: Number(data.free_threshold) || 999,
-          standardRate: Number(data.standard_rate) || 99,
-          expressRate: Number(data.express_rate) || 199,
-          codHandlingFee: Number(data.cod_handling_fee) || 49,
-          estimatedDays: data.estimated_days || '2 to 4 Business Days',
+          id: ruleData.id,
+          freeThreshold: Number(ruleData.free_threshold) || 999,
+          standardRate: Number(ruleData.standard_rate) || 99,
+          expressRate: Number(ruleData.express_rate) || 199,
+          codHandlingFee: Number(ruleData.cod_handling_fee) || 49,
+          estimatedDays: ruleData.estimated_days || '2 to 4 Business Days',
           couriers: parsedCouriers,
         };
         return inMemoryShippingRules;
@@ -1964,7 +2098,7 @@ export const DatabaseService = {
     const current = await this.getShippingRules();
     const merged: ShippingRules = { ...current, ...rules };
 
-    const { error } = await client.from('shipping_rules').upsert({
+    const payload = {
       id: 'default',
       free_threshold: merged.freeThreshold,
       standard_rate: merged.standardRate,
@@ -1973,11 +2107,22 @@ export const DatabaseService = {
       estimated_days: merged.estimatedDays,
       couriers: merged.couriers,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'id' });
+    };
 
-    if (error) {
-      console.error('Supabase updateShippingRules failed:', error);
-      throw new Error(`Failed to save shipping rules in database: ${error.message}`);
+    let saveError: any = null;
+    try {
+      const { error } = await client.from('shipping_rules').upsert(payload, { onConflict: 'id' });
+      saveError = error;
+    } catch (err) {
+      saveError = err;
+    }
+
+    if (saveError) {
+      const ok = await supabaseRestMutation('shipping_rules', 'POST', 'on_conflict=id', payload);
+      if (!ok) {
+        console.error('Supabase updateShippingRules failed:', saveError);
+        throw new Error(`Failed to save shipping rules in database: ${formatQueryError(saveError)}`);
+      }
     }
 
     inMemoryShippingRules = merged;
@@ -2003,8 +2148,13 @@ export const DatabaseService = {
         { data: null, error: null }
       );
 
-      if (!error && Array.isArray(data) && data.length > 0) {
-        const mapped = data.map((d: any) => ({
+      let rawData = data;
+      if (error || !Array.isArray(rawData)) {
+        rawData = await fetchSupabaseRestFallback<any[]>('faqs?select=*&order=order_index.asc');
+      }
+
+      if (Array.isArray(rawData) && rawData.length > 0) {
+        const mapped = rawData.map((d: any) => ({
           id: d.id,
           category: d.category,
           question: d.question,
@@ -2026,18 +2176,29 @@ export const DatabaseService = {
       id: `faq-${Date.now()}`,
     };
 
-    const { error } = await client.from('faqs').insert({
+    const payload = {
       id: newFaq.id,
       category: newFaq.category,
       question: newFaq.question,
       answer: newFaq.answer,
       order_index: newFaq.orderIndex || 0,
       created_at: new Date().toISOString(),
-    });
+    };
 
-    if (error) {
-      console.error('Supabase addFaq failed:', error);
-      throw new Error(`Failed to save FAQ in database: ${error.message}`);
+    let saveError: any = null;
+    try {
+      const { error } = await client.from('faqs').insert(payload);
+      saveError = error;
+    } catch (err) {
+      saveError = err;
+    }
+
+    if (saveError) {
+      const ok = await supabaseRestMutation('faqs', 'POST', '', payload);
+      if (!ok) {
+        console.error('Supabase addFaq failed:', saveError);
+        throw new Error(`Failed to save FAQ in database: ${formatQueryError(saveError)}`);
+      }
     }
 
     inMemoryFaqs = [...inMemoryFaqs, newFaq];
@@ -2053,9 +2214,19 @@ export const DatabaseService = {
     if (updates.answer !== undefined) payload.answer = updates.answer;
     if (updates.orderIndex !== undefined) payload.order_index = updates.orderIndex;
 
-    const { error } = await client.from('faqs').update(payload).eq('id', id);
-    if (error) {
-      throw new Error(`Failed to update FAQ: ${error.message}`);
+    let updateError: any = null;
+    try {
+      const { error } = await client.from('faqs').update(payload).eq('id', id);
+      updateError = error;
+    } catch (err) {
+      updateError = err;
+    }
+
+    if (updateError) {
+      const ok = await supabaseRestMutation('faqs', 'PATCH', `id=eq.${encodeURIComponent(id)}`, payload);
+      if (!ok) {
+        throw new Error(`Failed to update FAQ: ${formatQueryError(updateError)}`);
+      }
     }
 
     inMemoryFaqs = inMemoryFaqs.map((f) => (f.id === id ? { ...f, ...updates } : f));
@@ -2064,9 +2235,19 @@ export const DatabaseService = {
 
   async deleteFaq(id: string): Promise<void> {
     const client = requireSupabase();
-    const { error } = await client.from('faqs').delete().eq('id', id);
-    if (error) {
-      throw new Error(`Failed to delete FAQ: ${error.message}`);
+    let delError: any = null;
+    try {
+      const { error } = await client.from('faqs').delete().eq('id', id);
+      delError = error;
+    } catch (err) {
+      delError = err;
+    }
+
+    if (delError) {
+      const ok = await supabaseRestMutation('faqs', 'DELETE', `id=eq.${encodeURIComponent(id)}`);
+      if (!ok) {
+        throw new Error(`Failed to delete FAQ: ${formatQueryError(delError)}`);
+      }
     }
 
     inMemoryFaqs = inMemoryFaqs.filter((f) => f.id !== id);
