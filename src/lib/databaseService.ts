@@ -2166,17 +2166,17 @@ export const DatabaseService = {
 
     try {
       const { data: bucketData, error: bucketError } = await withTimeout(
-        client.storage.getBucket('product-images'),
+        client.storage.from('product-images').list('', { limit: 1 }),
         3500,
         { data: null, error: null }
       );
 
       if (bucketError) {
-        if (bucketError.message?.toLowerCase().includes('not found')) {
+        if (bucketError.message?.toLowerCase().includes('not found') || bucketError.message?.toLowerCase().includes('bucket')) {
           storageStatus = {
             name: 'product-images',
             status: 'missing',
-            message: 'Bucket does not exist. Run SQL script or create bucket in Supabase dashboard.',
+            message: 'Bucket does not exist. Create public bucket "product-images" in Supabase Storage.',
           };
         } else {
           storageStatus = {
@@ -2185,6 +2185,12 @@ export const DatabaseService = {
             message: 'Verified bucket access',
           };
         }
+      } else {
+        storageStatus = {
+          name: 'product-images',
+          status: 'ready',
+          message: 'Active & ready for image uploads',
+        };
       }
     } catch (err: any) {
       storageStatus = {
