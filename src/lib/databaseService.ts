@@ -341,7 +341,7 @@ export const DatabaseService = {
 
       const query = client
         .from('orders')
-        .select('id, customer_name, email, phone, items, total, subtotal, shipping_fee, discount_amount, seller_status, customer_status, status, payment_method, address, city, state, pincode, special_instructions, courier_name, tracking_number, tracking_url, created_at')
+        .select('*')
         .order('created_at', { ascending: false })
         .limit(100);
 
@@ -637,7 +637,7 @@ export const DatabaseService = {
       const client = requireSupabase();
       const query = client
         .from('products')
-        .select('id,name,slug,category,sub_category,price,original_price,discount,rating,review_count,images,description,short_description,material,in_stock,stock_quantity,sku,dimensions,variety,tag,sizes,features,highlights,care_instructions,delivery_policy,specs,colors,anti_tarnish_guarantee,waterproof,hypoallergenic,is_new_arrival,is_best_seller,created_at,updated_at')
+        .select('*')
         .order('created_at', { ascending: false });
 
       const { data, error } = await withTimeout(query, 15000, { data: null, error: 'timeout' });
