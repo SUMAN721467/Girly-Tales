@@ -572,10 +572,20 @@ export const DatabaseService = {
     };
 
     // 1. Call Supabase FIRST
-    const { error } = await client.from('orders').upsert(payload, { onConflict: 'id' });
-    if (error) {
-      console.error('Supabase createOrder failed:', error);
-      throw new Error(`Order placement failed in database: ${error.message}`);
+    let insertError: any = null;
+    try {
+      const { error } = await client.from('orders').upsert(payload, { onConflict: 'id' });
+      insertError = error;
+    } catch (err) {
+      insertError = err;
+    }
+
+    if (insertError) {
+      const ok = await supabaseRestMutation('orders', 'POST', '', payload);
+      if (!ok) {
+        console.error('Supabase createOrder failed:', insertError);
+        throw new Error(`Order placement failed in database: ${formatQueryError(insertError)}`);
+      }
     }
 
     // 2. Update in-memory state ONLY AFTER successful DB response
@@ -627,14 +637,23 @@ export const DatabaseService = {
     if (shippingInfo?.trackingUrl !== undefined) updatePayload.tracking_url = shippingInfo.trackingUrl;
 
     // 1. Call Supabase FIRST
-    const { error } = await client
-      .from('orders')
-      .update(updatePayload)
-      .eq('id', cleanId);
+    let updateError: any = null;
+    try {
+      const { error } = await client
+        .from('orders')
+        .update(updatePayload)
+        .eq('id', cleanId);
+      updateError = error;
+    } catch (err) {
+      updateError = err;
+    }
 
-    if (error) {
-      console.error('Supabase updateSellerStatus failed:', error);
-      throw new Error(`Failed to update order status in database: ${error.message}`);
+    if (updateError) {
+      const ok = await supabaseRestMutation('orders', 'PATCH', `id=eq.${encodeURIComponent(cleanId)}`, updatePayload);
+      if (!ok) {
+        console.error('Supabase updateSellerStatus failed:', updateError);
+        throw new Error(`Failed to update order status in database: ${formatQueryError(updateError)}`);
+      }
     }
 
     // 2. Update local state ONLY on DB success
@@ -653,19 +672,62 @@ export const DatabaseService = {
     notifyDatabaseChange('orders');
   },
 
+  async updateCustomerStatus(orderId: string, customerStatus: CustomerStatus): Promise<void> {
+    const cleanId = String(orderId).trim();
+    if (!cleanId) throw new Error('Order ID is required');
+
+    const client = requireSupabase();
+    const updatePayload = { customer_status: customerStatus };
+
+    let updateError: any = null;
+    try {
+      const { error } = await client
+        .from('orders')
+        .update(updatePayload)
+        .eq('id', cleanId);
+      updateError = error;
+    } catch (err) {
+      updateError = err;
+    }
+
+    if (updateError) {
+      const ok = await supabaseRestMutation('orders', 'PATCH', `id=eq.${encodeURIComponent(cleanId)}`, updatePayload);
+      if (!ok) {
+        console.error('Supabase updateCustomerStatus failed:', updateError);
+        throw new Error(`Failed to update customer status: ${formatQueryError(updateError)}`);
+      }
+    }
+
+    inMemoryOrders = inMemoryOrders.map((o) =>
+      o.id === cleanId ? { ...o, customerStatus } : o
+    );
+    notifyDatabaseChange('orders');
+  },
+
   async updateSpecialInstructions(orderId: string, specialInstructions: string): Promise<void> {
     const cleanId = String(orderId).trim();
     if (!cleanId) throw new Error('Order ID is required');
 
     const client = requireSupabase();
-    const { error } = await client
-      .from('orders')
-      .update({ special_instructions: specialInstructions })
-      .eq('id', cleanId);
+    let updateError: any = null;
+    try {
+      const { error } = await client
+        .from('orders')
+        .update({ special_instructions: specialInstructions })
+        .eq('id', cleanId);
+      updateError = error;
+    } catch (err) {
+      updateError = err;
+    }
 
-    if (error) {
-      console.error('Supabase updateSpecialInstructions failed:', error);
-      throw new Error(`Failed to save special instructions: ${error.message}`);
+    if (updateError) {
+      const ok = await supabaseRestMutation('orders', 'PATCH', `id=eq.${encodeURIComponent(cleanId)}`, {
+        special_instructions: specialInstructions,
+      });
+      if (!ok) {
+        console.error('Supabase updateSpecialInstructions failed:', updateError);
+        throw new Error(`Failed to save special instructions: ${formatQueryError(updateError)}`);
+      }
     }
 
     inMemoryOrders = inMemoryOrders.map((o) =>

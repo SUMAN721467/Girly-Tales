@@ -1187,8 +1187,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         );
       }
       triggerToast('Seller Status Updated 📦', `Order #${orderId} marked as ${newStatus}`, undefined, 'success');
-    } catch (e) {
-      triggerToast('Update Failed', 'Could not update order status in database.', undefined, 'error');
+    } catch (e: any) {
+      await loadDatabaseData();
+      triggerToast('Update Failed', e?.message || 'Could not update order status in database.', undefined, 'error');
     }
   };
 
@@ -1225,8 +1226,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         );
       }
       triggerToast('Instruction Saved ✉️', `Message updated for Order #${orderId}`, undefined, 'success');
-    } catch (e) {
-      triggerToast('Save Failed', 'Could not save instruction to database.', undefined, 'error');
+    } catch (e: any) {
+      await loadDatabaseData();
+      triggerToast('Save Failed', e?.message || 'Could not save instruction to database.', undefined, 'error');
     } finally {
       setIsSavingInstruction(false);
     }
