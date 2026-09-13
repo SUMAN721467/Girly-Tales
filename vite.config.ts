@@ -290,6 +290,12 @@ export default defineConfig({
         secure: true,
         ws: true,
         rewrite: (path) => path.replace(/^\/supabase-proxy/, ''),
+        configure: (proxy: any) => {
+          proxy.on('proxyReq', (proxyReq: any) => {
+            // Strip bulky localhost browser cookies to prevent HTTP 431 Request Header Fields Too Large
+            proxyReq.removeHeader('cookie');
+          });
+        },
       },
     },
   },
@@ -302,6 +308,11 @@ export default defineConfig({
         secure: true,
         ws: true,
         rewrite: (path) => path.replace(/^\/supabase-proxy/, ''),
+        configure: (proxy: any) => {
+          proxy.on('proxyReq', (proxyReq: any) => {
+            proxyReq.removeHeader('cookie');
+          });
+        },
       },
     },
   },

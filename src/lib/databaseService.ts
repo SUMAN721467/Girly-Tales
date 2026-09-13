@@ -1016,12 +1016,42 @@ export const DatabaseService = {
   },
 
   async uploadProductImage(file: File): Promise<string> {
-    const client = requireSupabase();
     const optimizedBlob = await this.optimizeImageFile(file);
     const cleanExt = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
     const fileName = `prod_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${cleanExt}`;
     const filePath = `products/${fileName}`;
 
+    const baseUrl = getEffectiveSupabaseUrl().replace(/\/+$/, '');
+    const apiKey = getSupabaseAnonKey();
+
+    // 1. First attempt direct REST upload with clean Anon API key
+    // This avoids bulky browser cookies/headers being passed by client storage wrappers
+    try {
+      const uploadUrl = `${baseUrl}/storage/v1/object/product-images/${filePath}`;
+      const uploadRes = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          apikey: apiKey,
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': file.type || 'image/jpeg',
+          'cache-control': 'max-age=3600',
+          'x-upsert': 'true',
+        },
+        body: optimizedBlob,
+      });
+
+      if (uploadRes.ok) {
+        return `${baseUrl}/storage/v1/object/public/product-images/${filePath}`;
+      }
+
+      const errText = await uploadRes.text().catch(() => '');
+      console.warn('[Direct REST Storage Upload Failed, falling back to client]', uploadRes.status, errText);
+    } catch (restErr) {
+      console.warn('[Direct REST Storage Upload Network Error, falling back to client]', restErr);
+    }
+
+    // 2. Fallback to Supabase JS storage client
+    const client = requireSupabase();
     let { error: uploadError } = await client.storage
       .from('product-images')
       .upload(filePath, optimizedBlob, {
@@ -1053,11 +1083,7 @@ export const DatabaseService = {
       .from('product-images')
       .getPublicUrl(filePath);
 
-    if (!publicData?.publicUrl) {
-      throw new Error('Failed to obtain public URL for uploaded product image.');
-    }
-
-    return publicData.publicUrl;
+    return publicData?.publicUrl || `${baseUrl}/storage/v1/object/public/product-images/${filePath}`;
   },
 
   async optimizeImageFile(file: File, maxWidth = 1600, quality = 0.88): Promise<Blob> {
