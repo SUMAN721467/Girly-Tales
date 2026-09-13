@@ -4,6 +4,7 @@ import { Product, SortOption } from '../types/product';
 import { ProductCard } from '../components/product/ProductCard';
 import { DatabaseService, RealCategory } from '../lib/databaseService';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { MOCK_PRODUCTS } from '../data/products';
 
 interface ShopPageProps {
   initialCategory?: string;
@@ -37,12 +38,17 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState<boolean>(false);
 
   const loadStorefrontData = async () => {
+    if (!isSupabaseConfigured) {
+      setProductsList(MOCK_PRODUCTS);
+      return;
+    }
+
     try {
       const [loadedProducts, loadedCats] = await Promise.all([
         DatabaseService.getProducts(),
         DatabaseService.getCategories(),
       ]);
-      if (Array.isArray(loadedProducts) && loadedProducts.length > 0) {
+      if (Array.isArray(loadedProducts)) {
         setProductsList(loadedProducts);
       }
       if (Array.isArray(loadedCats)) {
@@ -66,11 +72,20 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   useEffect(() => {
     loadStorefrontData();
 
+    // Debounce storefront reloading
+    let debounceTimer: any = null;
+    const debouncedLoad = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        loadStorefrontData();
+      }, 350);
+    };
+
     // 1. Listen for global cross-component database sync events
     const handleDbSync = (e: any) => {
       const type = e.detail?.type;
       if (!type || type === 'categories' || type === 'products' || type === 'all') {
-        loadStorefrontData();
+        debouncedLoad();
       }
     };
     window.addEventListener('gt_db_sync', handleDbSync);
@@ -84,12 +99,12 @@ export const ShopPage: React.FC<ShopPageProps> = ({
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'categories' },
-            () => loadStorefrontData()
+            () => debouncedLoad()
           )
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'products' },
-            () => loadStorefrontData()
+            () => debouncedLoad()
           )
           .subscribe();
       } catch (err) {
@@ -98,6 +113,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     }
 
     return () => {
+      clearTimeout(debounceTimer);
       window.removeEventListener('gt_db_sync', handleDbSync);
       if (channel) {
         supabase.removeChannel(channel);

@@ -6,7 +6,11 @@ import { ComfortMarquee } from '../components/home/ComfortMarquee';
 import { CategorySlider } from '../components/home/CategorySlider';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
-import { DatabaseService } from '../lib/databaseService';
+import { DatabaseService, RealCategory } from '../lib/databaseService';
+import { isSupabaseConfigured } from '../lib/supabase';
+import { MOCK_PRODUCTS } from '../data/products';
+import slide1 from '../assets/slide1.jpg';
+import slide2 from '../assets/slide2.jpg';
 
 interface HomePageProps {
   onNavigate: (page: string, category?: string) => void;
@@ -52,31 +56,57 @@ export const HomePage: React.FC<HomePageProps> = ({
   const { items, addToCart, openCart } = useCart();
   const { user, isLoggedIn, openAuthModal } = useAuth();
   const [productsList, setProductsList] = useState<Product[]>([]);
+  const [dbCategories, setDbCategories] = useState<RealCategory[]>([]);
 
-  const loadHomeProducts = async () => {
+  const loadHomeData = async () => {
+    if (!isSupabaseConfigured) {
+      setProductsList(MOCK_PRODUCTS);
+      return;
+    }
+
     try {
-      const prods = await DatabaseService.getProducts();
+      const [prods, cats] = await Promise.all([
+        DatabaseService.getProducts(),
+        DatabaseService.getCategories(),
+      ]);
       if (Array.isArray(prods)) {
         setProductsList(prods);
       }
+      if (Array.isArray(cats)) {
+        setDbCategories(cats.filter((c) => c.isActive));
+      }
     } catch (e) {
-      console.warn('Failed to load home products:', e);
+      console.warn('Failed to load home data:', e);
     }
   };
 
   useEffect(() => {
-    loadHomeProducts();
+    loadHomeData();
 
     const handleSync = (e: any) => {
       const type = e.detail?.type;
-      if (!type || type === 'products' || type === 'all') {
-        loadHomeProducts();
+      if (!type || type === 'products' || type === 'categories' || type === 'all') {
+        loadHomeData();
       }
     };
 
     window.addEventListener('gt_db_sync', handleSync);
     return () => window.removeEventListener('gt_db_sync', handleSync);
   }, []);
+
+  const sliderCategories = useMemo(() => {
+    if (dbCategories.length === 0) return undefined;
+    return dbCategories.map((c, idx) => ({
+      id: c.id,
+      name: c.name.toUpperCase(),
+      tagline: c.slug.includes('jewel') || c.slug.includes('ring') || c.slug.includes('neck') 
+        ? 'Waterproof, Shower-Safe & Hypoallergenic' 
+        : 'Cloud-Soft Luxury Living',
+      image: idx % 2 === 0 ? slide1 : slide2,
+      category: c.slug,
+      ctaText: `SHOP ${c.name.toUpperCase()}`,
+    }));
+  }, [dbCategories]);
 
   const influencerReels = useMemo(() => {
     if (!productsList || productsList.length === 0) return [];
@@ -103,9 +133,9 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* 2. CONTINUOUS TICKER MARQUEE RIBBON */}
       <ComfortMarquee />
 
-      {/* 3. THE ESSENTIALS - SHOP BY CATEGORY (PALMONAS CAROUSEL STYLE) */}
+      {/* 3. THE ESSENTIALS - SHOP BY CATEGORY */}
       <section className="w-full mt-3 sm:mt-5">
-        <CategorySlider onNavigate={onNavigate} />
+        <CategorySlider categories={sliderCategories} onNavigate={onNavigate} />
       </section>
 
       {/* 3. TRENDING THIS SEASON (1 ROW - 4 ITEMS) */}

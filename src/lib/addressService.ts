@@ -1,7 +1,7 @@
-import { supabase, isSupabaseConfigured } from './supabase';
+import { supabase, isSupabaseConfigured, requireSupabase } from './supabase';
 import { ShippingAddress } from '../types/product';
 
-// Purge any legacy browser storage keys to guarantee NO local/browser storage is used
+// Purge any legacy browser storage keys
 if (typeof window !== 'undefined') {
   try {
     localStorage.removeItem('girly_tales_shipping_addresses_v1');
@@ -11,7 +11,7 @@ if (typeof window !== 'undefined') {
   } catch (e) {}
 }
 
-// In-memory runtime cache for seamless UI reactivity (never written to browser storage)
+// In-memory runtime cache for fast synchronous reads (updated ONLY after successful DB operations)
 let inMemoryAddresses: ShippingAddress[] = [];
 
 export const notifyAddressChange = () => {
@@ -21,7 +21,6 @@ export const notifyAddressChange = () => {
 };
 
 export const AddressService = {
-  // Clear runtime cache on logout
   clearCache() {
     inMemoryAddresses = [];
     notifyAddressChange();
@@ -38,14 +37,19 @@ export const AddressService = {
 
     if (isSupabaseConfigured) {
       try {
-        const { data, error } = await supabase
+        const client = requireSupabase();
+        const { data, error } = await client
           .from('shipping_addresses')
           .select('*')
           .eq('user_email', normalizedEmail)
           .order('is_default', { ascending: false })
           .order('created_at', { ascending: false });
 
-        if (!error && Array.isArray(data)) {
+        if (error) {
+          throw error;
+        }
+
+        if (Array.isArray(data)) {
           const mapped: ShippingAddress[] = data.map((d: any) => ({
             id: String(d.id),
             fullName: d.full_name || d.fullName || 'Customer',
@@ -60,24 +64,23 @@ export const AddressService = {
 
           inMemoryAddresses = mapped;
           return mapped;
-        } else if (error) {
-          console.warn('Supabase fetch shipping_addresses note:', error.message);
         }
       } catch (err) {
-        console.warn('Supabase getAddresses exception:', err);
+        console.error('Supabase getAddresses error:', err);
+        throw err;
       }
     }
 
     return inMemoryAddresses;
   },
 
-  // Synchronous getter for quick in-memory reads
   getAddressesSync(): ShippingAddress[] {
     return inMemoryAddresses;
   },
 
   // Save new shipping address into Supabase Database
   async addAddress(addressData: Omit<ShippingAddress, 'id'>, userEmail?: string): Promise<ShippingAddress> {
+    const client = requireSupabase();
     const newId = 'addr-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
     const shouldBeDefault = addressData.isDefault || inMemoryAddresses.length === 0;
 
@@ -87,46 +90,35 @@ export const AddressService = {
       isDefault: shouldBeDefault,
     };
 
-    if (isSupabaseConfigured) {
-      try {
-        // If new address is set as default, set other addresses is_default to false
-        if (shouldBeDefault) {
-          if (userEmail) {
-            await supabase
-              .from('shipping_addresses')
-              .update({ is_default: false })
-              .eq('user_email', userEmail.toLowerCase().trim());
-          } else {
-            await supabase
-              .from('shipping_addresses')
-              .update({ is_default: false })
-              .neq('id', newId);
-          }
-        }
-
-        const { error } = await supabase.from('shipping_addresses').insert({
-          id: newId,
-          user_email: userEmail ? userEmail.toLowerCase().trim() : '',
-          full_name: addressData.fullName,
-          phone: addressData.phone,
-          pincode: addressData.pincode,
-          city: addressData.city,
-          state: addressData.state,
-          address_line: addressData.addressLine,
-          type: addressData.type || 'Home',
-          is_default: shouldBeDefault,
-          created_at: new Date().toISOString(),
-        });
-
-        if (error) {
-          console.warn('Supabase insert shipping address note:', error.message);
-        }
-      } catch (e) {
-        console.warn('Supabase addAddress error:', e);
-      }
+    // If new address is set as default, reset other addresses is_default in Supabase
+    if (shouldBeDefault && userEmail) {
+      await client
+        .from('shipping_addresses')
+        .update({ is_default: false })
+        .eq('user_email', userEmail.toLowerCase().trim());
     }
 
-    // Update in-memory runtime cache
+    // 1. Call Supabase FIRST
+    const { error } = await client.from('shipping_addresses').insert({
+      id: newId,
+      user_email: userEmail ? userEmail.toLowerCase().trim() : '',
+      full_name: addressData.fullName,
+      phone: addressData.phone,
+      pincode: addressData.pincode,
+      city: addressData.city,
+      state: addressData.state,
+      address_line: addressData.addressLine,
+      type: addressData.type || 'Home',
+      is_default: shouldBeDefault,
+      created_at: new Date().toISOString(),
+    });
+
+    if (error) {
+      console.error('Supabase addAddress failed:', error);
+      throw new Error(`Failed to save shipping address: ${error.message}`);
+    }
+
+    // 2. Update in-memory runtime cache ONLY on DB success
     const updated = shouldBeDefault
       ? inMemoryAddresses.map((a) => ({ ...a, isDefault: false }))
       : [...inMemoryAddresses];
@@ -141,48 +133,39 @@ export const AddressService = {
     id: string,
     updatedFields: Partial<ShippingAddress>,
     userEmail?: string
-  ): Promise<ShippingAddress | null> {
+  ): Promise<ShippingAddress> {
+    const client = requireSupabase();
     const isSettingDefault = updatedFields.isDefault;
 
-    if (isSupabaseConfigured) {
-      try {
-        if (isSettingDefault) {
-          if (userEmail) {
-            await supabase
-              .from('shipping_addresses')
-              .update({ is_default: false })
-              .eq('user_email', userEmail.toLowerCase().trim());
-          } else {
-            await supabase
-              .from('shipping_addresses')
-              .update({ is_default: false })
-              .neq('id', id);
-          }
-        }
-
-        const updatePayload: any = {};
-        if (updatedFields.fullName !== undefined) updatePayload.full_name = updatedFields.fullName;
-        if (updatedFields.phone !== undefined) updatePayload.phone = updatedFields.phone;
-        if (updatedFields.pincode !== undefined) updatePayload.pincode = updatedFields.pincode;
-        if (updatedFields.city !== undefined) updatePayload.city = updatedFields.city;
-        if (updatedFields.state !== undefined) updatePayload.state = updatedFields.state;
-        if (updatedFields.addressLine !== undefined) updatePayload.address_line = updatedFields.addressLine;
-        if (updatedFields.type !== undefined) updatePayload.type = updatedFields.type;
-        if (updatedFields.isDefault !== undefined) updatePayload.is_default = updatedFields.isDefault;
-
-        const { error } = await supabase
-          .from('shipping_addresses')
-          .update(updatePayload)
-          .eq('id', id);
-
-        if (error) {
-          console.warn('Supabase update shipping address note:', error.message);
-        }
-      } catch (e) {
-        console.warn('Supabase updateAddress error:', e);
-      }
+    if (isSettingDefault && userEmail) {
+      await client
+        .from('shipping_addresses')
+        .update({ is_default: false })
+        .eq('user_email', userEmail.toLowerCase().trim());
     }
 
+    const updatePayload: any = {};
+    if (updatedFields.fullName !== undefined) updatePayload.full_name = updatedFields.fullName;
+    if (updatedFields.phone !== undefined) updatePayload.phone = updatedFields.phone;
+    if (updatedFields.pincode !== undefined) updatePayload.pincode = updatedFields.pincode;
+    if (updatedFields.city !== undefined) updatePayload.city = updatedFields.city;
+    if (updatedFields.state !== undefined) updatePayload.state = updatedFields.state;
+    if (updatedFields.addressLine !== undefined) updatePayload.address_line = updatedFields.addressLine;
+    if (updatedFields.type !== undefined) updatePayload.type = updatedFields.type;
+    if (updatedFields.isDefault !== undefined) updatePayload.is_default = updatedFields.isDefault;
+
+    // 1. Call Supabase FIRST
+    const { error } = await client
+      .from('shipping_addresses')
+      .update(updatePayload)
+      .eq('id', id);
+
+    if (error) {
+      console.error('Supabase updateAddress failed:', error);
+      throw new Error(`Failed to update shipping address: ${error.message}`);
+    }
+
+    // 2. Update cache ONLY on DB success
     inMemoryAddresses = inMemoryAddresses.map((addr) => {
       if (addr.id === id) {
         return { ...addr, ...updatedFields };
@@ -194,34 +177,30 @@ export const AddressService = {
     });
 
     notifyAddressChange();
-    return inMemoryAddresses.find((a) => a.id === id) || null;
+    const updated = inMemoryAddresses.find((a) => a.id === id);
+    if (!updated) throw new Error('Address not found after update');
+    return updated;
   },
 
   // Permanently delete address from Supabase Database
   async deleteAddress(id: string): Promise<void> {
-    if (isSupabaseConfigured) {
-      try {
-        const { error } = await supabase.from('shipping_addresses').delete().eq('id', id);
-        if (error) {
-          console.warn('Supabase delete shipping address note:', error.message);
-        }
-      } catch (e) {
-        console.warn('Supabase deleteAddress error:', e);
-      }
+    const client = requireSupabase();
+    // 1. Call Supabase FIRST
+    const { error } = await client.from('shipping_addresses').delete().eq('id', id);
+    if (error) {
+      console.error('Supabase deleteAddress failed:', error);
+      throw new Error(`Failed to delete shipping address: ${error.message}`);
     }
 
+    // 2. Update cache ONLY on DB success
     const remaining = inMemoryAddresses.filter((a) => a.id !== id);
-
-    // If we deleted the default address, make the first remaining address the default
     if (remaining.length > 0 && !remaining.some((a) => a.isDefault)) {
       remaining[0].isDefault = true;
-      if (isSupabaseConfigured) {
-        supabase
-          .from('shipping_addresses')
-          .update({ is_default: true })
-          .eq('id', remaining[0].id)
-          .then();
-      }
+      client
+        .from('shipping_addresses')
+        .update({ is_default: true })
+        .eq('id', remaining[0].id)
+        .then();
     }
 
     inMemoryAddresses = remaining;
@@ -230,27 +209,22 @@ export const AddressService = {
 
   // Set default shipping address in Supabase Database
   async setDefaultAddress(id: string, userEmail?: string): Promise<void> {
-    if (isSupabaseConfigured) {
-      try {
-        if (userEmail) {
-          await supabase
-            .from('shipping_addresses')
-            .update({ is_default: false })
-            .eq('user_email', userEmail.toLowerCase().trim());
-        } else {
-          await supabase
-            .from('shipping_addresses')
-            .update({ is_default: false })
-            .neq('id', id);
-        }
+    const client = requireSupabase();
+    if (userEmail) {
+      await client
+        .from('shipping_addresses')
+        .update({ is_default: false })
+        .eq('user_email', userEmail.toLowerCase().trim());
+    }
 
-        await supabase
-          .from('shipping_addresses')
-          .update({ is_default: true })
-          .eq('id', id);
-      } catch (e) {
-        console.warn('Supabase setDefaultAddress error:', e);
-      }
+    const { error } = await client
+      .from('shipping_addresses')
+      .update({ is_default: true })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Supabase setDefaultAddress failed:', error);
+      throw new Error(`Failed to set default address: ${error.message}`);
     }
 
     inMemoryAddresses = inMemoryAddresses.map((a) => ({

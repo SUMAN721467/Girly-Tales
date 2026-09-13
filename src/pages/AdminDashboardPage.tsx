@@ -25,9 +25,13 @@ import {
   CustomerWishlistItem,
   RealReview, 
   RealCoupon,
-  RealCategory
+  RealCategory,
+  PromotionItem,
+  ShippingRules,
+  FAQItem,
+  StoreSettings
 } from '../lib/databaseService';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { supabase, isSupabaseConfigured, testSupabaseConnection, SupabaseConnectivityStatus } from '../lib/supabase';
 import { SUPABASE_SCHEMA_SQL } from '../lib/supabaseSchemaSql';
 
 interface AdminDashboardPageProps {
@@ -48,12 +52,6 @@ type AdminTab =
   | 'database'
   | 'settings';
 
-interface FAQItem {
-  id: string;
-  category: string;
-  question: string;
-  answer: string;
-}
 
 const getInitials = (name?: string, email?: string): string => {
   if (name && name.trim()) {
@@ -88,8 +86,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const [dbStatus, setDbStatus] = useState<{
     isConfigured: boolean;
     url: string;
+    storageBucket: { name: string; status: 'ready' | 'missing' | 'error'; message?: string };
     tables: { name: string; count: number; status: 'ready' | 'missing' | 'error'; message?: string }[];
   } | null>(null);
+  const [connectivityInfo, setConnectivityInfo] = useState<SupabaseConnectivityStatus | null>(null);
+  const [dbError, setDbError] = useState<string | null>(null);
   const [isCopiedSql, setIsCopiedSql] = useState(false);
   const [isCheckingDb, setIsCheckingDb] = useState(false);
 
@@ -226,6 +227,166 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     verified: true,
   });
   const [isSavingEditReview, setIsSavingEditReview] = useState(false);
+
+  // Coupon creation
+  const [newCouponCode, setNewCouponCode] = useState({ code: '', discount: '10% OFF', minSpend: 999, description: '' });
+  const [isAddCouponModalOpen, setIsAddCouponModalOpen] = useState(false);
+
+  // Homepage Settings State
+  const [announcementText, setAnnouncementText] = useState('✦ BUY 3 SETS FOR ₹2,999 ✦ FREE 18K GOLD POLISH GUARANTEE ✦ FREE SHIPPING ON ORDERS OVER ₹999 ✦');
+  const [heroHeadline, setHeroHeadline] = useState('EVERYDAY LUXURY NIGHTWEAR & 18K JEWELS');
+  const [heroSubtext, setHeroSubtext] = useState('Indulge in feather-soft Mulberry Silk & 18K Anti-Tarnish jewellery crafted for graceful everyday living.');
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+  // Promotions State
+  const [promotions, setPromotions] = useState<PromotionItem[]>([
+    { id: 'p-1', name: 'Monsoon Silk Comfort Bundle', discount: 'Buy Any 3 Sets for ₹2,999', badge: 'Best Deal', active: true, bannerText: 'Flat 35% Savings on Silk Lounge Combos' },
+    { id: 'p-2', name: '18K Gold Jewellery Welcome Gift', discount: 'Free Luxury Jewellery Pouch with every ₹1,500+ order', badge: 'Freebie', active: true, bannerText: 'Complimentary Anti-Tarnish Pouch included' },
+    { id: 'p-3', name: 'VIP Secret Drop Sale', discount: 'Extra 10% for Registered Members', badge: 'Members Only', active: true, bannerText: 'Use code GIRLY10 at instant checkout' },
+  ]);
+
+  // Shipping Rules State
+  const [shippingRules, setShippingRules] = useState<ShippingRules>({
+    id: 'default',
+    freeThreshold: 999,
+    standardRate: 99,
+    expressRate: 199,
+    codHandlingFee: 49,
+    estimatedDays: '2 to 4 Business Days',
+    couriers: ['BlueDart Express', 'Delhivery Surface', 'DTDC Prime'],
+  });
+
+  // FAQs State
+  const [faqs, setFaqs] = useState<FAQItem[]>([
+    { id: 'f-1', category: 'Nightwear & Loungewear', question: 'How do I care for Mulberry silk and modal sets?', answer: 'We recommend gentle machine wash in cold water using a laundry wash bag, or delicate hand wash with mild liquid detergent. Line dry in shade to preserve color luster.' },
+    { id: 'f-2', category: '18K Anti-Tarnish Jewellery', question: 'Can I wear the 18K jewellery while bathing or swimming?', answer: 'Yes! Our pieces are crafted with premium stainless steel / brass cores with vacuum-plated 18K real gold and protective clear ceramic seal, making them 100% waterproof, sweatproof, and hypoallergenic.' },
+    { id: 'f-3', category: 'Shipping & Delivery', question: 'How soon will my order be dispatched and delivered?', answer: 'Orders placed before 2 PM IST are dispatched on the same business day. Delivery takes 2-4 business days for metro cities and 3-5 days for other locations.' },
+    { id: 'f-4', category: 'Returns & Exchanges', question: 'What is your size exchange and return policy?', answer: 'We offer hassle-free 7-day doorstep size exchanges. If the nightwear size does not fit comfortably, you can request an exchange in 1 click from your account.' },
+  ]);
+
+  // Fast Parallel Database Loader with non-blocking background status check (resilient to individual table latency/errors)
+  const loadDatabaseData = async (showToast = false) => {
+    setIsLoadingData(true);
+    try {
+      const [
+        ordersResult, 
+        productsResult, 
+        reviewsResult, 
+        couponsResult, 
+        catsResult,
+        settingsResult,
+        promosResult,
+        shippingResult,
+        faqsResult
+      ] = await Promise.allSettled([
+        DatabaseService.getOrders(),
+        DatabaseService.getProducts(),
+        DatabaseService.getReviews(),
+        DatabaseService.getCoupons(),
+        DatabaseService.getCategories(),
+        DatabaseService.getStoreSettings(),
+        DatabaseService.getPromotions(),
+        DatabaseService.getShippingRules(),
+        DatabaseService.getFaqs(),
+      ]);
+
+      const failedTables: string[] = [];
+
+      let fetchedOrders: RealOrder[] = orders;
+      if (ordersResult.status === 'fulfilled') {
+        fetchedOrders = ordersResult.value;
+        setOrders(fetchedOrders);
+      } else {
+        console.error('[Admin Orders Load Error]', ordersResult.reason);
+        failedTables.push(`Orders: ${ordersResult.reason?.message || 'Failed to load'}`);
+      }
+
+      let fetchedProducts: Product[] = productsList;
+      if (productsResult.status === 'fulfilled') {
+        fetchedProducts = productsResult.value;
+        setProductsList(fetchedProducts);
+      } else {
+        console.error('[Admin Products Load Error]', productsResult.reason);
+        failedTables.push(`Products: ${productsResult.reason?.message || 'Failed to load'}`);
+      }
+
+      if (reviewsResult.status === 'fulfilled') {
+        setReviews(reviewsResult.value);
+      } else {
+        console.warn('[Admin Reviews Load Note]', reviewsResult.reason);
+      }
+
+      if (couponsResult.status === 'fulfilled') {
+        setCoupons(couponsResult.value);
+      } else {
+        console.warn('[Admin Coupons Load Note]', couponsResult.reason);
+      }
+
+      let fetchedCats: RealCategory[] = categoriesList;
+      if (catsResult.status === 'fulfilled') {
+        fetchedCats = catsResult.value;
+        setCategoriesList(fetchedCats);
+      } else {
+        console.warn('[Admin Categories Load Note]', catsResult.reason);
+      }
+
+      if (settingsResult.status === 'fulfilled' && settingsResult.value) {
+        setAnnouncementText(settingsResult.value.announcementText);
+        setHeroHeadline(settingsResult.value.heroHeadline);
+        setHeroSubtext(settingsResult.value.heroSubtext);
+      }
+
+      if (promosResult.status === 'fulfilled' && promosResult.value && promosResult.value.length > 0) {
+        setPromotions(promosResult.value);
+      }
+
+      if (shippingResult.status === 'fulfilled' && shippingResult.value) {
+        setShippingRules(shippingResult.value);
+      }
+
+      if (faqsResult.status === 'fulfilled' && faqsResult.value && faqsResult.value.length > 0) {
+        setFaqs(faqsResult.value);
+      }
+
+      // Derive Real Customers passing already fetched products (0 duplicate network requests)
+      try {
+        const derivedCustomers = await DatabaseService.getCustomers(fetchedOrders, user, fetchedProducts);
+        setCustomers(derivedCustomers);
+      } catch (custErr) {
+        console.warn('[Admin Derive Customers Note]', custErr);
+      }
+
+      // Background check of table statuses and direct connectivity
+      DatabaseService.checkSupabaseStatus()
+        .then((statusInfo) => setDbStatus(statusInfo))
+        .catch(() => {});
+
+      testSupabaseConnection()
+        .then((conn) => setConnectivityInfo(conn))
+        .catch(() => {});
+
+      if (failedTables.length > 0) {
+        const errorSummary = failedTables.join(' | ');
+        setDbError(errorSummary);
+        if (showToast) {
+          triggerToast('Partial Sync Warning', errorSummary, undefined, 'info');
+        }
+      } else {
+        setDbError(null);
+        if (showToast) {
+          triggerToast('Database Synced! ⚡', `Loaded ${fetchedOrders.length} orders, ${fetchedProducts.length} products & ${fetchedCats.length} categories.`, undefined, 'success');
+        }
+      }
+    } catch (err: any) {
+      console.error('[Admin Live Sync Error]', err);
+      setDbError(err.message || 'Supabase connection failed. Admin data cannot load.');
+      if (showToast) {
+        triggerToast('Database Sync Error', err.message || 'Failed to sync database.', undefined, 'error');
+      }
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
 
   const handleAdminReviewPhotoUpload = async (files: FileList | null, isEdit = false) => {
     if (!files || files.length === 0) return;
@@ -436,69 +597,16 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     }
   }, [currentCartItems, selectedCustomerDetail, user]);
 
-  // Coupon creation
-  const [newCouponCode, setNewCouponCode] = useState({ code: '', discount: '10% OFF', minSpend: 999, description: '' });
-  const [isAddCouponModalOpen, setIsAddCouponModalOpen] = useState(false);
 
-  // Homepage Settings
-  const [announcementText, setAnnouncementText] = useState('✦ BUY 3 SETS FOR ₹2,999 ✦ FREE 18K GOLD POLISH GUARANTEE ✦ FREE SHIPPING ON ORDERS OVER ₹999 ✦');
-  const [heroHeadline, setHeroHeadline] = useState('EVERYDAY LUXURY NIGHTWEAR & 18K JEWELS');
-  const [heroSubtext, setHeroSubtext] = useState('Indulge in feather-soft Mulberry Silk & 18K Anti-Tarnish jewellery crafted for graceful everyday living.');
 
-  // Promotions State
-  const [promotions] = useState([
-    { id: 'p-1', name: 'Monsoon Silk Comfort Bundle', discount: 'Buy Any 3 Sets for ₹2,999', badge: 'Best Deal', active: true, bannerText: 'Flat 35% Savings on Silk Lounge Combos' },
-    { id: 'p-2', name: '18K Gold Jewellery Welcome Gift', discount: 'Free Luxury Jewellery Pouch with every ₹1,500+ order', badge: 'Freebie', active: true, bannerText: 'Complimentary Anti-Tarnish Pouch included' },
-    { id: 'p-3', name: 'VIP Secret Drop Sale', discount: 'Extra 10% for Registered Members', badge: 'Members Only', active: true, bannerText: 'Use code GIRLY10 at instant checkout' },
-  ]);
-
-  // Shipping Rules State
-  const [shippingRules] = useState({
-    freeThreshold: 999,
-    standardRate: 99,
-    expressRate: 199,
-    codHandlingFee: 49,
-    estimatedDays: '2 to 4 Business Days',
-    couriers: ['BlueDart Express', 'Delhivery Surface', 'DTDC Prime'],
-  });
-
-  // FAQs State
-  const [faqs] = useState<FAQItem[]>([
-    { id: 'f-1', category: 'Nightwear & Loungewear', question: 'How do I care for Mulberry silk and modal sets?', answer: 'We recommend gentle machine wash in cold water using a laundry wash bag, or delicate hand wash with mild liquid detergent. Line dry in shade to preserve color luster.' },
-    { id: 'f-2', category: '18K Anti-Tarnish Jewellery', question: 'Can I wear the 18K jewellery while bathing or swimming?', answer: 'Yes! Our pieces are crafted with premium stainless steel / brass cores with vacuum-plated 18K real gold and protective clear ceramic seal, making them 100% waterproof, sweatproof, and hypoallergenic.' },
-    { id: 'f-3', category: 'Shipping & Delivery', question: 'How soon will my order be dispatched and delivered?', answer: 'Orders placed before 2 PM IST are dispatched on the same business day. Delivery takes 2-4 business days for metro cities and 3-5 days for other locations.' },
-    { id: 'f-4', category: 'Returns & Exchanges', question: 'What is your size exchange and return policy?', answer: 'We offer hassle-free 7-day doorstep size exchanges. If the nightwear size does not fit comfortably, you can request an exchange in 1 click from your account.' },
-  ]);
-
-  // Load Database Records
-  const loadDatabaseData = async (showToast = false) => {
+  const handleSeedCatalog = async () => {
     setIsLoadingData(true);
     try {
-      const [fetchedOrders, fetchedProducts, fetchedReviews, fetchedCoupons, fetchedCats, statusInfo] = await Promise.all([
-        DatabaseService.getOrders(),
-        DatabaseService.getProducts(),
-        DatabaseService.getReviews(),
-        DatabaseService.getCoupons(),
-        DatabaseService.getCategories(),
-        DatabaseService.checkSupabaseStatus(),
-      ]);
-
-      setOrders(fetchedOrders);
-      setProductsList(fetchedProducts);
-      setReviews(fetchedReviews);
-      setCoupons(fetchedCoupons);
-      setCategoriesList(fetchedCats);
-      setDbStatus(statusInfo);
-
-      // Derive Real Customers directly from Database Orders and logged-in profiles
-      const derivedCustomers = await DatabaseService.getCustomers(fetchedOrders, user);
-      setCustomers(derivedCustomers);
-
-      if (showToast) {
-        triggerToast('Database Synced! ⚡', `Loaded ${fetchedOrders.length} orders, ${fetchedProducts.length} products & ${fetchedCats.length} categories from database.`, undefined, 'success');
-      }
-    } catch (err) {
-      console.warn('Database load warning:', err);
+      const res = await DatabaseService.seedCatalogToSupabase();
+      triggerToast('Catalog Seeded! 🚀', `Successfully populated ${res.productsCount} products and ${res.categoriesCount} categories.`, undefined, 'success');
+      await loadDatabaseData(false);
+    } catch (err: any) {
+      triggerToast('Seed Error', err?.message || 'Could not seed database', undefined, 'error');
     } finally {
       setIsLoadingData(false);
     }
@@ -546,11 +654,17 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   useEffect(() => {
     loadDatabaseData();
 
-    // 1. Listen for global cross-component database sync events
-    const handleDbSync = () => {
-      loadDatabaseData();
+    // Debounced loadDatabaseData for realtime events
+    let debounceTimer: any = null;
+    const debouncedLoad = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        loadDatabaseData(false);
+      }, 350);
     };
-    window.addEventListener('gt_db_sync', handleDbSync);
+
+    // 1. Listen for global cross-component database sync events
+    window.addEventListener('gt_db_sync', debouncedLoad);
 
     // 2. Real-time Supabase Database Listener
     let channel: any = null;
@@ -561,22 +675,22 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'categories' },
-            () => loadDatabaseData()
+            () => debouncedLoad()
           )
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'products' },
-            () => loadDatabaseData()
+            () => debouncedLoad()
           )
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'orders' },
-            () => loadDatabaseData()
+            () => debouncedLoad()
           )
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'profiles' },
-            () => loadDatabaseData()
+            () => debouncedLoad()
           )
           .subscribe();
       } catch (err) {
@@ -585,7 +699,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     }
 
     return () => {
-      window.removeEventListener('gt_db_sync', handleDbSync);
+      clearTimeout(debounceTimer);
+      window.removeEventListener('gt_db_sync', debouncedLoad);
       if (channel) {
         supabase.removeChannel(channel);
       }
@@ -711,17 +826,25 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
   // Product Handlers
   const handleToggleProductStock = async (id: string, currentStatus: boolean) => {
-    await DatabaseService.updateProductStock(id, !currentStatus);
-    setProductsList((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, inStock: !currentStatus } : p))
-    );
-    triggerToast('Stock Status Updated', 'Saved to database successfully.', undefined, 'info');
+    try {
+      await DatabaseService.updateProductStock(id, !currentStatus);
+      setProductsList((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, inStock: !currentStatus } : p))
+      );
+      triggerToast('Stock Status Updated', 'Saved to database successfully.', undefined, 'info');
+    } catch (err: any) {
+      triggerToast('Update Failed', err.message || 'Could not update stock.', undefined, 'error');
+    }
   };
 
   const handleDeleteProduct = async (id: string) => {
-    await DatabaseService.deleteProduct(id);
-    setProductsList((prev) => prev.filter((p) => p.id !== id));
-    triggerToast('Product Deleted', 'Removed from database.', undefined, 'info');
+    try {
+      await DatabaseService.deleteProduct(id);
+      triggerToast('Product Deleted', 'Removed from database.', undefined, 'info');
+      await loadDatabaseData(false);
+    } catch (err: any) {
+      triggerToast('Delete Failed', err.message || 'Could not delete product.', undefined, 'error');
+    }
   };
 
   // Product Media Management Handlers (Direct Local Storage -> Supabase Storage)
@@ -752,8 +875,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       }));
 
       triggerToast('Images Uploaded! 📸', `Successfully added ${uploadedUrls.length} image(s).`, undefined, 'success');
-    } catch (err) {
-      triggerToast('Upload Failed', 'Could not upload some images. Please try again.', undefined, 'error');
+    } catch (err: any) {
+      triggerToast('Upload Failed', err?.message || 'Could not upload some images. Please try again.', undefined, 'error');
     } finally {
       setIsUploadingMedia(false);
       setUploadProgressText('');
@@ -777,8 +900,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         });
         triggerToast('Image Replaced! 🔄', 'Updated image successfully.', undefined, 'success');
       }
-    } catch (err) {
-      triggerToast('Replace Failed', 'Failed to replace image.', undefined, 'error');
+    } catch (err: any) {
+      triggerToast('Replace Failed', err?.message || 'Failed to replace image.', undefined, 'error');
     } finally {
       setIsUploadingMedia(false);
       setUploadProgressText('');
@@ -881,19 +1004,71 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       ? productForm.images
       : ['https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80'];
 
-    if (editingProductId) {
-      const existing = productsList.find((p) => p.id === editingProductId);
-      const updatedProduct: Product = {
-        id: editingProductId,
+    try {
+      if (editingProductId) {
+        const existing = productsList.find((p) => p.id === editingProductId);
+        const updatedProduct: Product = {
+          id: editingProductId,
+          name: productForm.name.trim(),
+          slug: existing?.slug || productForm.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          category: mainCategory,
+          subCategory: productForm.categories.join(', ') || 'Boutique Collection',
+          price: priceNum,
+          originalPrice: originalPriceNum,
+          discount: discountCalc,
+          rating: existing?.rating || 5.0,
+          reviewCount: existing?.reviewCount || 1,
+          images: finalImages,
+          description: productForm.description || 'Luxurious craftsmanship designed for everyday glamour.',
+          shortDescription: productForm.description.slice(0, 90) || 'Premium curated collection item.',
+          material: productForm.materials || 'Premium Cotton / Silk / 18K Finish',
+          dimensions: productForm.dimensions || 'Standard Fit',
+          sku: productForm.sku || `GT-SKU-${Math.floor(1000 + Math.random() * 9000)}`,
+          variety: productForm.variety,
+          tag: productForm.badge || 'New Arrival',
+          stockQuantity: Number(productForm.stockQuantity) || 10,
+          inStock: productForm.inStock,
+          highlights: highlightsArray.length > 0 ? highlightsArray : [
+            'Free Delivery on all prepaid orders',
+            '7-Day Hassle-Free Size Exchange',
+            '100% Anti-Tarnish & Waterproof'
+          ],
+          careInstructions: careInstructionsArray.length > 0 ? careInstructionsArray : ['Simply wipe clean with a dry cloth'],
+          deliveryPolicy: deliveryPolicyText,
+          features: [
+            productForm.materials ? `Material: ${productForm.materials}` : 'Ultra-soft comfort',
+            productForm.dimensions ? `Dimensions: ${productForm.dimensions}` : 'Tailored finish',
+            productForm.badge ? `Tag: ${productForm.badge}` : 'Boutique Exclusive',
+            'Hypoallergenic & premium gifting packaging',
+          ],
+          specs: {
+            'Materials': productForm.materials || 'Premium Satin / Silk',
+            'Dimensions': productForm.dimensions || 'Standard',
+            'SKU': productForm.sku || 'GT-01',
+            'Category': productForm.categories.join(', '),
+          },
+        };
+
+        await DatabaseService.updateProduct(editingProductId, updatedProduct);
+        setProductsList((prev) => prev.map((p) => (p.id === editingProductId ? updatedProduct : p)));
+        setIsCreatingProduct(false);
+        setEditingProductId(null);
+        setProductForm(DEFAULT_PRODUCT_FORM);
+        triggerToast('Product Updated! ✨', `${updatedProduct.name} updated in live database.`, undefined, 'success');
+        return;
+      }
+
+      const newProd: Product = {
+        id: `gt-prod-${Date.now()}`,
         name: productForm.name.trim(),
-        slug: existing?.slug || productForm.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        slug: productForm.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         category: mainCategory,
         subCategory: productForm.categories.join(', ') || 'Boutique Collection',
         price: priceNum,
         originalPrice: originalPriceNum,
         discount: discountCalc,
-        rating: existing?.rating || 5.0,
-        reviewCount: existing?.reviewCount || 1,
+        rating: 5.0,
+        reviewCount: 1,
         images: finalImages,
         description: productForm.description || 'Luxurious craftsmanship designed for everyday glamour.',
         shortDescription: productForm.description.slice(0, 90) || 'Premium curated collection item.',
@@ -903,7 +1078,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         variety: productForm.variety,
         tag: productForm.badge || 'New Arrival',
         stockQuantity: Number(productForm.stockQuantity) || 10,
-        inStock: productForm.inStock,
+        inStock: true,
         highlights: highlightsArray.length > 0 ? highlightsArray : [
           'Free Delivery on all prepaid orders',
           '7-Day Hassle-Free Size Exchange',
@@ -925,63 +1100,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         },
       };
 
-      await DatabaseService.updateProduct(editingProductId, updatedProduct);
-      setProductsList((prev) => prev.map((p) => (p.id === editingProductId ? updatedProduct : p)));
+      await DatabaseService.addProduct(newProd);
+      setProductsList([newProd, ...productsList]);
       setIsCreatingProduct(false);
-      setEditingProductId(null);
       setProductForm(DEFAULT_PRODUCT_FORM);
-      triggerToast('Product Updated! ✨', `${updatedProduct.name} updated in live database.`, undefined, 'success');
-      return;
+
+      triggerToast('Product Published! ✨', `${newProd.name} saved to live database.`, undefined, 'success');
+    } catch (err: any) {
+      triggerToast('Save Failed', err.message || 'Could not save product to database.', undefined, 'error');
     }
-
-    const newProd: Product = {
-      id: `gt-prod-${Date.now()}`,
-      name: productForm.name.trim(),
-      slug: productForm.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-      category: mainCategory,
-      subCategory: productForm.categories.join(', ') || 'Boutique Collection',
-      price: priceNum,
-      originalPrice: originalPriceNum,
-      discount: discountCalc,
-      rating: 5.0,
-      reviewCount: 1,
-      images: finalImages,
-      description: productForm.description || 'Luxurious craftsmanship designed for everyday glamour.',
-      shortDescription: productForm.description.slice(0, 90) || 'Premium curated collection item.',
-      material: productForm.materials || 'Premium Cotton / Silk / 18K Finish',
-      dimensions: productForm.dimensions || 'Standard Fit',
-      sku: productForm.sku || `GT-SKU-${Math.floor(1000 + Math.random() * 9000)}`,
-      variety: productForm.variety,
-      tag: productForm.badge || 'New Arrival',
-      stockQuantity: Number(productForm.stockQuantity) || 10,
-      inStock: true,
-      highlights: highlightsArray.length > 0 ? highlightsArray : [
-        'Free Delivery on all prepaid orders',
-        '7-Day Hassle-Free Size Exchange',
-        '100% Anti-Tarnish & Waterproof'
-      ],
-      careInstructions: careInstructionsArray.length > 0 ? careInstructionsArray : ['Simply wipe clean with a dry cloth'],
-      deliveryPolicy: deliveryPolicyText,
-      features: [
-        productForm.materials ? `Material: ${productForm.materials}` : 'Ultra-soft comfort',
-        productForm.dimensions ? `Dimensions: ${productForm.dimensions}` : 'Tailored finish',
-        productForm.badge ? `Tag: ${productForm.badge}` : 'Boutique Exclusive',
-        'Hypoallergenic & premium gifting packaging',
-      ],
-      specs: {
-        'Materials': productForm.materials || 'Premium Satin / Silk',
-        'Dimensions': productForm.dimensions || 'Standard',
-        'SKU': productForm.sku || 'GT-01',
-        'Category': productForm.categories.join(', '),
-      },
-    };
-
-    await DatabaseService.addProduct(newProd);
-    setProductsList([newProd, ...productsList]);
-    setIsCreatingProduct(false);
-    setProductForm(DEFAULT_PRODUCT_FORM);
-
-    triggerToast('Product Published! ✨', `${newProd.name} saved to live database.`, undefined, 'success');
   };
 
   const handleSellerStatusChange = (orderId: string, newStatus: SellerStatus) => {
@@ -1143,11 +1270,34 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       expires: '2026-12-31',
     };
 
-    await DatabaseService.addCoupon(newCp);
-    setCoupons([newCp, ...coupons]);
-    setIsAddCouponModalOpen(false);
-    setNewCouponCode({ code: '', discount: '10% OFF', minSpend: 999, description: '' });
-    triggerToast('Coupon Created! 🎟️', `Code ${newCp.code} saved to database.`, undefined, 'success');
+    try {
+      await DatabaseService.addCoupon(newCp);
+      setCoupons([newCp, ...coupons]);
+      setIsAddCouponModalOpen(false);
+      setNewCouponCode({ code: '', discount: '10% OFF', minSpend: 999, description: '' });
+      triggerToast('Coupon Created! 🎟️', `Code ${newCp.code} saved to database.`, undefined, 'success');
+    } catch (err: any) {
+      triggerToast('Save Failed', err.message || 'Could not save coupon.', undefined, 'error');
+    }
+  };
+
+  const handleSaveStoreSettings = async () => {
+    setIsSavingSettings(true);
+    try {
+      const updated = await DatabaseService.updateStoreSettings({
+        announcementText,
+        heroHeadline,
+        heroSubtext,
+      });
+      setAnnouncementText(updated.announcementText);
+      setHeroHeadline(updated.heroHeadline);
+      setHeroSubtext(updated.heroSubtext);
+      triggerToast('Saved to Database! ✨', 'Homepage settings updated live.', undefined, 'success');
+    } catch (err: any) {
+      triggerToast('Save Failed', err.message || 'Could not save store settings.', undefined, 'error');
+    } finally {
+      setIsSavingSettings(false);
+    }
   };
 
   const filteredProducts = productsList.filter((p) => {
@@ -1215,13 +1365,51 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             </button>
             <button
               onClick={() => loadDatabaseData(true)}
-              className="px-4 py-2.5 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-bold rounded-2xl shadow-xs transition-all flex items-center gap-2"
+              className="px-4 py-2.5 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-bold rounded-2xl shadow-xs transition-all flex items-center gap-2 cursor-pointer"
             >
               <RefreshCw className={`w-4 h-4 ${isLoadingData ? 'animate-spin' : ''}`} />
               <span>Sync Database</span>
             </button>
           </div>
         </div>
+
+        {/* Live Supabase Connection / Sync Error Banner with Direct Diagnostics */}
+        {dbError && (
+          <div className="bg-rose-50 border border-rose-200 text-rose-900 p-4 sm:p-5 rounded-3xl flex flex-col gap-3 shadow-xs animate-fade-in">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-rose-100 rounded-xl text-rose-600 shrink-0 mt-0.5">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="font-bold text-xs uppercase tracking-wider text-rose-900">Supabase Connection Error</h4>
+                    {connectivityInfo?.urlHost && (
+                      <span className="bg-rose-100/80 border border-rose-300/60 text-rose-800 text-[10px] font-mono px-2 py-0.5 rounded-md font-semibold">
+                        Host: {connectivityInfo.urlHost}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-rose-800 font-medium">{dbError}</p>
+                  {connectivityInfo?.message && connectivityInfo.status !== 'success' && (
+                    <p className="text-[11px] text-rose-700 bg-rose-100/50 p-2 rounded-xl border border-rose-200/60 mt-1">
+                      <strong>Diagnostics:</strong> {connectivityInfo.message}
+                    </p>
+                  )}
+                  <p className="text-[11px] text-rose-600/90">
+                    ✦ Note: If you recently edited <code className="bg-rose-100/90 px-1 py-0.5 rounded font-mono text-[10px]">.env</code>, restart your Vite dev server (<code className="bg-rose-100/90 px-1 py-0.5 rounded font-mono text-[10px]">Ctrl+C</code> then <code className="bg-rose-100/90 px-1 py-0.5 rounded font-mono text-[10px]">npm run dev</code>).
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => loadDatabaseData(true)}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs shrink-0 self-end sm:self-auto cursor-pointer"
+              >
+                Retry Sync
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ================= 2. FOUR REAL METRIC SUMMARY CARDS ================= */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
@@ -2316,19 +2504,33 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   </table>
 
                   {filteredProducts.length === 0 && (
-                    <div className="py-12 text-center text-brand-muted space-y-2">
-                      <Package className="w-8 h-8 mx-auto text-brand-muted-light" />
-                      <p className="text-sm font-bold">No products found matching your filter.</p>
-                      <button
-                        onClick={() => {
-                          setEditingProductId(null);
-                          setProductForm(DEFAULT_PRODUCT_FORM);
-                          setIsCreatingProduct(true);
-                        }}
-                        className="mt-2 px-5 py-2 bg-[#967BB6] text-white text-xs font-bold rounded-xl"
-                      >
-                        Create First Product
-                      </button>
+                    <div className="py-14 text-center text-brand-muted space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-[#F3EEF9] text-[#967BB6] flex items-center justify-center mx-auto">
+                        <Package className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-bold text-brand-charcoal">
+                          {productSearch ? 'No products matching your search' : 'No products listed in database yet'}
+                        </p>
+                        <p className="text-xs text-brand-muted max-w-sm mx-auto">
+                          {productSearch 
+                            ? 'Try searching with a different keyword or clearing the filter.' 
+                            : 'Click "+ Add New Product" to list your first product, or seed the catalog from the Database tab.'}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-center gap-3 pt-2">
+                        <button
+                          onClick={() => {
+                            setEditingProductId(null);
+                            setProductForm(DEFAULT_PRODUCT_FORM);
+                            setIsCreatingProduct(true);
+                          }}
+                          className="px-5 py-2.5 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-bold rounded-2xl shadow-xs transition-all flex items-center gap-2 cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>+ Add New Product</span>
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2362,14 +2564,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                       id: selectedOrderDetail.id,
                       description: `Amount: ₹${selectedOrderDetail.total} | Seller Status: ${selectedOrderDetail.sellerStatus} | Customer: ${selectedOrderDetail.customerName}`,
                       onConfirm: async () => {
-                        const ok = await DatabaseService.deleteOrder(selectedOrderDetail.id);
+                        await DatabaseService.deleteOrder(selectedOrderDetail.id);
                         setOrders((prev) => prev.filter((o) => o.id !== selectedOrderDetail.id));
                         setSelectedOrderDetail(null);
-                        if (ok) {
-                          triggerToast('Order Deleted', `Order #${selectedOrderDetail.id} removed permanently from Supabase database.`, undefined, 'info');
-                        } else {
-                          triggerToast('Action Required', `Order removed in app, but Supabase RLS policy blocked PostgreSQL delete. Please run the SQL snippet in Supabase SQL Editor.`, undefined, 'error');
-                        }
+                        triggerToast('Order Deleted', `Order #${selectedOrderDetail.id} removed permanently from Supabase database.`, undefined, 'info');
                       },
                     });
                     setDeleteConfirmInput('');
@@ -2853,16 +3051,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                                     id: ord.id,
                                     description: `Amount: ₹${ord.total} | Seller Status: ${ord.sellerStatus} | Customer: ${ord.customerName}`,
                                     onConfirm: async () => {
-                                      const ok = await DatabaseService.deleteOrder(ord.id);
+                                      await DatabaseService.deleteOrder(ord.id);
                                       setOrders((prev) => prev.filter((o) => o.id !== ord.id));
                                       if (selectedOrderDetail?.id === ord.id) {
                                         setSelectedOrderDetail(null);
                                       }
-                                      if (ok) {
-                                        triggerToast('Order Deleted', `Order #${ord.id} removed permanently from Supabase database.`, undefined, 'info');
-                                      } else {
-                                        triggerToast('Action Required', `Order removed in app, but Supabase RLS policy blocked PostgreSQL delete. Please run the SQL snippet in Supabase SQL Editor.`, undefined, 'info');
-                                      }
+                                      triggerToast('Order Deleted', `Order #${ord.id} removed permanently from Supabase database.`, undefined, 'info');
                                     },
                                   });
                                   setDeleteConfirmInput('');
@@ -4161,12 +4355,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
               </div>
 
               <button
-                onClick={() => {
-                  triggerToast('Saved to Database! ✨', 'Homepage copy updated live.', undefined, 'success');
-                }}
-                className="px-6 py-2.5 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-bold uppercase rounded-2xl transition-all shadow-xs"
+                type="button"
+                disabled={isSavingSettings}
+                onClick={handleSaveStoreSettings}
+                className="px-6 py-2.5 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-bold uppercase rounded-2xl transition-all shadow-xs disabled:opacity-50 flex items-center gap-2 cursor-pointer"
               >
-                Save Settings
+                {isSavingSettings && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>{isSavingSettings ? 'Saving...' : 'Save Settings'}</span>
               </button>
             </div>
           </div>
@@ -4304,8 +4499,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                 {/* Categories List */}
                 <div className="space-y-3">
                   {categoriesList.length === 0 ? (
-                    <div className="text-center py-10 text-xs text-brand-muted bg-[#FAF8F2] rounded-2xl border border-dashed border-[#EAE6DB]">
-                      No categories found. Click "Reset to Default Categories" to restore default shop categories.
+                    <div className="text-center py-10 text-xs text-brand-muted bg-[#FAF8F2] rounded-2xl border border-dashed border-[#EAE6DB] space-y-1">
+                      <p className="font-bold text-brand-charcoal">No custom categories in database yet.</p>
+                      <p>Type a category name above and click "Add Category" to create your first category.</p>
                     </div>
                   ) : (
                     categoriesList.map((cat, index) => {
@@ -4485,7 +4681,16 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleSeedCatalog}
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-2xl shadow-xs transition-all flex items-center gap-2 cursor-pointer"
+                  title="Manually import demo products and categories into Supabase tables"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Import Demo Products to Supabase</span>
+                </button>
                 <button
                   type="button"
                   onClick={handleRefreshDbStatus}
@@ -4589,42 +4794,83 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
               </div>
             </div>
 
-            {/* Table Status Matrix */}
+            {/* Storage Bucket & Table Status Matrix */}
             <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 sm:p-8 space-y-4 shadow-xs">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-serif text-lg text-brand-charcoal font-medium">Database Tables Status</h3>
-                  <p className="text-xs text-brand-muted">Real-time verification of required Supabase tables and live row counts.</p>
+                  <h3 className="font-serif text-lg text-brand-charcoal font-medium">Database &amp; Storage Health</h3>
+                  <p className="text-xs text-brand-muted">Real-time verification of required Supabase tables, row counts, and storage bucket.</p>
                 </div>
-                <span className="text-xs font-bold text-brand-muted">8 Total Schema Tables</span>
+                <span className="text-xs font-bold text-brand-muted">13 Schema Tables + Storage</span>
+              </div>
+
+              {/* Storage Bucket Indicator */}
+              <div className="p-4 rounded-2xl border border-[#EAE6DB] bg-[#FAF8F2] flex items-center justify-between gap-3">
+                <div className="space-y-0.5 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-brand-charcoal">Storage: product-images</span>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                      dbStatus?.storageBucket?.status === 'ready'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : dbStatus?.storageBucket?.status === 'missing'
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-rose-100 text-rose-800'
+                    }`}>
+                      {dbStatus?.storageBucket?.status === 'ready' ? 'Bucket Active' : dbStatus?.storageBucket?.status || 'checking'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-brand-muted truncate">
+                    {dbStatus?.storageBucket?.message || 'Public storage bucket for permanent product photo uploads'}
+                  </p>
+                </div>
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+                  dbStatus?.storageBucket?.status === 'ready' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {dbStatus?.storageBucket?.status === 'ready' ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
                 {[
-                  { name: 'categories', label: 'Categories Table', desc: 'Shop navigation & custom category ordering', count: categoriesList.length, status: dbStatus?.tables?.find(t => t.name === 'categories')?.status || 'ready' },
-                  { name: 'products', label: 'Products Catalog', desc: 'Nightwear, 18K Jewellery, prices, stock & specs', count: productsList.length, status: dbStatus?.tables?.find(t => t.name === 'products')?.status || 'ready' },
-                  { name: 'orders', label: 'Customer Orders', desc: 'Customer checkout, payment status & delivery address', count: orders.length, status: dbStatus?.tables?.find(t => t.name === 'orders')?.status || 'ready' },
-                  { name: 'reviews', label: 'Product Reviews', desc: 'Ratings, customer testimonials & moderation flags', count: reviews.length, status: dbStatus?.tables?.find(t => t.name === 'reviews')?.status || 'ready' },
-                  { name: 'coupons', label: 'Coupons & Discounts', desc: 'Active promo codes, spend tiers & usage counts', count: coupons.length, status: dbStatus?.tables?.find(t => t.name === 'coupons')?.status || 'ready' },
-                  { name: 'profiles', label: 'User Profiles', desc: 'Synced with Supabase Auth users for avatars & phone', count: customers.length, status: 'ready' },
-                  { name: 'wishlist', label: 'Customer Wishlist', desc: 'Saved favorites per customer across devices', count: 0, status: 'ready' },
-                  { name: 'cart_items', label: 'Persistent Cart', desc: 'Cross-device saved shopping bag records', count: 0, status: 'ready' },
-                ].map((tbl) => (
-                  <div key={tbl.name} className="p-4 rounded-2xl border border-[#EAE6DB] bg-[#FAF8F2] flex items-center justify-between gap-3">
-                    <div className="space-y-0.5 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-brand-charcoal">{tbl.name}</span>
-                        <span className="text-[10px] font-bold px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded">
-                          {tbl.count} rows
-                        </span>
+                  { name: 'categories', label: 'Categories Table', desc: 'Shop navigation & custom category ordering', count: categoriesList.length },
+                  { name: 'products', label: 'Products Catalog', desc: 'Nightwear, 18K Jewellery, prices, stock & specs', count: productsList.length },
+                  { name: 'orders', label: 'Customer Orders', desc: 'Customer checkout, payment status & delivery address', count: orders.length },
+                  { name: 'reviews', label: 'Product Reviews', desc: 'Ratings, customer testimonials & moderation flags', count: reviews.length },
+                  { name: 'coupons', label: 'Coupons & Discounts', desc: 'Active promo codes, spend tiers & usage counts', count: coupons.length },
+                  { name: 'profiles', label: 'User Profiles', desc: 'Synced with Supabase Auth users for avatars & phone', count: customers.length },
+                  { name: 'shipping_addresses', label: 'Customer Addresses', desc: 'Saved delivery addresses per customer', count: 0 },
+                  { name: 'wishlist', label: 'Customer Wishlist', desc: 'Saved favorites per customer across devices', count: 0 },
+                  { name: 'cart_items', label: 'Persistent Cart', desc: 'Cross-device saved shopping bag records', count: 0 },
+                  { name: 'store_settings', label: 'Store Settings', desc: 'Announcement bar, hero headline & store metadata', count: 1 },
+                  { name: 'promotions', label: 'Promotions', desc: 'Flash deals, bundle offers & promo banners', count: promotions.length },
+                  { name: 'shipping_rules', label: 'Shipping Rules', desc: 'Free threshold, standard rates & courier partners', count: 1 },
+                  { name: 'faqs', label: 'FAQs Directory', desc: 'Product care, 18K guarantee & return policies', count: faqs.length },
+                ].map((tbl) => {
+                  const tableStatus = dbStatus?.tables?.find((t) => t.name === tbl.name);
+                  const isReady = tableStatus ? tableStatus.status === 'ready' : true;
+                  const isMissing = tableStatus ? tableStatus.status === 'missing' : false;
+
+                  return (
+                    <div key={tbl.name} className="p-4 rounded-2xl border border-[#EAE6DB] bg-[#FAF8F2] flex items-center justify-between gap-3">
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-brand-charcoal">{tbl.name}</span>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                            isMissing ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                          }`}>
+                            {tableStatus ? `${tableStatus.count} rows` : `${tbl.count} rows`}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-brand-muted truncate">{tbl.desc}</p>
                       </div>
-                      <p className="text-[11px] text-brand-muted truncate">{tbl.desc}</p>
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+                        isMissing ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                      }`} title={isMissing ? 'Table Missing - Run SQL script' : 'Table Ready'}>
+                        {isMissing ? <AlertCircle className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                      </div>
                     </div>
-                    <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0" title="Table Ready">
-                      <Check className="w-3.5 h-3.5 stroke-[3]" />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 

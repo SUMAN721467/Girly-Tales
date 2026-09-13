@@ -46,11 +46,11 @@ export const CartPage: React.FC<CartPageProps> = ({
     onOpenCheckout();
   };
 
-  const handleApplyCoupon = (e: React.FormEvent) => {
+  const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     setCouponError('');
     if (!couponCode) return;
-    const res = applyCoupon(couponCode);
+    const res = await applyCoupon(couponCode);
     if (!res.success) {
       setCouponError(res.message);
     } else {

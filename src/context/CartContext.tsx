@@ -3,7 +3,7 @@ import { Product, CartItem } from '../types/product';
 import { useToast, ToastData } from './ToastContext';
 import { useAuth } from './AuthContext';
 import { CartService } from '../lib/cartService';
-import { DatabaseService } from '../lib/databaseService';
+import { DatabaseService, RealCoupon } from '../lib/databaseService';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface CartContextType {
@@ -24,7 +24,8 @@ interface CartContextType {
   freeShippingThreshold: number;
   freeShippingProgress: number;
   appliedCoupon: string | null;
-  applyCoupon: (code: string) => { success: boolean; message: string };
+  activeCouponObj: RealCoupon | null;
+  applyCoupon: (code: string) => Promise<{ success: boolean; message: string }>;
   removeCoupon: () => void;
   toasts: ToastData[];
   dismissToast: (id: string) => void;
@@ -52,10 +53,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { user, isLoggedIn, openAuthModal } = useAuth();
   const { toasts, triggerToast, dismissToast } = useToast();
 
-  // Pure in-memory React state + Realtime Supabase Cloud Cart (No localStorage)
   const [items, setItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
+  const [activeCouponObj, setActiveCouponObj] = useState<RealCoupon | null>(null);
+  const [dynamicDiscountAmount, setDynamicDiscountAmount] = useState<number>(0);
   const [isCartSyncing, setIsCartSyncing] = useState<boolean>(false);
 
   const loadedUserRef = useRef<string | null>(null);
@@ -105,6 +107,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       loadedUserRef.current = null;
       setItems([]);
+      setAppliedCoupon(null);
+      setActiveCouponObj(null);
+      setDynamicDiscountAmount(0);
     }
   }, [isLoggedIn, user, loadRemoteCart]);
 
@@ -117,7 +122,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const userId = user.id || user.email;
     if (!userId) return;
 
-    // Window focus / visibility change handler
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState === 'visible') {
         loadRemoteCart(user);
@@ -127,7 +131,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     window.addEventListener('focus', handleVisibilityOrFocus);
     document.addEventListener('visibilitychange', handleVisibilityOrFocus);
 
-    // Supabase Realtime channel for instant cross-device updates
     const channelName = `cart_realtime_${userId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
     const channel = supabase
       .channel(channelName)
@@ -155,7 +158,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [isLoggedIn, user, loadRemoteCart]);
 
-  // 4. Auto-purge deleted products from in-memory cart whenever products are modified/deleted
+  // 4. Auto-purge deleted products from in-memory cart whenever products are modified/deleted in Supabase
   useEffect(() => {
     const handleSync = async (e: any) => {
       const type = e.detail?.type;
@@ -190,7 +193,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => window.removeEventListener('gt_db_sync', handleSync);
   }, [isLoggedIn, user]);
 
-  // 5. Debounced Sync Helper to push live in-memory cart changes directly to Supabase
+  // 5. Debounced Sync Helper to push live cart changes to Supabase
   const scheduleCloudSync = useCallback(
     (updatedItems: CartItem[]) => {
       if (!isSupabaseConfigured || !isLoggedIn || !user) {
@@ -300,6 +303,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const clearCart = () => {
     setItems([]);
     setAppliedCoupon(null);
+    setActiveCouponObj(null);
+    setDynamicDiscountAmount(0);
     if (isLoggedIn && user) {
       const userId = user.id || user.email;
       CartService.clearUserCart(userId, user.email);
@@ -332,15 +337,25 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     0
   );
 
-  let discountAmount = 0;
-  if (appliedCoupon === 'GIRLY10' || appliedCoupon === 'GIRLYTALES10') {
-    discountAmount = Math.round(subtotal * 0.1); // 10% OFF
-  } else if (appliedCoupon === 'WELCOME15') {
-    discountAmount = Math.round(subtotal * 0.15); // 15% OFF
-  } else if (appliedCoupon === 'SHINE200' && subtotal >= 1200) {
-    discountAmount = 200; // Flat 200 OFF
-  }
+  // Recalculate discount whenever subtotal or appliedCoupon changes
+  useEffect(() => {
+    if (!appliedCoupon) {
+      setDynamicDiscountAmount(0);
+      return;
+    }
 
+    // Re-verify against current subtotal
+    DatabaseService.validateCoupon(appliedCoupon, subtotal).then((result) => {
+      if (result.valid) {
+        setDynamicDiscountAmount(result.discountAmount);
+      } else {
+        // If minimum spend condition is no longer met after cart modification
+        setDynamicDiscountAmount(0);
+      }
+    }).catch(() => {});
+  }, [subtotal, appliedCoupon]);
+
+  const discountAmount = dynamicDiscountAmount;
   const shippingFee =
     subtotal === 0 || subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : STANDARD_SHIPPING_FEE;
   const finalTotal = Math.max(0, subtotal - discountAmount + shippingFee);
@@ -350,31 +365,24 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     Math.round((subtotal / FREE_SHIPPING_THRESHOLD) * 100)
   );
 
-  const applyCoupon = (code: string) => {
-    const cleanCode = code.trim().toUpperCase();
-    if (cleanCode === 'GIRLY10' || cleanCode === 'GIRLYTALES10') {
-      setAppliedCoupon('GIRLY10');
-      triggerToast('Coupon Applied! 🎉', '10% discount applied to your order', undefined, 'success');
-      return { success: true, message: '10% discount applied successfully!' };
+  const applyCoupon = async (code: string): Promise<{ success: boolean; message: string }> => {
+    const res = await DatabaseService.validateCoupon(code, subtotal);
+    if (res.valid && res.coupon) {
+      setAppliedCoupon(res.coupon.code);
+      setActiveCouponObj(res.coupon);
+      setDynamicDiscountAmount(res.discountAmount);
+      triggerToast('Coupon Applied! 🎉', res.message, undefined, 'success');
+      return { success: true, message: res.message };
+    } else {
+      triggerToast('Coupon Error', res.message, undefined, 'error');
+      return { success: false, message: res.message };
     }
-    if (cleanCode === 'WELCOME15') {
-      setAppliedCoupon('WELCOME15');
-      triggerToast('Welcome Offer Applied! 🎉', '15% discount applied', undefined, 'success');
-      return { success: true, message: '15% discount applied!' };
-    }
-    if (cleanCode === 'SHINE200') {
-      if (subtotal < 1200) {
-        return { success: false, message: 'Requires minimum order value of ₹1,200' };
-      }
-      setAppliedCoupon('SHINE200');
-      triggerToast('Coupon Applied! 🎉', 'Flat ₹200 OFF applied', undefined, 'success');
-      return { success: true, message: 'Flat ₹200 discount applied!' };
-    }
-    return { success: false, message: 'Invalid coupon code. Try GIRLY10 or WELCOME15' };
   };
 
   const removeCoupon = () => {
     setAppliedCoupon(null);
+    setActiveCouponObj(null);
+    setDynamicDiscountAmount(0);
     triggerToast('Coupon removed', undefined, undefined, 'info');
   };
 
@@ -398,6 +406,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         freeShippingThreshold: FREE_SHIPPING_THRESHOLD,
         freeShippingProgress,
         appliedCoupon,
+        activeCouponObj,
         applyCoupon,
         removeCoupon,
         toasts,

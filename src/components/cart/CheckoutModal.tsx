@@ -283,12 +283,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   };
 
   // Coupon handling in checkout
-  const handleApplyCoupon = (e: React.FormEvent) => {
+  const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     setCouponError('');
     if (!couponCodeInput.trim()) return;
 
-    const res = applyCoupon(couponCodeInput);
+    const res = await applyCoupon(couponCodeInput);
     if (!res.success) {
       setCouponError(res.message);
     } else {
@@ -297,9 +297,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
   };
 
-  const handleQuickApply = (code: string) => {
+  const handleQuickApply = async (code: string) => {
     setCouponError('');
-    applyCoupon(code);
+    await applyCoupon(code);
   };
 
   const handleModalClose = () => {
@@ -374,7 +374,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             customerEmail: formData.email || user?.email || '',
           },
           onSuccess: async (rzpRes) => {
-            // Payment signature verified on backend!
             try {
               await DatabaseService.createOrder({
                 id: generatedId,
@@ -405,16 +404,22 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 pincode: formData.pincode || '',
                 specialInstructions: `Razorpay Payment ID: ${rzpRes.razorpay_payment_id} | Order: ${rzpRes.razorpay_order_id}`,
               });
-            } catch (err) {
-              console.warn('Order save note:', err);
-            }
 
-            setOrderId(generatedId);
-            setIsSubmitting(false);
-            setStep('success');
-            clearCart();
-            triggerToast('Payment Successful! 🎉', `Order #${generatedId} confirmed via Razorpay.`, undefined, 'success');
-            onOrderSuccess(generatedId);
+              if (appliedCoupon) {
+                await DatabaseService.incrementCouponUsedCount(appliedCoupon);
+              }
+
+              setOrderId(generatedId);
+              setIsSubmitting(false);
+              setStep('success');
+              clearCart();
+              triggerToast('Payment Successful! 🎉', `Order #${generatedId} confirmed via Razorpay.`, undefined, 'success');
+              onOrderSuccess(generatedId);
+            } catch (err: any) {
+              console.error('Order save error:', err);
+              setIsSubmitting(false);
+              triggerToast('Order Record Failed', err?.message || 'Payment received but failed to record order in database. Please contact support.', undefined, 'error');
+            }
           },
           onDismiss: () => {
             setIsSubmitting(false);
@@ -463,16 +468,22 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         pincode: formData.pincode || '',
         specialInstructions: 'COD Order',
       });
-    } catch (err) {
-      console.warn('Order save note:', err);
-    }
 
-    setOrderId(generatedId);
-    setIsSubmitting(false);
-    setStep('success');
-    clearCart();
-    triggerToast('Order Placed! 🎉', `Order #${generatedId} confirmed with Cash on Delivery.`, undefined, 'success');
-    onOrderSuccess(generatedId);
+      if (appliedCoupon) {
+        await DatabaseService.incrementCouponUsedCount(appliedCoupon);
+      }
+
+      setOrderId(generatedId);
+      setIsSubmitting(false);
+      setStep('success');
+      clearCart();
+      triggerToast('Order Placed! 🎉', `Order #${generatedId} confirmed with Cash on Delivery.`, undefined, 'success');
+      onOrderSuccess(generatedId);
+    } catch (err: any) {
+      console.error('Order save error:', err);
+      setIsSubmitting(false);
+      triggerToast('Order Failed', err?.message || 'Could not place order in database. Please check connection and try again.', undefined, 'error');
+    }
   };
 
   return (

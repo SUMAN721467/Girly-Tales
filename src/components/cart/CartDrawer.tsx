@@ -49,11 +49,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     onOpenCheckout();
   };
 
-  const handleApplyCoupon = (e: React.FormEvent) => {
+  const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     setCouponError('');
     if (!couponInput) return;
-    const res = applyCoupon(couponInput);
+    const res = await applyCoupon(couponInput);
     if (!res.success) {
       setCouponError(res.message);
     } else {

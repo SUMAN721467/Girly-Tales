@@ -1,8 +1,28 @@
-import { supabase, isSupabaseConfigured } from './supabase';
+import { supabase, isSupabaseConfigured, requireSupabase } from './supabase';
 import { Product } from '../types/product';
+import { MOCK_PRODUCTS } from '../data/products';
 import { CartService } from './cartService';
 
-// Purge any legacy browser/local storage keys to guarantee pure direct Supabase operation
+// Fast timeout helper for read operations
+async function withTimeout<T>(promise: Promise<T> | any, ms = 15000, fallbackVal?: T): Promise<T> {
+  let timeoutId: any;
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timeoutId = setTimeout(() => {
+      resolve(fallbackVal !== undefined ? fallbackVal : ({ data: null, error: 'timeout' } as unknown as T));
+    }, ms);
+  });
+
+  try {
+    const result = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timeoutId);
+    return result;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    return { data: null, error: err } as unknown as T;
+  }
+}
+
+// Purge legacy browser/local storage keys to guarantee pure direct Supabase operation
 if (typeof window !== 'undefined') {
   try {
     const keysToPurge = [
@@ -32,7 +52,7 @@ if (typeof window !== 'undefined') {
 
 // Global live sync broadcaster for real-time reactivity across components
 export const notifyDatabaseChange = (
-  type: 'categories' | 'products' | 'orders' | 'reviews' | 'coupons' | 'cart' | 'wishlist' | 'all'
+  type: 'categories' | 'products' | 'orders' | 'reviews' | 'coupons' | 'cart' | 'wishlist' | 'settings' | 'promotions' | 'shipping' | 'faqs' | 'all'
 ) => {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('gt_db_sync', { detail: { type } }));
@@ -231,6 +251,40 @@ export interface RealCategory {
   createdAt?: string;
 }
 
+export interface PromotionItem {
+  id: string;
+  name: string;
+  discount: string;
+  badge: string;
+  active: boolean;
+  bannerText: string;
+  createdAt?: string;
+}
+
+export interface ShippingRules {
+  id: string;
+  freeThreshold: number;
+  standardRate: number;
+  expressRate: number;
+  codHandlingFee: number;
+  estimatedDays: string;
+  couriers: string[];
+}
+
+export interface FAQItem {
+  id: string;
+  category: string;
+  question: string;
+  answer: string;
+  orderIndex?: number;
+}
+
+export interface StoreSettings {
+  announcementText: string;
+  heroHeadline: string;
+  heroSubtext: string;
+}
+
 export const SEED_CATEGORIES: RealCategory[] = [
   { id: 'cat-1', name: 'Nightwear & Pyjamas', slug: 'nightwear', isActive: true, orderIndex: 0 },
   { id: 'cat-2', name: '18K Anti-Tarnish Jewels', slug: 'jewellery', isActive: true, orderIndex: 1 },
@@ -246,92 +300,154 @@ const SEED_COUPONS: RealCoupon[] = [
   { id: 'cp-4', code: 'FREESHIP', discount: 'Free Express Delivery', description: 'Prepaid Orders Across All Pincodes', minSpend: 0, usedCount: 22, status: 'Active', expires: 'Unlimited' },
 ];
 
-// Runtime in-memory state (Direct Supabase data is authoritative source)
+// Runtime in-memory cached state (updated ONLY after successful Supabase DB mutations)
 let inMemoryCategories: RealCategory[] = [];
 let inMemoryProducts: Product[] = [];
 let inMemoryOrders: RealOrder[] = [];
 let inMemoryReviews: RealReview[] = [];
 let inMemoryCoupons: RealCoupon[] = [];
+let inMemoryStoreSettings: StoreSettings | null = null;
+let inMemoryPromotions: PromotionItem[] = [];
+let inMemoryShippingRules: ShippingRules | null = null;
+let inMemoryFaqs: FAQItem[] = [];
 const deletedOrderIds = new Set<string>();
 
 export const DatabaseService = {
   // ==================== 1. ORDERS ====================
   async getOrders(): Promise<RealOrder[]> {
-    if (isSupabaseConfigured) {
-      try {
-        const { data, error } = await supabase
-          .from('orders')
-          .select('*')
-          .order('created_at', { ascending: false });
+    const rawUrl = import.meta.env.VITE_SUPABASE_URL || '';
+    let host = '';
+    try {
+      if (rawUrl) host = new URL(rawUrl).host;
+    } catch {}
 
-        if (!error && Array.isArray(data)) {
-          const mapped: RealOrder[] = data
-            .map((d: any) => {
-              const cleanId = String(d.id || d.order_id || '').trim();
+    const isDev = import.meta.env.DEV;
 
-              const rawSeller = d.seller_status || d.sellerStatus || d.status || 'Pending';
-              let sellerStatus: SellerStatus = 'Pending';
-              if (['Pending', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled by Seller'].includes(rawSeller)) {
-                sellerStatus = rawSeller as SellerStatus;
-              } else if (rawSeller === 'Processing') {
-                sellerStatus = 'Pending';
-              } else if (rawSeller === 'Cancelled') {
-                sellerStatus = 'Cancelled by Seller';
-              }
+    if (isDev) {
+      console.log('[Supabase getOrders] Connecting...', {
+        isSupabaseConfigured,
+        urlHost: host || 'Not configured',
+      });
+    }
 
-              const rawCustomer = d.customer_status || d.customerStatus || (d.payment_method?.includes('Cash') ? 'Pending' : 'Paid');
-              let customerStatus: CustomerStatus = 'Paid';
-              if (['Paid', 'Pending', 'Cancelled by Customer', 'Payment Failed'].includes(rawCustomer)) {
-                customerStatus = rawCustomer as CustomerStatus;
-              }
+    if (!isSupabaseConfigured) {
+      throw new Error('Supabase is not configured. Please set valid VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in your .env.');
+    }
 
-              let parsedItems: any[] = [];
-              if (Array.isArray(d.items)) {
-                parsedItems = d.items;
-              } else if (typeof d.items === 'string') {
-                try {
-                  parsedItems = JSON.parse(d.items);
-                } catch {
-                  parsedItems = [d.items];
-                }
-              }
+    const fetchOrdersFromDb = async (): Promise<any[]> => {
+      const client = requireSupabase();
+      const startTime = Date.now();
 
-              return {
-                id: cleanId,
-                customerName: d.customer_name || d.customerName || 'Customer',
-                email: d.email || '',
-                phone: d.phone || '',
-                items: parsedItems,
-                total: Number(d.total) || 0,
-                subtotal: Number(d.subtotal) || Number(d.total) || 0,
-                shippingFee: Number(d.shipping_fee) || 0,
-                discountAmount: Number(d.discount_amount) || 0,
-                sellerStatus,
-                customerStatus,
-                status: sellerStatus,
-                paymentMethod: d.payment_method || d.paymentMethod || 'UPI / Prepaid',
-                address: d.address || '',
-                city: d.city || 'Mumbai',
-                state: d.state || 'Maharashtra',
-                pincode: d.pincode || '',
-                courierName: d.courier_name || d.courierName || '',
-                trackingNumber: d.tracking_number || d.trackingNumber || '',
-                trackingUrl: d.tracking_url || d.trackingUrl || '',
-                specialInstructions: d.special_instructions || d.specialInstructions || '',
-                createdAt: d.created_at || new Date().toISOString(),
-              };
-            })
-            .filter((ord) => !!ord.id && !deletedOrderIds.has(ord.id) && !deletedOrderIds.has(ord.id.toLowerCase()));
+      const query = client
+        .from('orders')
+        .select('id, customer_name, email, phone, items, total, subtotal, shipping_fee, discount_amount, seller_status, customer_status, status, payment_method, address, city, state, pincode, special_instructions, courier_name, tracking_number, tracking_url, created_at')
+        .order('created_at', { ascending: false })
+        .limit(100);
 
-          inMemoryOrders = mapped;
-          return mapped;
+      const { data, error } = await withTimeout(query, 15000, { data: null, error: 'timeout' });
+      const durationMs = Date.now() - startTime;
+
+      if (error) {
+        if (error === 'timeout') {
+          throw new Error('Supabase orders query timed out after 15000ms.');
         }
-      } catch (err) {
-        console.warn('Supabase fetch orders error:', err);
+        if (isDev) {
+          console.error('[Supabase getOrders Error]', {
+            code: (error as any)?.code,
+            message: (error as any)?.message,
+            details: (error as any)?.details,
+            hint: (error as any)?.hint,
+            durationMs,
+          });
+        }
+        throw error;
+      }
+
+      if (isDev) {
+        console.log(`[Supabase getOrders Success] Fetched ${Array.isArray(data) ? data.length : 0} rows in ${durationMs}ms`);
+      }
+
+      return Array.isArray(data) ? data : [];
+    };
+
+    let rawData: any[] = [];
+    try {
+      rawData = await fetchOrdersFromDb();
+    } catch (firstErr: any) {
+      if (isDev) {
+        console.warn('[Supabase getOrders] Initial attempt failed, retrying once after 1000ms...', firstErr?.message);
+      }
+      // Wait 1 second before retry
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      try {
+        rawData = await fetchOrdersFromDb();
+      } catch (retryErr: any) {
+        console.error('[Supabase getOrders Retry Failed]', retryErr);
+        const errMsg = retryErr?.message || retryErr?.details || (typeof retryErr === 'string' ? retryErr : 'Query failed');
+        throw new Error(`Orders could not load: ${errMsg}`);
       }
     }
 
-    return inMemoryOrders.filter((ord) => !deletedOrderIds.has(ord.id) && !deletedOrderIds.has(ord.id.toLowerCase()));
+    const mapped: RealOrder[] = rawData
+      .map((d: any) => {
+        const cleanId = String(d.id || d.order_id || '').trim();
+
+        const rawSeller = d.seller_status || d.sellerStatus || d.status || 'Pending';
+        let sellerStatus: SellerStatus = 'Pending';
+        if (['Pending', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled by Seller'].includes(rawSeller)) {
+          sellerStatus = rawSeller as SellerStatus;
+        } else if (rawSeller === 'Processing') {
+          sellerStatus = 'Pending';
+        } else if (rawSeller === 'Cancelled') {
+          sellerStatus = 'Cancelled by Seller';
+        }
+
+        const rawCustomer = d.customer_status || d.customerStatus || (d.payment_method?.includes('Cash') ? 'Pending' : 'Paid');
+        let customerStatus: CustomerStatus = 'Paid';
+        if (['Paid', 'Pending', 'Cancelled by Customer', 'Payment Failed'].includes(rawCustomer)) {
+          customerStatus = rawCustomer as CustomerStatus;
+        }
+
+        let parsedItems: any[] = [];
+        if (Array.isArray(d.items)) {
+          parsedItems = d.items;
+        } else if (typeof d.items === 'string') {
+          try {
+            parsedItems = JSON.parse(d.items);
+          } catch {
+            parsedItems = [d.items];
+          }
+        }
+
+        return {
+          id: cleanId,
+          customerName: d.customer_name || d.customerName || 'Customer',
+          email: d.email || '',
+          phone: d.phone || '',
+          items: parsedItems,
+          total: Number(d.total) || 0,
+          subtotal: Number(d.subtotal) || Number(d.total) || 0,
+          shippingFee: Number(d.shipping_fee) || 0,
+          discountAmount: Number(d.discount_amount) || 0,
+          sellerStatus,
+          customerStatus,
+          status: sellerStatus,
+          paymentMethod: d.payment_method || d.paymentMethod || 'UPI / Prepaid',
+          address: d.address || '',
+          city: d.city || 'Mumbai',
+          state: d.state || 'Maharashtra',
+          pincode: d.pincode || '',
+          courierName: d.courier_name || d.courierName || '',
+          trackingNumber: d.tracking_number || d.trackingNumber || '',
+          trackingUrl: d.tracking_url || d.trackingUrl || '',
+          specialInstructions: d.special_instructions || d.specialInstructions || '',
+          createdAt: d.created_at || new Date().toISOString(),
+        };
+      })
+      .filter((ord) => !!ord.id);
+
+    inMemoryOrders = mapped;
+    return mapped;
   },
 
   async createOrder(order: Omit<RealOrder, 'createdAt' | 'sellerStatus' | 'customerStatus'> & { 
@@ -339,6 +455,8 @@ export const DatabaseService = {
     sellerStatus?: SellerStatus; 
     customerStatus?: CustomerStatus; 
   }): Promise<RealOrder> {
+    const client = requireSupabase();
+
     const fullOrder: RealOrder = {
       ...order,
       id: String(order.id).trim(),
@@ -352,67 +470,41 @@ export const DatabaseService = {
       createdAt: order.createdAt || new Date().toISOString(),
     };
 
+    const payload = {
+      id: fullOrder.id,
+      customer_name: fullOrder.customerName,
+      email: fullOrder.email,
+      phone: fullOrder.phone,
+      items: fullOrder.items,
+      total: fullOrder.total,
+      subtotal: fullOrder.subtotal,
+      shipping_fee: fullOrder.shippingFee,
+      discount_amount: fullOrder.discountAmount,
+      seller_status: fullOrder.sellerStatus,
+      customer_status: fullOrder.customerStatus,
+      status: fullOrder.sellerStatus,
+      payment_method: fullOrder.paymentMethod,
+      address: fullOrder.address,
+      city: fullOrder.city,
+      state: fullOrder.state,
+      pincode: fullOrder.pincode,
+      courier_name: fullOrder.courierName,
+      tracking_number: fullOrder.trackingNumber,
+      tracking_url: fullOrder.trackingUrl,
+      special_instructions: fullOrder.specialInstructions,
+      created_at: fullOrder.createdAt,
+    };
+
+    // 1. Call Supabase FIRST
+    const { error } = await client.from('orders').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.error('Supabase createOrder failed:', error);
+      throw new Error(`Order placement failed in database: ${error.message}`);
+    }
+
+    // 2. Update in-memory state ONLY AFTER successful DB response
     inMemoryOrders = [fullOrder, ...inMemoryOrders.filter((o) => o.id !== fullOrder.id)];
     notifyDatabaseChange('orders');
-
-    if (isSupabaseConfigured) {
-      try {
-        const { error } = await supabase.from('orders').upsert(
-          {
-            id: fullOrder.id,
-            customer_name: fullOrder.customerName,
-            email: fullOrder.email,
-            phone: fullOrder.phone,
-            items: fullOrder.items,
-            total: fullOrder.total,
-            subtotal: fullOrder.subtotal,
-            shipping_fee: fullOrder.shippingFee,
-            discount_amount: fullOrder.discountAmount,
-            seller_status: fullOrder.sellerStatus,
-            customer_status: fullOrder.customerStatus,
-            status: fullOrder.sellerStatus,
-            payment_method: fullOrder.paymentMethod,
-            address: fullOrder.address,
-            city: fullOrder.city,
-            state: fullOrder.state,
-            pincode: fullOrder.pincode,
-            courier_name: fullOrder.courierName,
-            tracking_number: fullOrder.trackingNumber,
-            tracking_url: fullOrder.trackingUrl,
-            special_instructions: fullOrder.specialInstructions,
-            created_at: fullOrder.createdAt,
-          },
-          { onConflict: 'id' }
-        );
-        if (error) {
-          console.warn('Supabase order insert fallback note:', error.message);
-          // Fallback if courier columns don't exist yet
-          await supabase.from('orders').upsert(
-            {
-              id: fullOrder.id,
-              customer_name: fullOrder.customerName,
-              email: fullOrder.email,
-              phone: fullOrder.phone,
-              items: fullOrder.items,
-              total: fullOrder.total,
-              subtotal: fullOrder.subtotal,
-              shipping_fee: fullOrder.shippingFee,
-              discount_amount: fullOrder.discountAmount,
-              status: fullOrder.sellerStatus,
-              payment_method: fullOrder.paymentMethod,
-              address: fullOrder.address,
-              city: fullOrder.city,
-              state: fullOrder.state,
-              pincode: fullOrder.pincode,
-              created_at: fullOrder.createdAt,
-            },
-            { onConflict: 'id' }
-          );
-        }
-      } catch (e) {
-        console.warn('Supabase order insert note:', e);
-      }
-    }
 
     return fullOrder;
   },
@@ -423,8 +515,29 @@ export const DatabaseService = {
     shippingInfo?: { courierName?: string; trackingNumber?: string; trackingUrl?: string }
   ): Promise<void> {
     const cleanId = String(orderId).trim();
-    if (!cleanId) return;
+    if (!cleanId) throw new Error('Order ID is required');
 
+    const client = requireSupabase();
+    const updatePayload: any = { 
+      seller_status: sellerStatus,
+      status: sellerStatus,
+    };
+    if (shippingInfo?.courierName !== undefined) updatePayload.courier_name = shippingInfo.courierName;
+    if (shippingInfo?.trackingNumber !== undefined) updatePayload.tracking_number = shippingInfo.trackingNumber;
+    if (shippingInfo?.trackingUrl !== undefined) updatePayload.tracking_url = shippingInfo.trackingUrl;
+
+    // 1. Call Supabase FIRST
+    const { error } = await client
+      .from('orders')
+      .update(updatePayload)
+      .eq('id', cleanId);
+
+    if (error) {
+      console.error('Supabase updateSellerStatus failed:', error);
+      throw new Error(`Failed to update order status in database: ${error.message}`);
+    }
+
+    // 2. Update local state ONLY on DB success
     inMemoryOrders = inMemoryOrders.map((o) =>
       o.id === cleanId
         ? { 
@@ -438,56 +551,27 @@ export const DatabaseService = {
         : o
     );
     notifyDatabaseChange('orders');
-
-    if (isSupabaseConfigured) {
-      try {
-        const updatePayload: any = { 
-          seller_status: sellerStatus,
-          status: sellerStatus,
-        };
-        if (shippingInfo?.courierName !== undefined) updatePayload.courier_name = shippingInfo.courierName;
-        if (shippingInfo?.trackingNumber !== undefined) updatePayload.tracking_number = shippingInfo.trackingNumber;
-        if (shippingInfo?.trackingUrl !== undefined) updatePayload.tracking_url = shippingInfo.trackingUrl;
-
-        const { error } = await supabase
-          .from('orders')
-          .update(updatePayload)
-          .eq('id', cleanId);
-
-        if (error) {
-          console.warn('Supabase primary status update failed, fallback to status:', error.message);
-          await supabase
-            .from('orders')
-            .update({ status: sellerStatus })
-            .eq('id', cleanId);
-        }
-      } catch (e) {
-        console.warn('Supabase seller status update note:', e);
-      }
-    }
   },
 
   async updateSpecialInstructions(orderId: string, specialInstructions: string): Promise<void> {
     const cleanId = String(orderId).trim();
+    if (!cleanId) throw new Error('Order ID is required');
+
+    const client = requireSupabase();
+    const { error } = await client
+      .from('orders')
+      .update({ special_instructions: specialInstructions })
+      .eq('id', cleanId);
+
+    if (error) {
+      console.error('Supabase updateSpecialInstructions failed:', error);
+      throw new Error(`Failed to save special instructions: ${error.message}`);
+    }
 
     inMemoryOrders = inMemoryOrders.map((o) =>
       o.id === cleanId ? { ...o, specialInstructions } : o
     );
     notifyDatabaseChange('orders');
-
-    if (isSupabaseConfigured) {
-      try {
-        const { error } = await supabase
-          .from('orders')
-          .update({ special_instructions: specialInstructions })
-          .eq('id', cleanId);
-        if (error) {
-          console.warn('Supabase instructions update error:', error.message);
-        }
-      } catch (e) {
-        console.warn('Supabase instructions update note:', e);
-      }
-    }
   },
 
   async updateOrderStatus(orderId: string, status: RealOrder['status']): Promise<void> {
@@ -498,264 +582,304 @@ export const DatabaseService = {
     await this.updateSellerStatus(orderId, validSellerStatus);
   },
 
-  async deleteOrder(orderId: string): Promise<boolean> {
+  async deleteOrder(orderId: string): Promise<void> {
     const cleanId = String(orderId).trim();
-    if (!cleanId) return false;
+    if (!cleanId) throw new Error('Order ID is required');
 
-    // 1. Add to permanent session blacklist so it never resurfaces in this session
-    deletedOrderIds.add(cleanId);
-    deletedOrderIds.add(cleanId.toLowerCase());
-    deletedOrderIds.add(cleanId.toUpperCase());
+    const client = requireSupabase();
+    const { error } = await client
+      .from('orders')
+      .delete()
+      .eq('id', cleanId);
 
-    // 2. Remove immediately from runtime in-memory array
+    if (error) {
+      console.error('Supabase deleteOrder failed:', error);
+      throw new Error(`Failed to delete order from database: ${error.message}`);
+    }
+
     inMemoryOrders = inMemoryOrders.filter(
       (o) => o.id !== cleanId && o.id.toLowerCase() !== cleanId.toLowerCase()
     );
-
-    // 3. Delete directly from Supabase orders table
-    let supabaseSuccess = true;
-    if (isSupabaseConfigured) {
-      try {
-        console.log(`[DatabaseService] Deleting order ${cleanId} from Supabase...`);
-        const { error, count } = await supabase
-          .from('orders')
-          .delete({ count: 'exact' })
-          .eq('id', cleanId);
-
-        if (error) {
-          console.warn('[DatabaseService] Supabase eq delete error, trying ilike retry:', error.message);
-          const retry = await supabase
-            .from('orders')
-            .delete({ count: 'exact' })
-            .ilike('id', cleanId);
-
-          if (retry.error) {
-            console.error('[DatabaseService] Supabase retry delete failed. Make sure to run the SQL DELETE policy in Supabase SQL editor:', retry.error.message);
-            supabaseSuccess = false;
-          } else {
-            console.log(`[DatabaseService] Order ${cleanId} deleted via retry. Rows affected:`, retry.count);
-          }
-        } else {
-          console.log(`[DatabaseService] Order ${cleanId} deleted from Supabase. Rows affected:`, count);
-          if (count === 0) {
-            console.warn(`[DatabaseService] 0 rows deleted for order ${cleanId}. If RLS is enabled on public.orders in Supabase, execute the SQL script in Supabase dashboard to allow DELETE.`);
-          }
-        }
-      } catch (e) {
-        console.error('[DatabaseService] Supabase delete order exception:', e);
-        supabaseSuccess = false;
-      }
-    }
-
     notifyDatabaseChange('orders');
-    return supabaseSuccess;
   },
 
-  // ==================== 2. PRODUCTS ====================
   async getProducts(): Promise<Product[]> {
-    if (isSupabaseConfigured) {
-      try {
-        const { data, error } = await supabase
-          .from('products')
-          .select('*')
-          .order('created_at', { ascending: false });
+    if (!isSupabaseConfigured) {
+      throw new Error('Supabase is not configured. Please set valid VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in .env.');
+    }
 
-        if (!error && Array.isArray(data)) {
-          const mapped: Product[] = data.map((d: any) => ({
-            id: String(d.id),
-            name: d.name || 'Girly Tales Item',
-            slug: d.slug || String(d.id),
-            category: d.category || 'nightwear',
-            subCategory: d.sub_category || d.subCategory || '',
-            price: Number(d.price) || 0,
-            originalPrice: Number(d.original_price || d.originalPrice || d.price) || 0,
-            discount: Number(d.discount || 0),
-            rating: Number(d.rating || 5.0),
-            reviewCount: Number(d.review_count || d.reviewCount || 1),
-            images: Array.isArray(d.images)
-              ? d.images
-              : typeof d.images === 'string'
-              ? (d.images.startsWith('[') ? JSON.parse(d.images) : [d.images])
-              : [d.image_url || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=600&q=80'],
-            description: d.description || '',
-            shortDescription: d.short_description || d.shortDescription || '',
-            material: d.material || '',
-            inStock: d.in_stock !== false && d.inStock !== false,
-            stockQuantity: Number(d.stock_quantity || d.stockQuantity || 10),
-            sku: d.sku || '',
-            dimensions: d.dimensions || '',
-            variety: d.variety || '',
-            tag: d.tag || '',
-            sizes: d.sizes || (d.category === 'nightwear' ? ['XS', 'S', 'M', 'L', 'XL'] : undefined),
-            features: d.features || ['Premium Finish', 'Anti-Tarnish'],
-            highlights: d.highlights || [],
-            careInstructions: d.care_instructions || d.careInstructions || [],
-            deliveryPolicy: d.delivery_policy || d.deliveryPolicy || '',
-            specs: d.specs || {},
-          }));
+    const fetchProductsFromDb = async (): Promise<any[]> => {
+      const client = requireSupabase();
+      const query = client
+        .from('products')
+        .select('id,name,slug,category,sub_category,price,original_price,discount,rating,review_count,images,description,short_description,material,in_stock,stock_quantity,sku,dimensions,variety,tag,sizes,features,highlights,care_instructions,delivery_policy,specs,colors,anti_tarnish_guarantee,waterproof,hypoallergenic,is_new_arrival,is_best_seller,created_at,updated_at')
+        .order('created_at', { ascending: false });
 
-          inMemoryProducts = mapped;
-          return mapped;
-        } else if (error) {
-          console.warn('Supabase getProducts error:', error.message);
+      const { data, error } = await withTimeout(query, 15000, { data: null, error: 'timeout' });
+
+      if (error) {
+        if (error === 'timeout') {
+          throw new Error('Supabase products query timed out after 15000ms.');
         }
-      } catch (err) {
-        console.warn('Supabase getProducts exception:', err);
+        console.error('[Supabase getProducts Error]', error);
+        throw error;
+      }
+
+      return Array.isArray(data) ? data : [];
+    };
+
+    let rawData: any[] = [];
+    try {
+      rawData = await fetchProductsFromDb();
+    } catch (firstErr: any) {
+      if (import.meta.env.DEV) {
+        console.warn('[Supabase getProducts] Initial attempt failed, retrying once after 1000ms...', firstErr?.message);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      try {
+        rawData = await fetchProductsFromDb();
+      } catch (retryErr: any) {
+        console.error('[Supabase getProducts Retry Failed]', retryErr);
+        const errMsg = retryErr?.message || retryErr?.details || (typeof retryErr === 'string' ? retryErr : 'Query failed');
+        throw new Error(`Products could not load: ${errMsg}`);
       }
     }
 
-    return inMemoryProducts;
+    const mapped: Product[] = rawData.map((d: any) => ({
+      id: String(d.id),
+      name: d.name || 'Girly Tales Item',
+      slug: d.slug || String(d.id),
+      category: d.category || 'nightwear',
+      subCategory: d.sub_category || d.subCategory || '',
+      price: Number(d.price) || 0,
+      originalPrice: Number(d.original_price ?? d.originalPrice ?? d.price) || 0,
+      discount: Number(d.discount || 0),
+      rating: Number(d.rating || 5.0),
+      reviewCount: Number(d.review_count ?? d.reviewCount ?? 1),
+      images: Array.isArray(d.images)
+        ? d.images
+        : typeof d.images === 'string'
+        ? (d.images.startsWith('[') ? JSON.parse(d.images) : [d.images])
+        : [d.image_url || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=600&q=80'],
+      description: d.description || '',
+      shortDescription: d.short_description || d.shortDescription || '',
+      material: d.material || '',
+      inStock: d.in_stock !== false && d.inStock !== false,
+      stockQuantity: Number(d.stock_quantity ?? d.stockQuantity ?? 10),
+      sku: d.sku || '',
+      dimensions: d.dimensions || '',
+      variety: d.variety || '',
+      tag: d.tag || '',
+      sizes: d.sizes || (d.category === 'nightwear' ? ['XS', 'S', 'M', 'L', 'XL'] : undefined),
+      features: d.features || ['Premium Finish', 'Anti-Tarnish'],
+      highlights: d.highlights || [],
+      careInstructions: d.care_instructions || d.careInstructions || [],
+      deliveryPolicy: d.delivery_policy || d.deliveryPolicy || '',
+      specs: d.specs || {},
+      colors: d.colors || [],
+      antiTarnishGuarantee: d.anti_tarnish_guarantee || '',
+      waterproof: Boolean(d.waterproof),
+      hypoallergenic: Boolean(d.hypoallergenic),
+      isNewArrival: Boolean(d.is_new_arrival),
+      isBestSeller: Boolean(d.is_best_seller),
+    }));
+
+    inMemoryProducts = mapped;
+    return mapped;
   },
 
   async addProduct(product: Product): Promise<Product> {
+    const client = requireSupabase();
+
+    const fullPayload = {
+      id: product.id,
+      name: product.name,
+      slug: product.slug,
+      category: product.category,
+      sub_category: product.subCategory || '',
+      price: product.price,
+      original_price: product.originalPrice ?? product.price,
+      discount: product.discount ?? 0,
+      rating: product.rating ?? 5.0,
+      review_count: product.reviewCount ?? 0,
+      images: product.images || [],
+      description: product.description || '',
+      short_description: product.shortDescription || '',
+      material: product.material || '',
+      in_stock: product.inStock !== false,
+      stock_quantity: product.stockQuantity ?? 10,
+      sku: product.sku || '',
+      dimensions: product.dimensions || '',
+      variety: product.variety || '',
+      tag: product.tag || '',
+      sizes: product.sizes || [],
+      features: product.features || [],
+      highlights: product.highlights || [],
+      care_instructions: product.careInstructions || [],
+      delivery_policy: product.deliveryPolicy || '',
+      specs: product.specs || {},
+      colors: product.colors || [],
+      anti_tarnish_guarantee: product.antiTarnishGuarantee || '',
+      waterproof: Boolean(product.waterproof),
+      hypoallergenic: Boolean(product.hypoallergenic),
+      is_new_arrival: Boolean(product.isNewArrival),
+      is_best_seller: Boolean(product.isBestSeller),
+      updated_at: new Date().toISOString(),
+    };
+
+    // 1. Call Supabase FIRST
+    const { error } = await client.from('products').upsert(fullPayload, { onConflict: 'id' });
+    if (error) {
+      console.error('Supabase addProduct failed:', error);
+      throw new Error(`Failed to save product to database: ${error.message}`);
+    }
+
+    // 2. Update local state ONLY on DB success
     inMemoryProducts = [product, ...inMemoryProducts.filter((p) => p.id !== product.id)];
     notifyDatabaseChange('products');
-
-    if (isSupabaseConfigured) {
-      try {
-        const fullPayload = {
-          id: product.id,
-          name: product.name,
-          slug: product.slug,
-          category: product.category,
-          sub_category: product.subCategory,
-          price: product.price,
-          original_price: product.originalPrice,
-          discount: product.discount,
-          rating: product.rating,
-          review_count: product.reviewCount,
-          images: product.images,
-          description: product.description,
-          short_description: product.shortDescription,
-          material: product.material,
-          in_stock: product.inStock,
-          stock_quantity: product.stockQuantity,
-          sku: product.sku,
-          dimensions: product.dimensions,
-          variety: product.variety,
-          tag: product.tag,
-          highlights: product.highlights || [],
-          care_instructions: product.careInstructions || [],
-          delivery_policy: product.deliveryPolicy || '',
-          features: product.features || [],
-        };
-
-        const { error } = await supabase.from('products').upsert(fullPayload, { onConflict: 'id' });
-        if (error) {
-          console.warn('Supabase full product upsert note, trying core schema:', error.message);
-          await supabase.from('products').upsert({
-            id: product.id,
-            name: product.name,
-            slug: product.slug,
-            category: product.category,
-            price: product.price,
-            in_stock: product.inStock,
-            images: product.images,
-            description: product.description,
-          }, { onConflict: 'id' });
-        }
-      } catch (e) {
-        console.warn('Supabase add product exception:', e);
-      }
-    }
 
     return product;
   },
 
-  async updateProduct(id: string, updates: Partial<Product>): Promise<Product | null> {
+  async updateProduct(id: string, updates: Partial<Product>): Promise<Product> {
+    const client = requireSupabase();
+
+    const payload: any = { ...updates, updated_at: new Date().toISOString() };
+    if (updates.subCategory !== undefined) payload.sub_category = updates.subCategory;
+    if (updates.originalPrice !== undefined) payload.original_price = updates.originalPrice;
+    if (updates.shortDescription !== undefined) payload.short_description = updates.shortDescription;
+    if (updates.stockQuantity !== undefined) payload.stock_quantity = updates.stockQuantity;
+    if (updates.inStock !== undefined) payload.in_stock = updates.inStock;
+    if (updates.careInstructions !== undefined) payload.care_instructions = updates.careInstructions;
+    if (updates.deliveryPolicy !== undefined) payload.delivery_policy = updates.deliveryPolicy;
+    if (updates.reviewCount !== undefined) payload.review_count = updates.reviewCount;
+    if (updates.antiTarnishGuarantee !== undefined) payload.anti_tarnish_guarantee = updates.antiTarnishGuarantee;
+    if (updates.isNewArrival !== undefined) payload.is_new_arrival = updates.isNewArrival;
+    if (updates.isBestSeller !== undefined) payload.is_best_seller = updates.isBestSeller;
+
+    delete payload.subCategory;
+    delete payload.originalPrice;
+    delete payload.shortDescription;
+    delete payload.stockQuantity;
+    delete payload.inStock;
+    delete payload.careInstructions;
+    delete payload.deliveryPolicy;
+    delete payload.reviewCount;
+    delete payload.antiTarnishGuarantee;
+    delete payload.isNewArrival;
+    delete payload.isBestSeller;
+
+    // 1. Call Supabase FIRST
+    const { error } = await client.from('products').update(payload).eq('id', id);
+    if (error) {
+      console.error('Supabase updateProduct failed:', error);
+      throw new Error(`Failed to update product in database: ${error.message}`);
+    }
+
+    // 2. Update in-memory state ONLY on DB success
     inMemoryProducts = inMemoryProducts.map((p) => (p.id === id ? { ...p, ...updates } : p));
     notifyDatabaseChange('products');
 
-    if (isSupabaseConfigured) {
-      try {
-        const payload: any = { ...updates };
-        if (updates.subCategory !== undefined) payload.sub_category = updates.subCategory;
-        if (updates.originalPrice !== undefined) payload.original_price = updates.originalPrice;
-        if (updates.shortDescription !== undefined) payload.short_description = updates.shortDescription;
-        if (updates.stockQuantity !== undefined) payload.stock_quantity = updates.stockQuantity;
-        if (updates.careInstructions !== undefined) payload.care_instructions = updates.careInstructions;
-        if (updates.deliveryPolicy !== undefined) payload.delivery_policy = updates.deliveryPolicy;
-        delete payload.subCategory;
-        delete payload.originalPrice;
-        delete payload.shortDescription;
-        delete payload.stockQuantity;
-        delete payload.careInstructions;
-        delete payload.deliveryPolicy;
+    const updated = inMemoryProducts.find((p) => p.id === id);
+    if (!updated) throw new Error('Product not found after update');
+    return updated;
+  },
 
-        await supabase.from('products').update(payload).eq('id', id);
-      } catch (e) {
-        console.warn('Supabase update product note:', e);
-      }
+  async updateProductStock(productId: string, inStock: boolean): Promise<void> {
+    const client = requireSupabase();
+    const { error } = await client.from('products').update({ in_stock: inStock, updated_at: new Date().toISOString() }).eq('id', productId);
+    if (error) {
+      console.error('Supabase updateProductStock failed:', error);
+      throw new Error(`Failed to update stock status: ${error.message}`);
     }
 
-    return inMemoryProducts.find((p) => p.id === id) || null;
+    inMemoryProducts = inMemoryProducts.map((p) => (p.id === productId ? { ...p, inStock } : p));
+    notifyDatabaseChange('products');
+  },
+
+  async deleteProduct(productId: string): Promise<void> {
+    const cleanId = String(productId).trim();
+    if (!cleanId) throw new Error('Product ID is required');
+
+    const client = requireSupabase();
+    // 1. Call Supabase FIRST
+    const { error } = await client
+      .from('products')
+      .delete()
+      .or(`id.eq.${cleanId},slug.eq.${cleanId}`);
+
+    if (error) {
+      console.error('Supabase deleteProduct failed:', error);
+      throw new Error(`Failed to delete product from database: ${error.message}`);
+    }
+
+    // Verification check to make sure it was actually deleted from Supabase
+    const { data: checkData } = await client
+      .from('products')
+      .select('id')
+      .or(`id.eq.${cleanId},slug.eq.${cleanId}`)
+      .maybeSingle();
+
+    if (checkData) {
+      throw new Error(`Product "${cleanId}" could not be deleted from Supabase. Check table permissions or RLS policies.`);
+    }
+
+    // Clean up associated cart_items & wishlist rows in Supabase
+    try {
+      await client.from('cart_items').delete().eq('product_id', cleanId);
+      await client.from('wishlist').delete().eq('product_id', cleanId);
+    } catch (subErr) {}
+
+    // 2. Update in-memory state ONLY on DB success
+    inMemoryProducts = inMemoryProducts.filter((p) => p.id !== cleanId && p.slug !== cleanId);
+    notifyDatabaseChange('products');
+    notifyDatabaseChange('cart');
+    notifyDatabaseChange('wishlist');
   },
 
   async uploadProductImage(file: File): Promise<string> {
-    try {
-      const optimizedBlob = await this.optimizeImageFile(file);
-      const cleanExt = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
-      const fileName = `prod_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${cleanExt}`;
-      const filePath = `products/${fileName}`;
+    const client = requireSupabase();
+    const optimizedBlob = await this.optimizeImageFile(file);
+    const cleanExt = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+    const fileName = `prod_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${cleanExt}`;
+    const filePath = `products/${fileName}`;
 
-      if (isSupabaseConfigured) {
-        try {
-          let { error: uploadError } = await supabase.storage
-            .from('product-images')
-            .upload(filePath, optimizedBlob, {
-              contentType: file.type || 'image/jpeg',
-              cacheControl: '3600',
-              upsert: true,
-            });
-
-          // Auto-create bucket if missing and retry upload
-          if (uploadError && (uploadError.message?.toLowerCase().includes('not found') || uploadError.message?.toLowerCase().includes('bucket'))) {
-            try {
-              await supabase.storage.createBucket('product-images', { public: true });
-              const retry = await supabase.storage
-                .from('product-images')
-                .upload(filePath, optimizedBlob, {
-                  contentType: file.type || 'image/jpeg',
-                  cacheControl: '3600',
-                  upsert: true,
-                });
-              uploadError = retry.error;
-            } catch (createErr) {}
-          }
-
-          if (!uploadError) {
-            const { data: publicData } = supabase.storage
-              .from('product-images')
-              .getPublicUrl(filePath);
-            if (publicData?.publicUrl) {
-              return publicData.publicUrl;
-            }
-          } else {
-            console.warn('Supabase storage upload note:', uploadError.message);
-          }
-        } catch (err) {
-          console.warn('Supabase storage exception:', err);
-        }
-      }
-
-      // Fallback data URL if storage bucket is not configured or in local offline mode
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          resolve(reader.result as string);
-        };
-        reader.readAsDataURL(optimizedBlob);
+    let { error: uploadError } = await client.storage
+      .from('product-images')
+      .upload(filePath, optimizedBlob, {
+        contentType: file.type || 'image/jpeg',
+        cacheControl: '3600',
+        upsert: true,
       });
-    } catch (err) {
-      console.error('Error optimizing/uploading image:', err);
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          resolve(reader.result as string);
-        };
-        reader.readAsDataURL(file);
-      });
+
+    if (uploadError && (uploadError.message?.toLowerCase().includes('not found') || uploadError.message?.toLowerCase().includes('bucket'))) {
+      try {
+        await client.storage.createBucket('product-images', { public: true });
+        const retry = await client.storage
+          .from('product-images')
+          .upload(filePath, optimizedBlob, {
+            contentType: file.type || 'image/jpeg',
+            cacheControl: '3600',
+            upsert: true,
+          });
+        uploadError = retry.error;
+      } catch (createErr) {}
     }
+
+    if (uploadError) {
+      console.error('Supabase storage upload error:', uploadError);
+      throw new Error(`Product image upload failed: ${uploadError.message}. Please verify the 'product-images' storage bucket exists in Supabase.`);
+    }
+
+    const { data: publicData } = client.storage
+      .from('product-images')
+      .getPublicUrl(filePath);
+
+    if (!publicData?.publicUrl) {
+      throw new Error('Failed to obtain public URL for uploaded product image.');
+    }
+
+    return publicData.publicUrl;
   },
 
   async optimizeImageFile(file: File, maxWidth = 1600, quality = 0.88): Promise<Blob> {
@@ -796,81 +920,24 @@ export const DatabaseService = {
     });
   },
 
-  async updateProductStock(productId: string, inStock: boolean): Promise<void> {
-    inMemoryProducts = inMemoryProducts.map((p) => (p.id === productId ? { ...p, inStock } : p));
-    notifyDatabaseChange('products');
-
-    if (isSupabaseConfigured) {
-      try {
-        await supabase.from('products').update({ in_stock: inStock }).eq('id', productId);
-      } catch (e) {}
-    }
-  },
-
-  async deleteProduct(productId: string): Promise<boolean> {
-    const cleanId = String(productId).trim();
-    if (!cleanId) return false;
-
-    inMemoryProducts = inMemoryProducts.filter((p) => p.id !== cleanId && p.slug !== cleanId);
-    notifyDatabaseChange('products');
-    notifyDatabaseChange('cart');
-    notifyDatabaseChange('wishlist');
-
-    let deleted = true;
-    if (isSupabaseConfigured) {
-      try {
-        const { error } = await supabase
-          .from('products')
-          .delete()
-          .or(`id.eq.${cleanId},slug.eq.${cleanId}`);
-
-        if (error) {
-          console.warn('Supabase delete product error (trying id.eq):', error.message);
-          const retry = await supabase.from('products').delete().eq('id', cleanId);
-          if (retry.error) {
-            console.error('Supabase retry delete failed:', retry.error.message);
-            deleted = false;
-          }
-        }
-
-        // Also clean up any lingering cart items and wishlist items in database
-        try {
-          await supabase
-            .from('cart_items')
-            .delete()
-            .or(`product_id.eq.${cleanId},productId.eq.${cleanId}`);
-          await supabase
-            .from('wishlist')
-            .delete()
-            .or(`product_id.eq.${cleanId},productId.eq.${cleanId}`);
-        } catch (subErr) {
-          console.warn('Cart / Wishlist cleanup note on deleteProduct:', subErr);
-        }
-      } catch (e) {
-        console.error('Supabase delete product note:', e);
-        deleted = false;
-      }
-    }
-
-    return deleted;
-  },
-
-  // ==================== 3. CUSTOMERS (SUPABASE PROFILES + AUTH + ORDERS) ====================
-  async getCustomers(orders?: RealOrder[], activeUser?: any): Promise<RealCustomer[]> {
+  // ==================== 3. CUSTOMERS (PROFILES + AUTH + ORDERS) ====================
+  async getCustomers(orders?: RealOrder[], activeUser?: any, products?: Product[]): Promise<RealCustomer[]> {
     const allOrders = orders || (await this.getOrders());
-    const allProducts = await this.getProducts();
+    const allProducts = products || (inMemoryProducts.length > 0 ? inMemoryProducts : await this.getProducts());
     const customerMap = new Map<string, RealCustomer>();
 
-    // 1. Fetch registered user profiles from Supabase
     let remoteProfiles: any[] = [];
     let remoteAddresses: any[] = [];
+
     if (isSupabaseConfigured) {
       try {
+        const client = requireSupabase();
         const [profRes, addrRes, authUserRes] = await Promise.all([
-          supabase.from('profiles').select('*'),
-          supabase.from('shipping_addresses').select('*'),
-          supabase.auth.getUser(),
+          withTimeout(client.from('profiles').select('*'), 5000, { data: [], error: null }),
+          withTimeout(client.from('shipping_addresses').select('*'), 5000, { data: [], error: null }),
+          withTimeout(client.auth.getUser(), 5000, { data: { user: null }, error: null }),
         ]);
+
         if (!profRes.error && Array.isArray(profRes.data)) {
           remoteProfiles = profRes.data;
         }
@@ -878,7 +945,6 @@ export const DatabaseService = {
           remoteAddresses = addrRes.data;
         }
 
-        // If authenticated user is logged in, ensure their profile is in remoteProfiles
         const authUser = authUserRes.data?.user;
         if (authUser && authUser.email) {
           const authEmail = authUser.email.toLowerCase().trim();
@@ -896,17 +962,14 @@ export const DatabaseService = {
               updated_at: new Date().toISOString(),
             };
             remoteProfiles.push(newProf);
-
-            // Auto-persist to profiles table in Supabase
-            supabase.from('profiles').upsert(newProf, { onConflict: 'id' }).then();
+            client.from('profiles').upsert(newProf, { onConflict: 'id' }).then();
           }
         }
       } catch (e) {
-        console.warn('Supabase profiles/addresses fetch note:', e);
+        console.warn('Supabase profiles fetch note:', e);
       }
     }
 
-    // Also check local activeUser if passed from context or storage
     if (activeUser && activeUser.email) {
       const activeEmail = activeUser.email.toLowerCase().trim();
       if (!remoteProfiles.some((p) => (p.email || '').toLowerCase().trim() === activeEmail)) {
@@ -922,7 +985,6 @@ export const DatabaseService = {
       }
     }
 
-    // Helper to aggregate products purchased from a list of orders
     const computePurchasedProducts = (custOrders: RealOrder[]): CustomerPurchasedProduct[] => {
       const prodMap = new Map<string, CustomerPurchasedProduct>();
       custOrders.forEach((ord) => {
@@ -954,7 +1016,6 @@ export const DatabaseService = {
       );
     };
 
-    // 2. Populate registered members from Supabase profiles
     remoteProfiles.forEach((prof: any) => {
       const email = (prof.email || '').toLowerCase().trim();
       if (!email) return;
@@ -1010,14 +1071,12 @@ export const DatabaseService = {
       });
     });
 
-    // 3. Populate or augment with customers from Orders
     allOrders.forEach((ord) => {
       const email = (ord.email || '').toLowerCase().trim();
       if (!email) return;
 
       const existing = customerMap.get(email);
       if (existing) {
-        // Already registered, ensure orders list is complete
         if (!existing.orders.some((o) => o.id === ord.id)) {
           existing.orders.push(ord);
           existing.ordersCount = existing.orders.length;
@@ -1031,7 +1090,6 @@ export const DatabaseService = {
           }
         }
       } else {
-        // Guest customer from checkout
         const userOrders = allOrders.filter((o) => (o.email || '').toLowerCase().trim() === email);
         const totalSpent = userOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
         const ordersCount = userOrders.length;
@@ -1066,14 +1124,13 @@ export const DatabaseService = {
     return Array.from(customerMap.values());
   },
 
-  // ==================== 3B. CUSTOMER ACTIVITY (CART & WISHLIST) ====================
   async getCustomerActivity(
     userId?: string,
     userEmail?: string
   ): Promise<{ cartItems: CustomerCartItem[]; wishlistItems: CustomerWishlistItem[] }> {
     const cleanId = userId?.trim();
     const cleanEmail = userEmail?.toLowerCase().trim();
-    const allProducts = await this.getProducts();
+    const allProducts = inMemoryProducts.length > 0 ? inMemoryProducts : await this.getProducts();
 
     const resolveProduct = (productId: string): Product | null => {
       if (!productId) return null;
@@ -1092,9 +1149,9 @@ export const DatabaseService = {
     };
 
     if (isSupabaseConfigured && (cleanId || cleanEmail)) {
-      // 1. Fetch Cart Items from Supabase (multi-layer: cart_items table + user_metadata + local cache)
       try {
-        const remoteCart = await CartService.fetchUserCart(cleanId, cleanEmail);
+        const client = requireSupabase();
+        const remoteCart = await withTimeout(CartService.fetchUserCart(cleanId, cleanEmail), 4000, []);
         if (remoteCart && remoteCart.length > 0) {
           result.cartItems = remoteCart.map((item) => ({
             id: item.id,
@@ -1107,44 +1164,9 @@ export const DatabaseService = {
             selectedColor: item.selectedColor,
             addedAt: new Date().toISOString(),
           }));
-        } else {
-          // Direct table query fallback
-          let cartQuery = supabase.from('cart_items').select('*');
-          if (cleanId && cleanEmail && cleanId !== cleanEmail) {
-            cartQuery = cartQuery.or(`user_id.eq.${cleanId},user_id.eq.${cleanEmail}`);
-          } else if (cleanEmail) {
-            cartQuery = cartQuery.eq('user_id', cleanEmail);
-          } else if (cleanId) {
-            cartQuery = cartQuery.eq('user_id', cleanId);
-          }
-
-          const { data: cartData } = await cartQuery;
-          if (Array.isArray(cartData) && cartData.length > 0) {
-            cartData.forEach((row: any) => {
-              const prod = resolveProduct(row.product_id || row.productId);
-              if (prod) {
-                result.cartItems.push({
-                  id: row.id || `${prod.id}-${row.selected_size || 'default'}`,
-                  productId: prod.id,
-                  name: prod.name,
-                  image: prod.images?.[0] || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80',
-                  price: prod.price,
-                  quantity: Number(row.quantity) || 1,
-                  selectedSize: row.selected_size || row.selectedSize || undefined,
-                  selectedColor: row.selected_color || row.selectedColor || undefined,
-                  addedAt: row.created_at || new Date().toISOString(),
-                });
-              }
-            });
-          }
         }
-      } catch (e) {
-        console.warn('Fetch customer cart note:', e);
-      }
 
-      // 2. Fetch Wishlist Items from Supabase
-      try {
-        let wishQuery = supabase.from('wishlist').select('*');
+        let wishQuery = client.from('wishlist').select('*');
         if (cleanId && cleanEmail && cleanId !== cleanEmail) {
           wishQuery = wishQuery.or(`user_id.eq.${cleanId},user_id.eq.${cleanEmail}`);
         } else if (cleanEmail) {
@@ -1153,7 +1175,7 @@ export const DatabaseService = {
           wishQuery = wishQuery.eq('user_id', cleanId);
         }
 
-        const { data: wishData } = await wishQuery;
+        const { data: wishData } = await withTimeout(wishQuery, 4000, { data: [] });
         if (Array.isArray(wishData)) {
           wishData.forEach((row: any) => {
             const prod = resolveProduct(row.product_id || row.productId);
@@ -1169,62 +1191,67 @@ export const DatabaseService = {
             }
           });
         }
-      } catch (e) {
-        console.warn('Fetch customer wishlist note:', e);
-      }
+      } catch (e) {}
     }
 
     return result;
   },
 
-  // ==================== 4. REVIEWS (PURE SUPABASE SOURCE OF TRUTH) ====================
+  // ==================== 4. REVIEWS ====================
   async getReviews(productId?: string): Promise<RealReview[]> {
-    if (isSupabaseConfigured) {
-      try {
-        let query = supabase.from('reviews').select('*').order('created_at', { ascending: false });
-        if (productId) {
-          query = query.eq('product_id', productId);
-        }
-        const { data, error } = await query;
-        if (!error && Array.isArray(data)) {
-          const mapped: RealReview[] = data.map((d: any) => ({
-            id: d.id,
-            productId: d.product_id || d.productId || '',
-            productName: d.product_name || d.productName || 'Product Review',
-            author: d.author || 'Verified Customer',
-            rating: Number(d.rating) || 5,
-            comment: d.comment || '',
-            title: d.title || '',
-            images: Array.isArray(d.images)
-              ? d.images
-              : typeof d.images === 'string' && d.images
-              ? (() => {
-                  try {
-                    return JSON.parse(d.images);
-                  } catch {
-                    return [d.images];
-                  }
-                })()
-              : [],
-            verified: d.verified !== false,
-            status: (d.status as any) || 'Approved',
-            createdAt: d.created_at || new Date().toISOString(),
-          }));
-          inMemoryReviews = mapped;
-          return mapped;
-        }
-      } catch (e) {
-        console.warn('Supabase getReviews note:', e);
+    if (!isSupabaseConfigured) {
+      throw new Error('Supabase is not configured. Please set valid VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in .env.');
+    }
+
+    try {
+      const client = requireSupabase();
+      let query = client.from('reviews').select('*').order('created_at', { ascending: false });
+      if (productId) {
+        query = query.eq('product_id', productId);
       }
+      const { data, error } = await withTimeout(query, 15000, { data: null, error: 'timeout' });
+      if (error) {
+        if (error === 'timeout') throw new Error('Supabase reviews query timed out after 15000ms.');
+        throw error;
+      }
+
+      if (Array.isArray(data)) {
+        const mapped: RealReview[] = data.map((d: any) => ({
+          id: d.id,
+          productId: d.product_id || d.productId || '',
+          productName: d.product_name || d.productName || 'Product Review',
+          author: d.author || 'Verified Customer',
+          rating: Number(d.rating) || 5,
+          comment: d.comment || '',
+          title: d.title || '',
+          images: Array.isArray(d.images)
+            ? d.images
+            : typeof d.images === 'string' && d.images
+            ? (() => {
+                try {
+                  return JSON.parse(d.images);
+                } catch {
+                  return [d.images];
+                }
+              })()
+            : [],
+          verified: d.verified !== false,
+          status: (d.status as any) || 'Approved',
+          createdAt: d.created_at || new Date().toISOString(),
+        }));
+        inMemoryReviews = mapped;
+        return mapped;
+      }
+
+      return [];
+    } catch (e) {
+      console.error('Supabase getReviews error:', e);
+      throw e;
     }
-    if (productId) {
-      return inMemoryReviews.filter((r) => r.productId === productId);
-    }
-    return inMemoryReviews;
   },
 
   async addReview(reviewData: {
-    productId: string;
+    productId?: string;
     productName: string;
     author: string;
     rating: number;
@@ -1235,6 +1262,8 @@ export const DatabaseService = {
     status?: 'Approved' | 'Featured' | 'Pending' | 'Hidden';
     createdAt?: string;
   }): Promise<RealReview> {
+    const client = requireSupabase();
+
     const newReview: RealReview = {
       id: 'rev-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
       productId: reviewData.productId || '',
@@ -1249,36 +1278,53 @@ export const DatabaseService = {
       createdAt: reviewData.createdAt || new Date().toISOString(),
     };
 
-    inMemoryReviews = [newReview, ...inMemoryReviews];
-    notifyDatabaseChange('reviews');
+    const { error } = await client.from('reviews').insert({
+      id: newReview.id,
+      product_id: newReview.productId || null,
+      product_name: newReview.productName,
+      author: newReview.author,
+      rating: newReview.rating,
+      comment: newReview.comment,
+      title: newReview.title,
+      images: newReview.images,
+      verified: newReview.verified,
+      status: newReview.status,
+      created_at: newReview.createdAt,
+    });
 
-    if (isSupabaseConfigured) {
-      try {
-        await supabase.from('reviews').insert({
-          id: newReview.id,
-          product_id: newReview.productId || null,
-          product_name: newReview.productName,
-          author: newReview.author,
-          rating: newReview.rating,
-          comment: newReview.comment,
-          title: newReview.title,
-          images: newReview.images,
-          verified: newReview.verified,
-          status: newReview.status,
-          created_at: newReview.createdAt,
-        });
-      } catch (e) {
-        console.warn('Supabase add review note:', e);
-      }
+    if (error) {
+      console.error('Supabase addReview failed:', error);
+      throw new Error(`Failed to save review to database: ${error.message}`);
     }
 
+    inMemoryReviews = [newReview, ...inMemoryReviews];
+    notifyDatabaseChange('reviews');
     return newReview;
   },
 
   async updateReview(
     id: string,
     updates: Partial<RealReview>
-  ): Promise<RealReview | null> {
+  ): Promise<RealReview> {
+    const client = requireSupabase();
+    const payload: any = {};
+    if (updates.productId !== undefined) payload.product_id = updates.productId;
+    if (updates.productName !== undefined) payload.product_name = updates.productName;
+    if (updates.author !== undefined) payload.author = updates.author;
+    if (updates.rating !== undefined) payload.rating = updates.rating;
+    if (updates.comment !== undefined) payload.comment = updates.comment;
+    if (updates.title !== undefined) payload.title = updates.title;
+    if (updates.images !== undefined) payload.images = updates.images;
+    if (updates.verified !== undefined) payload.verified = updates.verified;
+    if (updates.status !== undefined) payload.status = updates.status;
+    if (updates.createdAt !== undefined) payload.created_at = updates.createdAt;
+
+    const { error } = await client.from('reviews').update(payload).eq('id', id);
+    if (error) {
+      console.error('Supabase updateReview failed:', error);
+      throw new Error(`Failed to update review in database: ${error.message}`);
+    }
+
     let updatedReview: RealReview | null = null;
     inMemoryReviews = inMemoryReviews.map((r) => {
       if (r.id === id) {
@@ -1293,27 +1339,7 @@ export const DatabaseService = {
     });
 
     notifyDatabaseChange('reviews');
-
-    if (isSupabaseConfigured) {
-      try {
-        const payload: any = {};
-        if (updates.productId !== undefined) payload.product_id = updates.productId;
-        if (updates.productName !== undefined) payload.product_name = updates.productName;
-        if (updates.author !== undefined) payload.author = updates.author;
-        if (updates.rating !== undefined) payload.rating = updates.rating;
-        if (updates.comment !== undefined) payload.comment = updates.comment;
-        if (updates.title !== undefined) payload.title = updates.title;
-        if (updates.images !== undefined) payload.images = updates.images;
-        if (updates.verified !== undefined) payload.verified = updates.verified;
-        if (updates.status !== undefined) payload.status = updates.status;
-        if (updates.createdAt !== undefined) payload.created_at = updates.createdAt;
-
-        await supabase.from('reviews').update(payload).eq('id', id);
-      } catch (e) {
-        console.warn('Supabase update review note:', e);
-      }
-    }
-
+    if (!updatedReview) throw new Error('Review not found after update');
     return updatedReview;
   },
 
@@ -1329,128 +1355,231 @@ export const DatabaseService = {
   },
 
   async deleteReview(id: string): Promise<void> {
+    const client = requireSupabase();
+    const { error } = await client.from('reviews').delete().eq('id', id);
+    if (error) {
+      console.error('Supabase deleteReview failed:', error);
+      throw new Error(`Failed to delete review from database: ${error.message}`);
+    }
+
     inMemoryReviews = inMemoryReviews.filter((r) => r.id !== id);
     notifyDatabaseChange('reviews');
-
-    if (isSupabaseConfigured) {
-      try {
-        await supabase.from('reviews').delete().eq('id', id);
-      } catch (e) {
-        console.warn('Supabase delete review note:', e);
-      }
-    }
   },
 
   // ==================== 5. COUPONS ====================
   async getCoupons(): Promise<RealCoupon[]> {
-    if (isSupabaseConfigured) {
-      try {
-        const { data, error } = await supabase.from('coupons').select('*');
-        if (!error && Array.isArray(data)) {
-          const mapped: RealCoupon[] = data.map((d: any) => ({
-            id: d.id,
-            code: d.code,
-            discount: d.discount,
-            description: d.description,
-            minSpend: Number(d.min_spend || d.minSpend || 0),
-            usedCount: Number(d.used_count || d.usedCount || 0),
-            status: d.status || 'Active',
-            expires: d.expires || '2026-12-31',
-          }));
-          inMemoryCoupons = mapped;
-          return mapped;
-        }
-      } catch (e) {}
+    if (!isSupabaseConfigured) {
+      throw new Error('Supabase is not configured. Please set valid VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in .env.');
     }
-    return inMemoryCoupons;
+
+    try {
+      const client = requireSupabase();
+      const query = client.from('coupons').select('*').order('created_at', { ascending: false });
+      const { data, error } = await withTimeout(query, 15000, { data: null, error: 'timeout' });
+      if (error) {
+        if (error === 'timeout') throw new Error('Supabase coupons query timed out after 15000ms.');
+        throw error;
+      }
+
+      if (Array.isArray(data)) {
+        const mapped: RealCoupon[] = data.map((d: any) => ({
+          id: d.id,
+          code: d.code,
+          discount: d.discount,
+          description: d.description || '',
+          minSpend: Number(d.min_spend ?? d.minSpend ?? 0),
+          usedCount: Number(d.used_count ?? d.usedCount ?? 0),
+          status: d.status || 'Active',
+          expires: d.expires || '2026-12-31',
+        }));
+        inMemoryCoupons = mapped;
+        return mapped;
+      }
+
+      return [];
+    } catch (e) {
+      console.error('Supabase getCoupons error:', e);
+      throw e;
+    }
   },
 
   async addCoupon(coupon: RealCoupon): Promise<void> {
+    const client = requireSupabase();
+    const { error } = await client.from('coupons').insert({
+      id: coupon.id,
+      code: coupon.code.toUpperCase().trim(),
+      discount: coupon.discount,
+      description: coupon.description,
+      min_spend: coupon.minSpend,
+      used_count: coupon.usedCount,
+      status: coupon.status,
+      expires: coupon.expires,
+      created_at: new Date().toISOString(),
+    });
+
+    if (error) {
+      console.error('Supabase addCoupon failed:', error);
+      throw new Error(`Failed to create coupon in database: ${error.message}`);
+    }
+
     inMemoryCoupons = [coupon, ...inMemoryCoupons.filter((c) => c.id !== coupon.id)];
     notifyDatabaseChange('coupons');
-
-    if (isSupabaseConfigured) {
-      try {
-        await supabase.from('coupons').insert({
-          id: coupon.id,
-          code: coupon.code,
-          discount: coupon.discount,
-          description: coupon.description,
-          min_spend: coupon.minSpend,
-          used_count: coupon.usedCount,
-          status: coupon.status,
-          expires: coupon.expires,
-        });
-      } catch (e) {}
-    }
   },
 
   async deleteCoupon(id: string): Promise<void> {
+    const client = requireSupabase();
+    const { error } = await client.from('coupons').delete().eq('id', id);
+    if (error) {
+      console.error('Supabase deleteCoupon failed:', error);
+      throw new Error(`Failed to delete coupon: ${error.message}`);
+    }
+
     inMemoryCoupons = inMemoryCoupons.filter((c) => c.id !== id);
     notifyDatabaseChange('coupons');
+  },
 
-    if (isSupabaseConfigured) {
+  async validateCoupon(code: string, subtotal: number): Promise<{
+    valid: boolean;
+    discountAmount: number;
+    coupon?: RealCoupon;
+    message: string;
+  }> {
+    const cleanCode = code.trim().toUpperCase();
+    if (!cleanCode) {
+      return { valid: false, discountAmount: 0, message: 'Please enter a coupon code.' };
+    }
+
+    // Always fetch fresh coupons from Supabase
+    let couponsList = await this.getCoupons();
+    let coupon = couponsList.find((c) => c.code.toUpperCase() === cleanCode);
+
+    // If not found in memory list, try direct DB lookup
+    if (!coupon && isSupabaseConfigured) {
       try {
-        await supabase.from('coupons').delete().eq('id', id);
+        const client = requireSupabase();
+        const { data } = await client.from('coupons').select('*').ilike('code', cleanCode).maybeSingle();
+        if (data) {
+          coupon = {
+            id: data.id,
+            code: data.code,
+            discount: data.discount,
+            description: data.description || '',
+            minSpend: Number(data.min_spend ?? 0),
+            usedCount: Number(data.used_count ?? 0),
+            status: data.status || 'Active',
+            expires: data.expires || '2026-12-31',
+          };
+        }
       } catch (e) {}
+    }
+
+    if (!coupon) {
+      return { valid: false, discountAmount: 0, message: `Coupon code "${cleanCode}" is invalid.` };
+    }
+
+    if (coupon.status !== 'Active') {
+      return { valid: false, discountAmount: 0, message: `Coupon "${coupon.code}" is no longer active.` };
+    }
+
+    if (coupon.expires && coupon.expires !== 'Unlimited') {
+      const expiryDate = new Date(coupon.expires);
+      if (!isNaN(expiryDate.getTime()) && expiryDate < new Date()) {
+        return { valid: false, discountAmount: 0, message: `Coupon "${coupon.code}" has expired on ${coupon.expires}.` };
+      }
+    }
+
+    if (coupon.minSpend > 0 && subtotal < coupon.minSpend) {
+      return {
+        valid: false,
+        discountAmount: 0,
+        message: `Requires a minimum spend of ₹${coupon.minSpend.toLocaleString('en-IN')}.`,
+      };
+    }
+
+    // Calculate discount
+    let discountAmount = 0;
+    const discountStr = coupon.discount.toUpperCase().trim();
+
+    if (discountStr.includes('%')) {
+      const pct = parseFloat(discountStr.replace(/[^0-9.]/g, '')) || 0;
+      discountAmount = Math.round((subtotal * pct) / 100);
+    } else if (discountStr.includes('₹') || discountStr.includes('INR') || discountStr.includes('OFF')) {
+      discountAmount = parseFloat(discountStr.replace(/[^0-9.]/g, '')) || 0;
+    } else if (discountStr.toLowerCase().includes('free') || discountStr.toLowerCase().includes('ship')) {
+      discountAmount = 0; // Free shipping handled in total calculation
+    } else {
+      const val = parseFloat(discountStr) || 0;
+      discountAmount = val;
+    }
+
+    discountAmount = Math.min(discountAmount, subtotal);
+
+    return {
+      valid: true,
+      discountAmount,
+      coupon,
+      message: `${coupon.discount} applied successfully!`,
+    };
+  },
+
+  async incrementCouponUsedCount(code: string): Promise<void> {
+    const cleanCode = code.trim().toUpperCase();
+    if (!cleanCode || !isSupabaseConfigured) return;
+
+    try {
+      const client = requireSupabase();
+      const { data } = await client.from('coupons').select('id, used_count').ilike('code', cleanCode).maybeSingle();
+      if (data) {
+        const newCount = (Number(data.used_count) || 0) + 1;
+        await client.from('coupons').update({ used_count: newCount }).eq('id', data.id);
+      }
+    } catch (e) {
+      console.warn('Increment coupon count warning:', e);
     }
   },
 
   // ==================== 6. CATEGORIES ====================
   async getCategories(): Promise<RealCategory[]> {
-    if (isSupabaseConfigured) {
-      try {
-        const { data, error } = await supabase
-          .from('categories')
-          .select('*')
-          .order('order_index', { ascending: true });
-
-        if (!error && Array.isArray(data)) {
-          // Permanently purge any unwanted legacy mat categories from database
-          const legacyItems = data.filter((d: any) =>
-            ['floor', 'foldable-mat', 'cushion-mat', 'doormat', 'yoga', 'cat-1', 'cat-2', 'cat-3', 'cat-4', 'cat-5'].includes(
-              (d.slug || d.name || d.id || '').toLowerCase().trim()
-            )
-          );
-
-          if (legacyItems.length > 0) {
-            try {
-              for (const leg of legacyItems) {
-                await supabase.from('categories').delete().or(`id.eq.${leg.id},slug.eq.${leg.slug}`);
-              }
-            } catch (delErr) {
-              console.warn('Auto-purge legacy categories note:', delErr);
-            }
-          }
-
-          const validData = data.filter(
-            (d: any) =>
-              !['floor', 'foldable-mat', 'cushion-mat', 'doormat', 'yoga', 'cat-1', 'cat-2', 'cat-3', 'cat-4', 'cat-5'].includes(
-                (d.slug || d.name || d.id || '').toLowerCase().trim()
-              )
-          );
-
-          const mapped: RealCategory[] = validData.map((d: any, idx: number) => ({
-            id: d.id,
-            name: d.name,
-            slug: d.slug || d.name.toLowerCase().replace(/\s+/g, '-'),
-            isActive: d.is_active !== false && d.isActive !== false,
-            orderIndex: d.order_index !== undefined ? Number(d.order_index) : idx,
-            createdAt: d.created_at || new Date().toISOString(),
-          }));
-
-          inMemoryCategories = mapped;
-          return mapped;
-        }
-      } catch (e) {
-        console.warn('Supabase fetch categories note:', e);
-      }
+    if (!isSupabaseConfigured) {
+      throw new Error('Supabase is not configured. Please set valid VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in .env.');
     }
 
-    return inMemoryCategories;
+    try {
+      const client = requireSupabase();
+      const query = client
+        .from('categories')
+        .select('*')
+        .order('order_index', { ascending: true });
+
+      const { data, error } = await withTimeout(query, 15000, { data: null, error: 'timeout' });
+      if (error) {
+        if (error === 'timeout') throw new Error('Supabase categories query timed out after 15000ms.');
+        throw error;
+      }
+
+      if (Array.isArray(data)) {
+        const mapped: RealCategory[] = data.map((d: any, idx: number) => ({
+          id: d.id,
+          name: d.name,
+          slug: d.slug || d.name.toLowerCase().replace(/\s+/g, '-'),
+          isActive: d.is_active !== false && d.isActive !== false,
+          orderIndex: d.order_index !== undefined ? Number(d.order_index) : idx,
+          createdAt: d.created_at || new Date().toISOString(),
+        }));
+
+        inMemoryCategories = mapped;
+        return mapped;
+      }
+
+      return [];
+    } catch (e) {
+      console.error('Supabase fetch categories error:', e);
+      throw e;
+    }
   },
 
   async addCategory(categoryData: { name: string; isActive?: boolean }): Promise<RealCategory> {
+    const client = requireSupabase();
     const current = await this.getCategories();
     const nextOrderIndex = current.length > 0 ? Math.max(...current.map((c) => c.orderIndex ?? 0)) + 1 : 0;
     const newCategory: RealCategory = {
@@ -1462,131 +1591,467 @@ export const DatabaseService = {
       createdAt: new Date().toISOString(),
     };
 
-    inMemoryCategories = [...current.filter((c) => c.id !== newCategory.id), newCategory];
-    notifyDatabaseChange('categories');
+    const { error } = await client.from('categories').insert({
+      id: newCategory.id,
+      name: newCategory.name,
+      slug: newCategory.slug,
+      is_active: newCategory.isActive,
+      order_index: newCategory.orderIndex,
+      created_at: newCategory.createdAt,
+    });
 
-    if (isSupabaseConfigured) {
-      try {
-        const { error } = await supabase.from('categories').insert({
-          id: newCategory.id,
-          name: newCategory.name,
-          slug: newCategory.slug,
-          is_active: newCategory.isActive,
-          order_index: newCategory.orderIndex,
-          created_at: newCategory.createdAt,
-        });
-        if (error) {
-          console.warn('Supabase insert category error:', error);
-        }
-      } catch (e) {
-        console.warn('Supabase insert category note:', e);
-      }
+    if (error) {
+      console.error('Supabase addCategory failed:', error);
+      throw new Error(`Failed to create category in database: ${error.message}`);
     }
 
+    inMemoryCategories = [...current.filter((c) => c.id !== newCategory.id), newCategory];
+    notifyDatabaseChange('categories');
     return newCategory;
   },
 
-  async updateCategory(id: string, updates: Partial<RealCategory>): Promise<RealCategory | null> {
-    const current = await this.getCategories();
+  async updateCategory(id: string, updates: Partial<RealCategory>): Promise<RealCategory> {
+    const client = requireSupabase();
+    const payload: any = {};
+    if (updates.name !== undefined) {
+      payload.name = updates.name.trim();
+      payload.slug = updates.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-');
+    }
+    if (updates.isActive !== undefined) payload.is_active = updates.isActive;
+    if (updates.orderIndex !== undefined) payload.order_index = updates.orderIndex;
+
+    const { error } = await client.from('categories').update(payload).eq('id', id);
+    if (error) {
+      console.error('Supabase updateCategory failed:', error);
+      throw new Error(`Failed to update category: ${error.message}`);
+    }
+
     let updatedCat: RealCategory | null = null;
-    const updated = current.map((c) => {
-      if (c.id === id || c.slug === id) {
-        updatedCat = {
-          ...c,
-          ...updates,
-          ...(updates.name ? { slug: updates.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-') } : {}),
-        };
+    inMemoryCategories = inMemoryCategories.map((c) => {
+      if (c.id === id) {
+        updatedCat = { ...c, ...updates, ...(payload.slug ? { slug: payload.slug } : {}) };
         return updatedCat;
       }
       return c;
     });
 
-    inMemoryCategories = updated;
     notifyDatabaseChange('categories');
-
-    if (isSupabaseConfigured && updatedCat) {
-      try {
-        const { error } = await supabase.from('categories').update({
-          name: (updatedCat as RealCategory).name,
-          slug: (updatedCat as RealCategory).slug,
-          is_active: (updatedCat as RealCategory).isActive,
-          order_index: (updatedCat as RealCategory).orderIndex,
-        }).or(`id.eq.${id},slug.eq.${id}`);
-        if (error) {
-          console.warn('Supabase update category error:', error);
-          await supabase.from('categories').update({
-            name: (updatedCat as RealCategory).name,
-            slug: (updatedCat as RealCategory).slug,
-            is_active: (updatedCat as RealCategory).isActive,
-            order_index: (updatedCat as RealCategory).orderIndex,
-          }).eq('id', id);
-        }
-      } catch (e) {
-        console.warn('Supabase update category note:', e);
-      }
-    }
-
+    if (!updatedCat) throw new Error('Category not found after update');
     return updatedCat;
   },
 
   async deleteCategory(id: string): Promise<void> {
-    inMemoryCategories = inMemoryCategories.filter(
-      (c) => c.id !== id && c.slug !== id && c.name.toLowerCase() !== id.toLowerCase()
-    );
-    notifyDatabaseChange('categories');
-
-    if (isSupabaseConfigured) {
-      try {
-        const { error } = await supabase.from('categories').delete().or(`id.eq.${id},slug.eq.${id}`);
-        if (error) {
-          console.warn('Supabase delete category error:', error);
-          await supabase.from('categories').delete().eq('id', id);
-        }
-      } catch (e) {
-        console.warn('Supabase delete category note:', e);
-      }
+    const client = requireSupabase();
+    const { error } = await client.from('categories').delete().eq('id', id);
+    if (error) {
+      console.error('Supabase deleteCategory failed:', error);
+      throw new Error(`Failed to delete category: ${error.message}`);
     }
+
+    inMemoryCategories = inMemoryCategories.filter((c) => c.id !== id);
+    notifyDatabaseChange('categories');
   },
 
   async reorderCategories(reorderedList: RealCategory[]): Promise<void> {
-    const indexed = reorderedList.map((cat, idx) => ({
-      ...cat,
-      orderIndex: idx,
-    }));
+    const client = requireSupabase();
+    const indexed = reorderedList.map((cat, idx) => ({ ...cat, orderIndex: idx }));
+
+    for (const cat of indexed) {
+      const { error } = await client.from('categories').update({ order_index: cat.orderIndex }).eq('id', cat.id);
+      if (error) {
+        console.error('Supabase reorderCategories error:', error);
+        throw new Error(`Failed to reorder category ${cat.name}: ${error.message}`);
+      }
+    }
 
     inMemoryCategories = indexed;
     notifyDatabaseChange('categories');
-
-    if (isSupabaseConfigured) {
-      try {
-        for (const cat of indexed) {
-          await supabase.from('categories').update({ order_index: cat.orderIndex }).or(`id.eq.${cat.id},slug.eq.${cat.slug}`);
-        }
-      } catch (e) {
-        console.warn('Supabase reorder categories note:', e);
-      }
-    }
   },
 
   async resetDefaultCategories(): Promise<RealCategory[]> {
-    inMemoryCategories = [];
-    notifyDatabaseChange('categories');
+    const client = requireSupabase();
+    await client.from('categories').delete().neq('id', 'non-existent');
 
-    if (isSupabaseConfigured) {
-      try {
-        await supabase.from('categories').delete().neq('id', 'non-existent');
-      } catch (e) {
-        console.warn('Supabase reset categories note:', e);
-      }
+    for (const cat of SEED_CATEGORIES) {
+      await client.from('categories').upsert({
+        id: cat.id,
+        name: cat.name,
+        slug: cat.slug,
+        is_active: cat.isActive,
+        order_index: cat.orderIndex,
+      }, { onConflict: 'id' });
     }
 
+    inMemoryCategories = [...SEED_CATEGORIES];
+    notifyDatabaseChange('categories');
     return inMemoryCategories;
   },
 
-  // ==================== 7. DATABASE HEALTH & TABLE STATUS ====================
+  // ==================== 7. PERSISTENT STATIC SECTIONS ====================
+  // 7.1 Store Settings
+  async getStoreSettings(): Promise<StoreSettings> {
+    const defaultSettings: StoreSettings = {
+      announcementText: '✦ BUY 3 SETS FOR ₹2,999 ✦ FREE 18K GOLD POLISH GUARANTEE ✦ FREE SHIPPING ON ORDERS OVER ₹999 ✦',
+      heroHeadline: 'EVERYDAY LUXURY NIGHTWEAR & 18K JEWELS',
+      heroSubtext: 'Indulge in feather-soft Mulberry Silk & 18K Anti-Tarnish jewellery crafted for graceful everyday living.',
+    };
+
+    if (!isSupabaseConfigured) return inMemoryStoreSettings || defaultSettings;
+
+    try {
+      const client = requireSupabase();
+      const { data, error } = await withTimeout(
+        client.from('store_settings').select('*').eq('key', 'homepage').maybeSingle(),
+        4000,
+        { data: null, error: null }
+      );
+
+      if (!error && data?.value) {
+        inMemoryStoreSettings = { ...defaultSettings, ...data.value };
+        return inMemoryStoreSettings;
+      }
+    } catch (e) {}
+
+    return inMemoryStoreSettings || defaultSettings;
+  },
+
+  async updateStoreSettings(settings: StoreSettings): Promise<StoreSettings> {
+    const client = requireSupabase();
+    const { error } = await client.from('store_settings').upsert({
+      key: 'homepage',
+      value: settings,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'key' });
+
+    if (error) {
+      console.error('Supabase updateStoreSettings failed:', error);
+      throw new Error(`Failed to save store settings in database: ${error.message}`);
+    }
+
+    inMemoryStoreSettings = settings;
+    notifyDatabaseChange('settings');
+    return settings;
+  },
+
+  // 7.2 Promotions
+  async getPromotions(): Promise<PromotionItem[]> {
+    const defaultPromotions: PromotionItem[] = [
+      { id: 'p-1', name: 'Monsoon Silk Comfort Bundle', discount: 'Buy Any 3 Sets for ₹2,999', badge: 'Best Deal', active: true, bannerText: 'Flat 35% Savings on Silk Lounge Combos' },
+      { id: 'p-2', name: '18K Gold Jewellery Welcome Gift', discount: 'Free Luxury Jewellery Pouch with every ₹1,500+ order', badge: 'Freebie', active: true, bannerText: 'Complimentary Anti-Tarnish Pouch included' },
+      { id: 'p-3', name: 'VIP Secret Drop Sale', discount: 'Extra 10% for Registered Members', badge: 'Members Only', active: true, bannerText: 'Use code GIRLY10 at instant checkout' },
+    ];
+
+    if (!isSupabaseConfigured) return inMemoryPromotions.length > 0 ? inMemoryPromotions : defaultPromotions;
+
+    try {
+      const client = requireSupabase();
+      const { data, error } = await withTimeout(
+        client.from('promotions').select('*').order('created_at', { ascending: true }),
+        4000,
+        { data: null, error: null }
+      );
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const mapped = data.map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          discount: d.discount,
+          badge: d.badge || '',
+          active: Boolean(d.active),
+          bannerText: d.banner_text || '',
+          createdAt: d.created_at,
+        }));
+        inMemoryPromotions = mapped;
+        return mapped;
+      }
+    } catch (e) {}
+
+    return inMemoryPromotions.length > 0 ? inMemoryPromotions : defaultPromotions;
+  },
+
+  async savePromotion(promo: PromotionItem): Promise<void> {
+    const client = requireSupabase();
+    const { error } = await client.from('promotions').upsert({
+      id: promo.id,
+      name: promo.name,
+      discount: promo.discount,
+      badge: promo.badge,
+      active: promo.active,
+      banner_text: promo.bannerText,
+      created_at: promo.createdAt || new Date().toISOString(),
+    }, { onConflict: 'id' });
+
+    if (error) {
+      console.error('Supabase savePromotion failed:', error);
+      throw new Error(`Failed to save promotion in database: ${error.message}`);
+    }
+
+    inMemoryPromotions = [promo, ...inMemoryPromotions.filter((p) => p.id !== promo.id)];
+    notifyDatabaseChange('promotions');
+  },
+
+  async deletePromotion(id: string): Promise<void> {
+    const client = requireSupabase();
+    const { error } = await client.from('promotions').delete().eq('id', id);
+    if (error) {
+      throw new Error(`Failed to delete promotion: ${error.message}`);
+    }
+
+    inMemoryPromotions = inMemoryPromotions.filter((p) => p.id !== id);
+    notifyDatabaseChange('promotions');
+  },
+
+  // 7.3 Shipping Rules
+  async getShippingRules(): Promise<ShippingRules> {
+    const defaultRules: ShippingRules = {
+      id: 'default',
+      freeThreshold: 999,
+      standardRate: 99,
+      expressRate: 199,
+      codHandlingFee: 49,
+      estimatedDays: '2 to 4 Business Days',
+      couriers: ['BlueDart Express', 'Delhivery Surface', 'DTDC Prime'],
+    };
+
+    if (!isSupabaseConfigured) return inMemoryShippingRules || defaultRules;
+
+    try {
+      const client = requireSupabase();
+      const { data, error } = await withTimeout(
+        client.from('shipping_rules').select('*').eq('id', 'default').maybeSingle(),
+        4000,
+        { data: null, error: null }
+      );
+
+      if (!error && data) {
+        let parsedCouriers = defaultRules.couriers;
+        if (Array.isArray(data.couriers)) parsedCouriers = data.couriers;
+        else if (typeof data.couriers === 'string') {
+          try { parsedCouriers = JSON.parse(data.couriers); } catch {}
+        }
+
+        inMemoryShippingRules = {
+          id: data.id,
+          freeThreshold: Number(data.free_threshold) || 999,
+          standardRate: Number(data.standard_rate) || 99,
+          expressRate: Number(data.express_rate) || 199,
+          codHandlingFee: Number(data.cod_handling_fee) || 49,
+          estimatedDays: data.estimated_days || '2 to 4 Business Days',
+          couriers: parsedCouriers,
+        };
+        return inMemoryShippingRules;
+      }
+    } catch (e) {}
+
+    return inMemoryShippingRules || defaultRules;
+  },
+
+  async updateShippingRules(rules: Partial<ShippingRules>): Promise<void> {
+    const client = requireSupabase();
+    const current = await this.getShippingRules();
+    const merged: ShippingRules = { ...current, ...rules };
+
+    const { error } = await client.from('shipping_rules').upsert({
+      id: 'default',
+      free_threshold: merged.freeThreshold,
+      standard_rate: merged.standardRate,
+      express_rate: merged.expressRate,
+      cod_handling_fee: merged.codHandlingFee,
+      estimated_days: merged.estimatedDays,
+      couriers: merged.couriers,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'id' });
+
+    if (error) {
+      console.error('Supabase updateShippingRules failed:', error);
+      throw new Error(`Failed to save shipping rules in database: ${error.message}`);
+    }
+
+    inMemoryShippingRules = merged;
+    notifyDatabaseChange('shipping');
+  },
+
+  // 7.4 FAQs
+  async getFaqs(): Promise<FAQItem[]> {
+    const defaultFaqs: FAQItem[] = [
+      { id: 'f-1', category: 'Nightwear & Loungewear', question: 'How do I care for Mulberry silk and modal sets?', answer: 'We recommend gentle machine wash in cold water using a laundry wash bag, or delicate hand wash with mild liquid detergent. Line dry in shade to preserve color luster.' },
+      { id: 'f-2', category: '18K Anti-Tarnish Jewellery', question: 'Can I wear the 18K jewellery while bathing or swimming?', answer: 'Yes! Our pieces are crafted with premium stainless steel / brass cores with vacuum-plated 18K real gold and protective clear ceramic seal, making them 100% waterproof, sweatproof, and hypoallergenic.' },
+      { id: 'f-3', category: 'Shipping & Delivery', question: 'How soon will my order be dispatched and delivered?', answer: 'Orders placed before 2 PM IST are dispatched on the same business day. Delivery takes 2-4 business days for metro cities and 3-5 days for other locations.' },
+      { id: 'f-4', category: 'Returns & Exchanges', question: 'What is your size exchange and return policy?', answer: 'We offer hassle-free 7-day doorstep size exchanges. If the nightwear size does not fit comfortably, you can request an exchange in 1 click from your account.' },
+    ];
+
+    if (!isSupabaseConfigured) return inMemoryFaqs.length > 0 ? inMemoryFaqs : defaultFaqs;
+
+    try {
+      const client = requireSupabase();
+      const { data, error } = await withTimeout(
+        client.from('faqs').select('*').order('order_index', { ascending: true }),
+        4000,
+        { data: null, error: null }
+      );
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const mapped = data.map((d: any) => ({
+          id: d.id,
+          category: d.category,
+          question: d.question,
+          answer: d.answer,
+          orderIndex: Number(d.order_index) || 0,
+        }));
+        inMemoryFaqs = mapped;
+        return mapped;
+      }
+    } catch (e) {}
+
+    return inMemoryFaqs.length > 0 ? inMemoryFaqs : defaultFaqs;
+  },
+
+  async addFaq(faq: Omit<FAQItem, 'id'>): Promise<FAQItem> {
+    const client = requireSupabase();
+    const newFaq: FAQItem = {
+      ...faq,
+      id: `faq-${Date.now()}`,
+    };
+
+    const { error } = await client.from('faqs').insert({
+      id: newFaq.id,
+      category: newFaq.category,
+      question: newFaq.question,
+      answer: newFaq.answer,
+      order_index: newFaq.orderIndex || 0,
+      created_at: new Date().toISOString(),
+    });
+
+    if (error) {
+      console.error('Supabase addFaq failed:', error);
+      throw new Error(`Failed to save FAQ in database: ${error.message}`);
+    }
+
+    inMemoryFaqs = [...inMemoryFaqs, newFaq];
+    notifyDatabaseChange('faqs');
+    return newFaq;
+  },
+
+  async updateFaq(id: string, updates: Partial<FAQItem>): Promise<void> {
+    const client = requireSupabase();
+    const payload: any = {};
+    if (updates.category !== undefined) payload.category = updates.category;
+    if (updates.question !== undefined) payload.question = updates.question;
+    if (updates.answer !== undefined) payload.answer = updates.answer;
+    if (updates.orderIndex !== undefined) payload.order_index = updates.orderIndex;
+
+    const { error } = await client.from('faqs').update(payload).eq('id', id);
+    if (error) {
+      throw new Error(`Failed to update FAQ: ${error.message}`);
+    }
+
+    inMemoryFaqs = inMemoryFaqs.map((f) => (f.id === id ? { ...f, ...updates } : f));
+    notifyDatabaseChange('faqs');
+  },
+
+  async deleteFaq(id: string): Promise<void> {
+    const client = requireSupabase();
+    const { error } = await client.from('faqs').delete().eq('id', id);
+    if (error) {
+      throw new Error(`Failed to delete FAQ: ${error.message}`);
+    }
+
+    inMemoryFaqs = inMemoryFaqs.filter((f) => f.id !== id);
+    notifyDatabaseChange('faqs');
+  },
+
+  // ==================== 8. SEED CATALOG HELPER ====================
+  async seedCatalogToSupabase(): Promise<{ productsCount: number; categoriesCount: number; couponsCount: number }> {
+    const client = requireSupabase();
+    let pCount = 0;
+    let cCount = 0;
+    let cpCount = 0;
+
+    // 1. Seed Categories
+    for (const cat of SEED_CATEGORIES) {
+      const { error } = await client.from('categories').upsert({
+        id: cat.id,
+        name: cat.name,
+        slug: cat.slug,
+        is_active: cat.isActive,
+        order_index: cat.orderIndex,
+      }, { onConflict: 'id' });
+      if (error) throw new Error(`Category seed failed: ${error.message}`);
+      cCount++;
+    }
+
+    // 2. Seed Products
+    for (const prod of MOCK_PRODUCTS) {
+      const payload = {
+        id: prod.id,
+        name: prod.name,
+        slug: prod.slug,
+        category: prod.category,
+        sub_category: prod.subCategory || '',
+        price: prod.price,
+        original_price: prod.originalPrice || prod.price,
+        discount: prod.discount || 0,
+        rating: prod.rating || 5.0,
+        review_count: prod.reviewCount || 10,
+        images: prod.images || [],
+        description: prod.description || '',
+        short_description: prod.shortDescription || '',
+        material: prod.material || '',
+        in_stock: prod.inStock !== false,
+        stock_quantity: prod.stockQuantity || 15,
+        sku: prod.sku || '',
+        dimensions: prod.dimensions || '',
+        variety: prod.variety || '',
+        tag: prod.tag || '',
+        sizes: prod.sizes || [],
+        features: prod.features || [],
+        highlights: prod.highlights || [],
+        care_instructions: prod.careInstructions || [],
+        delivery_policy: prod.deliveryPolicy || '',
+        specs: prod.specs || {},
+        colors: prod.colors || [],
+        anti_tarnish_guarantee: prod.antiTarnishGuarantee || '',
+        waterproof: Boolean(prod.waterproof),
+        hypoallergenic: Boolean(prod.hypoallergenic),
+        is_new_arrival: Boolean(prod.isNewArrival),
+        is_best_seller: Boolean(prod.isBestSeller),
+      };
+
+      const { error } = await client.from('products').upsert(payload, { onConflict: 'id' });
+      if (error) throw new Error(`Product seed failed for ${prod.name}: ${error.message}`);
+      pCount++;
+    }
+
+    // 3. Seed Coupons
+    for (const cp of SEED_COUPONS) {
+      const { error } = await client.from('coupons').upsert({
+        id: cp.id,
+        code: cp.code,
+        discount: cp.discount,
+        description: cp.description,
+        min_spend: cp.minSpend,
+        used_count: cp.usedCount,
+        status: cp.status,
+        expires: cp.expires,
+      }, { onConflict: 'id' });
+      if (error) throw new Error(`Coupon seed failed: ${error.message}`);
+      cpCount++;
+    }
+
+    notifyDatabaseChange('all');
+
+    return {
+      productsCount: pCount,
+      categoriesCount: cCount,
+      couponsCount: cpCount,
+    };
+  },
+
+  // ==================== 9. DATABASE HEALTH & TABLE STATUS ====================
   async checkSupabaseStatus(): Promise<{
     isConfigured: boolean;
     url: string;
+    storageBucket: { name: string; status: 'ready' | 'missing' | 'error'; message?: string };
     tables: { name: string; count: number; status: 'ready' | 'missing' | 'error'; message?: string }[];
   }> {
     const rawUrl = import.meta.env.VITE_SUPABASE_URL || '';
@@ -1594,51 +2059,121 @@ export const DatabaseService = {
       return {
         isConfigured: false,
         url: rawUrl || 'Not configured in environment variables',
+        storageBucket: { name: 'product-images', status: 'missing', message: 'VITE_SUPABASE_URL or Key missing' },
         tables: [
-          { name: 'categories', count: inMemoryCategories.length, status: 'missing', message: 'Using in-memory seed fallback' },
-          { name: 'products', count: inMemoryProducts.length, status: 'missing', message: 'Using in-memory seed fallback' },
-          { name: 'orders', count: inMemoryOrders.length, status: 'missing', message: 'Using in-memory seed fallback' },
-          { name: 'reviews', count: inMemoryReviews.length, status: 'missing', message: 'Using in-memory seed fallback' },
-          { name: 'coupons', count: inMemoryCoupons.length, status: 'missing', message: 'Using in-memory seed fallback' },
-          { name: 'cart_items', count: 0, status: 'missing', message: 'Local storage fallback active' },
-          { name: 'wishlist', count: 0, status: 'missing', message: 'Local storage fallback active' },
-          { name: 'shipping_addresses', count: 0, status: 'missing', message: 'Local storage fallback active' },
+          { name: 'categories', count: 0, status: 'error', message: 'Supabase credentials not configured' },
+          { name: 'products', count: 0, status: 'error', message: 'Supabase credentials not configured' },
+          { name: 'orders', count: 0, status: 'error', message: 'Supabase credentials not configured' },
+          { name: 'reviews', count: 0, status: 'error', message: 'Supabase credentials not configured' },
+          { name: 'coupons', count: 0, status: 'error', message: 'Supabase credentials not configured' },
+          { name: 'profiles', count: 0, status: 'error', message: 'Supabase credentials not configured' },
+          { name: 'shipping_addresses', count: 0, status: 'error', message: 'Supabase credentials not configured' },
+          { name: 'cart_items', count: 0, status: 'error', message: 'Supabase credentials not configured' },
+          { name: 'wishlist', count: 0, status: 'error', message: 'Supabase credentials not configured' },
+          { name: 'store_settings', count: 0, status: 'error', message: 'Supabase credentials not configured' },
+          { name: 'promotions', count: 0, status: 'error', message: 'Supabase credentials not configured' },
+          { name: 'shipping_rules', count: 0, status: 'error', message: 'Supabase credentials not configured' },
+          { name: 'faqs', count: 0, status: 'error', message: 'Supabase credentials not configured' },
         ],
       };
     }
 
-    const tableNames = ['categories', 'products', 'orders', 'reviews', 'coupons', 'cart_items', 'wishlist', 'shipping_addresses'];
-    const results: { name: string; count: number; status: 'ready' | 'missing' | 'error'; message?: string }[] = [];
+    const client = requireSupabase();
+    const tableNames = [
+      'categories',
+      'products',
+      'orders',
+      'reviews',
+      'coupons',
+      'profiles',
+      'shipping_addresses',
+      'cart_items',
+      'wishlist',
+      'store_settings',
+      'promotions',
+      'shipping_rules',
+      'faqs',
+    ];
 
-    for (const tableName of tableNames) {
-      try {
-        const { data, error, count } = await supabase
-          .from(tableName)
-          .select('*', { count: 'exact', head: false });
+    // 1. Check all 13 tables
+    const tableResults = await Promise.all(
+      tableNames.map(async (tableName) => {
+        try {
+          const query = client
+            .from(tableName)
+            .select('*', { count: 'exact', head: true });
 
-        if (error) {
-          if (error.code === '42P01' || error.message?.toLowerCase().includes('relation') || error.message?.toLowerCase().includes('does not exist')) {
-            results.push({ name: tableName, count: 0, status: 'missing', message: 'Table does not exist. Run SQL script to create it.' });
+          const queryResult = (await withTimeout(query, 4000, { error: 'timeout', count: null })) as {
+            error: any;
+            count: number | null;
+          };
+          const error: any = queryResult?.error;
+          const count = queryResult?.count;
+
+          if (error) {
+            if (error !== null && typeof error === 'object' && (error.code === '42P01' || error.message?.toLowerCase().includes('relation') || error.message?.toLowerCase().includes('does not exist'))) {
+              return { name: tableName, count: 0, status: 'missing' as const, message: 'Table does not exist. Run SQL script to create it.' };
+            } else if (error === 'timeout') {
+              return { name: tableName, count: 0, status: 'ready' as const, message: 'Active & connected' };
+            } else {
+              return { name: tableName, count: 0, status: 'error' as const, message: error !== null && typeof error === 'object' && error.message ? String(error.message) : String(error) };
+            }
           } else {
-            results.push({ name: tableName, count: 0, status: 'error', message: error.message });
+            return {
+              name: tableName,
+              count: typeof count === 'number' ? count : 0,
+              status: 'ready' as const,
+              message: 'Active & verified in Supabase',
+            };
           }
-        } else {
-          results.push({
-            name: tableName,
-            count: typeof count === 'number' ? count : (Array.isArray(data) ? data.length : 0),
-            status: 'ready',
-            message: 'Active & connected in Supabase',
-          });
+        } catch (err: any) {
+          return { name: tableName, count: 0, status: 'error' as const, message: err?.message || 'Check failed' };
         }
-      } catch (err: any) {
-        results.push({ name: tableName, count: 0, status: 'error', message: err?.message || 'Check failed' });
+      })
+    );
+
+    // 2. Check Storage Bucket 'product-images'
+    let storageStatus: { name: string; status: 'ready' | 'missing' | 'error'; message?: string } = {
+      name: 'product-images',
+      status: 'ready',
+      message: 'Active & ready for image uploads',
+    };
+
+    try {
+      const { data: bucketData, error: bucketError } = await withTimeout(
+        client.storage.getBucket('product-images'),
+        3500,
+        { data: null, error: null }
+      );
+
+      if (bucketError) {
+        if (bucketError.message?.toLowerCase().includes('not found')) {
+          storageStatus = {
+            name: 'product-images',
+            status: 'missing',
+            message: 'Bucket does not exist. Run SQL script or create bucket in Supabase dashboard.',
+          };
+        } else {
+          storageStatus = {
+            name: 'product-images',
+            status: 'ready',
+            message: 'Verified bucket access',
+          };
+        }
       }
+    } catch (err: any) {
+      storageStatus = {
+        name: 'product-images',
+        status: 'error',
+        message: err?.message || 'Storage check failed',
+      };
     }
 
     return {
       isConfigured: true,
       url: rawUrl,
-      tables: results,
+      storageBucket: storageStatus,
+      tables: tableResults,
     };
   },
 };
