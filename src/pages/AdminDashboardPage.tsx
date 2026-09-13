@@ -780,9 +780,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     try {
       await DatabaseService.deleteCategory(id);
       triggerToast('Category Deleted', `"${name}" removed from database.`, undefined, 'info');
-    } catch (e) {
+    } catch (e: any) {
       await loadDatabaseData();
-      triggerToast('Error', 'Failed to delete category.', undefined, 'error');
+      triggerToast('Error', e?.message || 'Failed to delete category.', undefined, 'error');
     }
   };
 
@@ -793,7 +793,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     const [moved] = updated.splice(index, 1);
     updated.splice(targetIndex, 0, moved);
     setCategoriesList(updated);
-    await DatabaseService.reorderCategories(updated);
+    try {
+      await DatabaseService.reorderCategories(updated);
+    } catch (e: any) {
+      await loadDatabaseData();
+      triggerToast('Error', e?.message || 'Failed to update category order.', undefined, 'error');
+    }
   };
 
   const handleStartEditCategory = (cat: RealCategory) => {
@@ -804,24 +809,34 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const handleSaveEditCategory = async (id: string) => {
     const trimmed = editingCategoryName.trim();
     if (!trimmed) return;
-    const updated = await DatabaseService.updateCategory(id, { name: trimmed });
-    if (updated) {
-      setCategoriesList((prev) => prev.map((c) => (c.id === id ? updated : c)));
-      // Also update name if selected in product form
-      setProductForm((prev) => ({
-        ...prev,
-        categories: prev.categories.map((c) => (c === editingCategoryName ? trimmed : c)),
-      }));
-      triggerToast('Category Updated', `Renamed to "${updated.name}".`, undefined, 'success');
+    try {
+      const updated = await DatabaseService.updateCategory(id, { name: trimmed });
+      if (updated) {
+        setCategoriesList((prev) => prev.map((c) => (c.id === id ? updated : c)));
+        // Also update name if selected in product form
+        setProductForm((prev) => ({
+          ...prev,
+          categories: prev.categories.map((c) => (c === editingCategoryName ? trimmed : c)),
+        }));
+        triggerToast('Category Updated', `Renamed to "${updated.name}".`, undefined, 'success');
+      }
+    } catch (e: any) {
+      await loadDatabaseData();
+      triggerToast('Error', e?.message || 'Failed to update category.', undefined, 'error');
     }
     setEditingCategoryId(null);
     setEditingCategoryName('');
   };
 
   const handleResetCategories = async () => {
-    const reset = await DatabaseService.resetDefaultCategories();
-    setCategoriesList(reset);
-    triggerToast('Categories Reset', 'Default shop categories restored in database.', undefined, 'info');
+    try {
+      const reset = await DatabaseService.resetDefaultCategories();
+      setCategoriesList(reset);
+      triggerToast('Categories Reset', 'Default shop categories restored in database.', undefined, 'info');
+    } catch (e: any) {
+      await loadDatabaseData();
+      triggerToast('Error', e?.message || 'Failed to reset categories.', undefined, 'error');
+    }
   };
 
   // Product Handlers

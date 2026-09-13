@@ -687,14 +687,23 @@ export const DatabaseService = {
     if (!cleanId) throw new Error('Order ID is required');
 
     const client = requireSupabase();
-    const { error } = await client
-      .from('orders')
-      .delete()
-      .eq('id', cleanId);
+    let delError: any = null;
+    try {
+      const { error } = await client
+        .from('orders')
+        .delete()
+        .eq('id', cleanId);
+      delError = error;
+    } catch (err) {
+      delError = err;
+    }
 
-    if (error) {
-      console.error('Supabase deleteOrder failed:', error);
-      throw new Error(`Failed to delete order from database: ${error.message}`);
+    if (delError) {
+      const ok = await supabaseRestMutation('orders', 'DELETE', `id=eq.${encodeURIComponent(cleanId)}`);
+      if (!ok) {
+        console.error('Supabase deleteOrder failed:', delError);
+        throw new Error(`Failed to delete order from database: ${formatQueryError(delError)}`);
+      }
     }
 
     inMemoryOrders = inMemoryOrders.filter(
@@ -912,26 +921,23 @@ export const DatabaseService = {
     if (!cleanId) throw new Error('Product ID is required');
 
     const client = requireSupabase();
-    // 1. Call Supabase FIRST
-    const { error } = await client
-      .from('products')
-      .delete()
-      .or(`id.eq.${cleanId},slug.eq.${cleanId}`);
-
-    if (error) {
-      console.error('Supabase deleteProduct failed:', error);
-      throw new Error(`Failed to delete product from database: ${error.message}`);
+    let delError: any = null;
+    try {
+      const { error } = await client
+        .from('products')
+        .delete()
+        .or(`id.eq.${cleanId},slug.eq.${cleanId}`);
+      delError = error;
+    } catch (err) {
+      delError = err;
     }
 
-    // Verification check to make sure it was actually deleted from Supabase
-    const { data: checkData } = await client
-      .from('products')
-      .select('id')
-      .or(`id.eq.${cleanId},slug.eq.${cleanId}`)
-      .maybeSingle();
-
-    if (checkData) {
-      throw new Error(`Product "${cleanId}" could not be deleted from Supabase. Check table permissions or RLS policies.`);
+    if (delError) {
+      const ok = await supabaseRestMutation('products', 'DELETE', `or=(id.eq.${encodeURIComponent(cleanId)},slug.eq.${encodeURIComponent(cleanId)})`);
+      if (!ok) {
+        console.error('Supabase deleteProduct failed:', delError);
+        throw new Error(`Failed to delete product from database: ${formatQueryError(delError)}`);
+      }
     }
 
     // Clean up associated cart_items & wishlist rows in Supabase
@@ -1822,16 +1828,31 @@ export const DatabaseService = {
     if (updates.isActive !== undefined) payload.is_active = updates.isActive;
     if (updates.orderIndex !== undefined) payload.order_index = updates.orderIndex;
 
-    const { error } = await client.from('categories').update(payload).eq('id', id);
-    if (error) {
-      console.error('Supabase updateCategory failed:', error);
-      throw new Error(`Failed to update category: ${error.message}`);
+    let updateError: any = null;
+    try {
+      const { error } = await client.from('categories').update(payload).eq('id', id);
+      updateError = error;
+    } catch (err) {
+      updateError = err;
+    }
+
+    if (updateError) {
+      const ok = await supabaseRestMutation('categories', 'PATCH', `id=eq.${encodeURIComponent(id)}`, payload);
+      if (!ok) {
+        console.error('Supabase updateCategory failed:', updateError);
+        throw new Error(`Failed to update category: ${formatQueryError(updateError)}`);
+      }
     }
 
     let updatedCat: RealCategory | null = null;
     inMemoryCategories = inMemoryCategories.map((c) => {
       if (c.id === id) {
-        updatedCat = { ...c, ...updates, ...(payload.slug ? { slug: payload.slug } : {}) };
+        updatedCat = {
+          ...c,
+          ...updates,
+          name: updates.name ? updates.name.trim() : c.name,
+          slug: updates.name ? updates.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-') : c.slug,
+        };
         return updatedCat;
       }
       return c;
@@ -1844,10 +1865,20 @@ export const DatabaseService = {
 
   async deleteCategory(id: string): Promise<void> {
     const client = requireSupabase();
-    const { error } = await client.from('categories').delete().eq('id', id);
-    if (error) {
-      console.error('Supabase deleteCategory failed:', error);
-      throw new Error(`Failed to delete category: ${error.message}`);
+    let delError: any = null;
+    try {
+      const { error } = await client.from('categories').delete().eq('id', id);
+      delError = error;
+    } catch (err) {
+      delError = err;
+    }
+
+    if (delError) {
+      const ok = await supabaseRestMutation('categories', 'DELETE', `id=eq.${encodeURIComponent(id)}`);
+      if (!ok) {
+        console.error('Supabase deleteCategory failed:', delError);
+        throw new Error(`Failed to delete category: ${formatQueryError(delError)}`);
+      }
     }
 
     inMemoryCategories = inMemoryCategories.filter((c) => c.id !== id);
@@ -1859,10 +1890,22 @@ export const DatabaseService = {
     const indexed = reorderedList.map((cat, idx) => ({ ...cat, orderIndex: idx }));
 
     for (const cat of indexed) {
-      const { error } = await client.from('categories').update({ order_index: cat.orderIndex }).eq('id', cat.id);
-      if (error) {
-        console.error('Supabase reorderCategories error:', error);
-        throw new Error(`Failed to reorder category ${cat.name}: ${error.message}`);
+      let updateError: any = null;
+      try {
+        const { error } = await client.from('categories').update({ order_index: cat.orderIndex }).eq('id', cat.id);
+        updateError = error;
+      } catch (err) {
+        updateError = err;
+      }
+
+      if (updateError) {
+        const ok = await supabaseRestMutation('categories', 'PATCH', `id=eq.${encodeURIComponent(cat.id)}`, {
+          order_index: cat.orderIndex,
+        });
+        if (!ok) {
+          console.error('Supabase reorderCategories error:', updateError);
+          throw new Error(`Failed to reorder category ${cat.name}: ${formatQueryError(updateError)}`);
+        }
       }
     }
 
@@ -1872,16 +1915,32 @@ export const DatabaseService = {
 
   async resetDefaultCategories(): Promise<RealCategory[]> {
     const client = requireSupabase();
-    await client.from('categories').delete().neq('id', 'non-existent');
+    try {
+      await client.from('categories').delete().neq('id', 'non-existent');
+    } catch {
+      await supabaseRestMutation('categories', 'DELETE', 'id=neq.non-existent');
+    }
 
     for (const cat of SEED_CATEGORIES) {
-      await client.from('categories').upsert({
+      const payload = {
         id: cat.id,
         name: cat.name,
         slug: cat.slug,
         is_active: cat.isActive,
         order_index: cat.orderIndex,
-      }, { onConflict: 'id' });
+      };
+
+      let upsertError: any = null;
+      try {
+        const { error } = await client.from('categories').upsert(payload, { onConflict: 'id' });
+        upsertError = error;
+      } catch (err) {
+        upsertError = err;
+      }
+
+      if (upsertError) {
+        await supabaseRestMutation('categories', 'POST', '', payload);
+      }
     }
 
     inMemoryCategories = [...SEED_CATEGORIES];
