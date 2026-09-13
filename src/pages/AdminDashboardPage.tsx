@@ -742,8 +742,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       setCustomTagInput('');
       setIsAddingCustomTag(false);
       triggerToast('Category Added!', `"${created.name}" saved to database.`, undefined, 'success');
-    } catch (e) {
-      triggerToast('Error', 'Failed to save category.', undefined, 'error');
+    } catch (e: any) {
+      triggerToast('Error', e?.message || 'Failed to save category.', undefined, 'error');
     }
   };
 
@@ -757,8 +757,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       setCategoriesList((prev) => [...prev, created]);
       setNewCategoryInput('');
       triggerToast('Category Added', `"${created.name}" stored in database.`, undefined, 'success');
-    } catch (e) {
-      triggerToast('Error', 'Failed to add category.', undefined, 'error');
+    } catch (e: any) {
+      triggerToast('Error', e?.message || 'Failed to add category.', undefined, 'error');
     }
   };
 

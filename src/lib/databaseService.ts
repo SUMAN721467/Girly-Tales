@@ -1619,7 +1619,7 @@ export const DatabaseService = {
   // ==================== 6. CATEGORIES ====================
   async getCategories(): Promise<RealCategory[]> {
     if (!isSupabaseConfigured) {
-      throw new Error('Supabase is not configured. Please set valid VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in .env.');
+      return inMemoryCategories;
     }
 
     try {
@@ -1629,14 +1629,15 @@ export const DatabaseService = {
         .select('*')
         .order('order_index', { ascending: true });
 
-      const { data, error } = await withTimeout(query, 15000, { data: null, error: 'timeout' });
-      if (error) {
-        if (error === 'timeout') throw new Error('Supabase categories query timed out after 15000ms.');
-        throw error;
+      const { data, error } = await withTimeout(query, 8000, { data: null, error: 'timeout' });
+
+      let rawCategories = data;
+      if (error || !Array.isArray(rawCategories)) {
+        rawCategories = await fetchSupabaseRestFallback<any[]>('categories?select=*&order=order_index.asc');
       }
 
-      if (Array.isArray(data)) {
-        const mapped: RealCategory[] = data.map((d: any, idx: number) => ({
+      if (Array.isArray(rawCategories)) {
+        const mapped: RealCategory[] = rawCategories.map((d: any, idx: number) => ({
           id: d.id,
           name: d.name,
           slug: d.slug || d.name.toLowerCase().replace(/\s+/g, '-'),
@@ -1649,10 +1650,10 @@ export const DatabaseService = {
         return mapped;
       }
 
-      return [];
+      return inMemoryCategories;
     } catch (e) {
       console.error('Supabase fetch categories error:', e);
-      throw e;
+      return inMemoryCategories;
     }
   },
 
@@ -1669,18 +1670,52 @@ export const DatabaseService = {
       createdAt: new Date().toISOString(),
     };
 
-    const { error } = await client.from('categories').insert({
-      id: newCategory.id,
-      name: newCategory.name,
-      slug: newCategory.slug,
-      is_active: newCategory.isActive,
-      order_index: newCategory.orderIndex,
-      created_at: newCategory.createdAt,
-    });
+    let insertError = null;
+    try {
+      const { error } = await client.from('categories').insert({
+        id: newCategory.id,
+        name: newCategory.name,
+        slug: newCategory.slug,
+        is_active: newCategory.isActive,
+        order_index: newCategory.orderIndex,
+        created_at: newCategory.createdAt,
+      });
+      insertError = error;
+    } catch (err) {
+      insertError = err;
+    }
 
-    if (error) {
-      console.error('Supabase addCategory failed:', error);
-      throw new Error(`Failed to create category in database: ${error.message}`);
+    if (insertError) {
+      // Direct REST fallback with clean Anon API key
+      try {
+        const baseUrl = getEffectiveSupabaseUrl().replace(/\/+$/, '');
+        const apiKey = getSupabaseAnonKey();
+        const postRes = await fetch(`${baseUrl}/rest/v1/categories`, {
+          method: 'POST',
+          headers: {
+            apikey: apiKey,
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=minimal',
+          },
+          body: JSON.stringify({
+            id: newCategory.id,
+            name: newCategory.name,
+            slug: newCategory.slug,
+            is_active: newCategory.isActive,
+            order_index: newCategory.orderIndex,
+            created_at: newCategory.createdAt,
+          }),
+        });
+        if (!postRes.ok) {
+          const errBody = await postRes.text().catch(() => '');
+          throw new Error(errBody || `HTTP ${postRes.status}`);
+        }
+        insertError = null;
+      } catch (restErr: any) {
+        console.error('Supabase addCategory REST fallback error:', restErr);
+        throw new Error(`Failed to create category: ${formatQueryError(restErr || insertError)}`);
+      }
     }
 
     inMemoryCategories = [...current.filter((c) => c.id !== newCategory.id), newCategory];
