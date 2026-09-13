@@ -1,15 +1,8 @@
 /**
- * Resend Email Service for Girly Tales
- * Sends order confirmations and customer communications via Resend API
+ * Email Service for Girly Tales
+ * Dispatches transactional emails via serverless endpoint (/api/send-email)
+ * RESEND_API_KEY remains strictly on the server and is never bundled in client code.
  */
-
-const RESEND_API_KEY = (
-  import.meta.env.VITE_RESEND_API_KEY ||
-  import.meta.env.RESEND_API_KEY ||
-  ''
-).trim();
-
-const FROM_EMAIL = import.meta.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
 
 export interface EmailPayload {
   to: string | string[];
@@ -21,31 +14,21 @@ export interface EmailPayload {
 
 export const EmailService = {
   isConfigured(): boolean {
-    return Boolean(RESEND_API_KEY && RESEND_API_KEY.startsWith('re_'));
+    return true;
   },
 
   async sendEmail(payload: EmailPayload): Promise<{ success: boolean; data?: any; error?: string }> {
-    if (!this.isConfigured()) {
-      console.warn('[EmailService] Resend API key is not configured.');
-      return { success: false, error: 'Resend API key missing' };
-    }
-
     try {
       const toAddresses = Array.isArray(payload.to) ? payload.to : [payload.to];
-      const fromAddress = payload.from || `Girly Tales <${FROM_EMAIL}>`;
 
-      const response = await fetch('https://api.resend.com/emails', {
+      const response = await fetch('/api/send-email', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${RESEND_API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: fromAddress,
+          ...payload,
           to: toAddresses,
-          subject: payload.subject,
-          html: payload.html,
-          ...(payload.replyTo ? { reply_to: payload.replyTo } : {}),
         }),
       });
 
@@ -53,7 +36,7 @@ export const EmailService = {
 
       if (!response.ok) {
         console.error('[EmailService Error]', data);
-        return { success: false, error: data?.message || 'Failed to send email' };
+        return { success: false, error: data?.error || data?.message || 'Failed to send email' };
       }
 
       console.log('[EmailService Success]', data);

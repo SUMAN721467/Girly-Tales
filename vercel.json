@@ -2,7 +2,15 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/supabase-proxy/:path*",
+      "destination": "https://luidwbslkwzkdetodqte.supabase.co/:path*"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/((?!api/|supabase-proxy/).*)",
       "destination": "/index.html"
     }
   ],

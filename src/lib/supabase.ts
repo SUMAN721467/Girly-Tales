@@ -2,18 +2,11 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const rawUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
 
-const candidateKeys: string[] = [
-  import.meta.env.VITE_SUPABASE_ANON_KEY,
-  import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY,
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-  import.meta.env.SUPABASE_SERVICE_ROLE_KEY,
-  import.meta.env.SUPABASE_PUBLISHABLE_KEY,
-].filter((k): k is string => Boolean(k && typeof k === 'string' && k.trim().length > 10));
-
-// Prefer the JWT token format (starting with 'eyJ') for direct PostgREST browser calls if available
+// Frontend client MUST only use the public anonymous key or publishable key.
+// NEVER expose, bundle, or read service-role keys in browser code.
 const rawKey = (
-  candidateKeys.find((k) => k.trim().startsWith('eyJ')) ||
-  candidateKeys[0] ||
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
   ''
 ).trim();
 
@@ -32,11 +25,25 @@ export const isSupabaseConfigured: boolean =
   rawKey !== 'xxxx' &&
   rawKey.length > 20;
 
+// Resolve effective client URL:
+// In browser, using same-origin /supabase-proxy eliminates:
+// 1. Browser extension / AdBlocker / Brave Shields blocking *.supabase.co
+// 2. CORS preflight errors and mixed content blocks
+// 3. Regional ISP / DNS lookup issues on *.supabase.co
+export const getEffectiveSupabaseUrl = (): string => {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}/supabase-proxy`;
+  }
+  return rawUrl;
+};
+
+const clientUrl = getEffectiveSupabaseUrl();
+
 let clientInstance: SupabaseClient | null = null;
 
 if (isSupabaseConfigured) {
   try {
-    clientInstance = createClient(rawUrl, rawKey, {
+    clientInstance = createClient(clientUrl, rawKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
@@ -104,7 +111,8 @@ export const testSupabaseConnection = async (): Promise<SupabaseConnectivityStat
   }
 
   try {
-    const endpoint = `${rawUrl.replace(/\/+$/, '')}/rest/v1/products?select=id&limit=1`;
+    const targetUrl = getEffectiveSupabaseUrl();
+    const endpoint = `${targetUrl.replace(/\/+$/, '')}/rest/v1/products?select=id&limit=1`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
 

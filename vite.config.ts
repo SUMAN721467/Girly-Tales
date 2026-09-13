@@ -20,8 +20,19 @@ function razorpayDevPlugin() {
             try {
               const body = JSON.parse(rawData || '{}');
               const env = loadEnv('development', process.cwd(), '');
-              const keyId = env.RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || 'rzp_test_TbD8G3ANJoWXsX';
-              const keySecret = env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_KEY_SECRET || 'aH6l1sHOyCCFjEPtriDPDBqx';
+              const keyId = env.RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID;
+              const keySecret = env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_KEY_SECRET;
+
+              if (!keyId || !keySecret) {
+                res.statusCode = 500;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(
+                  JSON.stringify({
+                    error: 'Razorpay credentials not configured in environment.',
+                  })
+                );
+                return;
+              }
 
               const numericAmount = Math.round(Number(body.amount));
               if (!numericAmount || isNaN(numericAmount) || numericAmount < 100) {
@@ -134,7 +145,19 @@ function razorpayDevPlugin() {
             try {
               const body = JSON.parse(rawData || '{}');
               const env = loadEnv('development', process.cwd(), '');
-              const keySecret = env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_KEY_SECRET || 'aH6l1sHOyCCFjEPtriDPDBqx';
+              const keySecret = env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_KEY_SECRET;
+
+              if (!keySecret) {
+                res.statusCode = 500;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(
+                  JSON.stringify({
+                    success: false,
+                    error: 'RAZORPAY_KEY_SECRET is not configured in environment.',
+                  })
+                );
+                return;
+              }
 
               const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = body;
               if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
@@ -189,6 +212,65 @@ function razorpayDevPlugin() {
           return;
         }
 
+        if (url === '/api/send-email' && req.method === 'POST') {
+          let rawData = '';
+          req.on('data', (chunk: any) => {
+            rawData += chunk;
+          });
+
+          req.on('end', async () => {
+            try {
+              const body = JSON.parse(rawData || '{}');
+              const env = loadEnv('development', process.cwd(), '');
+              const apiKey = (env.RESEND_API_KEY || process.env.RESEND_API_KEY || '').trim();
+              const defaultFrom = env.RESEND_FROM_EMAIL || process.env.RESEND_FROM_EMAIL || 'admin@girlytales.in';
+
+              if (!apiKey) {
+                res.statusCode = 500;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: false, error: 'RESEND_API_KEY is not configured in .env' }));
+                return;
+              }
+
+              const { to, subject, html, from, replyTo } = body;
+              if (!to || !subject || !html) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: false, error: 'Missing required fields: to, subject, html' }));
+                return;
+              }
+
+              const toList = Array.isArray(to) ? to : [to];
+              const sender = from || `Girly Tales <${defaultFrom}>`;
+
+              const resendRes = await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${apiKey}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  from: sender,
+                  to: toList,
+                  subject,
+                  html,
+                  ...(replyTo ? { reply_to: replyTo } : {}),
+                }),
+              });
+
+              const data = await resendRes.json();
+              res.statusCode = resendRes.status;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: resendRes.ok, data }));
+            } catch (e: any) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: e?.message || 'Failed to dispatch email' }));
+            }
+          });
+          return;
+        }
+
         next();
       });
     },
@@ -201,5 +283,27 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true,
+    proxy: {
+      '/supabase-proxy': {
+        target: 'https://luidwbslkwzkdetodqte.supabase.co',
+        changeOrigin: true,
+        secure: true,
+        ws: true,
+        rewrite: (path) => path.replace(/^\/supabase-proxy/, ''),
+      },
+    },
+  },
+  preview: {
+    port: 3001,
+    proxy: {
+      '/supabase-proxy': {
+        target: 'https://luidwbslkwzkdetodqte.supabase.co',
+        changeOrigin: true,
+        secure: true,
+        ws: true,
+        rewrite: (path) => path.replace(/^\/supabase-proxy/, ''),
+      },
+    },
   },
 });
+
