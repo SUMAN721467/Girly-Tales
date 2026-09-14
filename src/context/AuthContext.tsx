@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '../types/product';
 import { useToast } from './ToastContext';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { supabase, isSupabaseConfigured, getRawSupabaseUrl } from '../lib/supabase';
 
 // Admin Emails from environment variable + defaults
 const envAdminEmails = (import.meta.env.VITE_ADMIN_EMAILS || '')
@@ -108,16 +108,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Listen to Supabase auth state changes and maintain 30-day session
   useEffect(() => {
-    // Handle OAuth callback error parameters in URL (e.g. bad_oauth_state / expired)
+    // Handle OAuth callback error parameters in URL (e.g. bad_oauth_state / redirect_uri_not_allowed)
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
       const errorMsg = urlParams.get('error_description') || hashParams.get('error_description');
-      const errorCode = urlParams.get('error_code') || hashParams.get('error_code');
+      const errorCode = urlParams.get('error_code') || hashParams.get('error_code') || urlParams.get('error') || hashParams.get('error');
 
       if (errorMsg || errorCode) {
         console.warn('[Supabase Auth OAuth Callback Note]', { errorCode, errorMsg });
-        triggerToast('Login Session Expired', 'Please try signing in with Google again.', undefined, 'info');
+        const decoded = errorMsg ? decodeURIComponent(errorMsg.replace(/\+/g, ' ')) : '';
+        const displayTitle = errorCode === 'bad_oauth_state' ? 'Google Login Error' : 'Sign In Issue';
+        const displayMsg = decoded || (errorCode ? `OAuth Error: ${errorCode}` : 'Please try signing in with Google again.');
+        triggerToast(displayTitle, displayMsg, undefined, 'error');
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     } catch (e) {}
@@ -334,7 +337,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return { success: false, error: error.message };
         }
         if (data?.url) {
-          window.location.href = data.url;
+          const rawUrl = getRawSupabaseUrl();
+          let targetUrl = data.url;
+          // Ensure OAuth authorization hits Supabase directly so OAuth state cookies are preserved on supabase.co
+          if (rawUrl && targetUrl.includes('/supabase-proxy')) {
+            targetUrl = targetUrl.replace(`${window.location.origin}/supabase-proxy`, rawUrl.replace(/\/+$/, ''));
+          }
+          window.location.href = targetUrl;
           return { success: true };
         }
       }
