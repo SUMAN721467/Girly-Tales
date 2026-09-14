@@ -835,7 +835,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     <div className="flex gap-2">
                       <input
                         type="text"
-                        placeholder="Enter code (e.g. GIRLY10)"
                         value={couponCodeInput}
                         onChange={(e) => {
                           setCouponCodeInput(e.target.value.toUpperCase());
@@ -878,7 +877,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 )}
               </div>
 
-              {/* 3. PAYMENT METHOD SELECTOR */}
+              {/* 3. PAYMENT METHOD (PREPAID ONLY) */}
               <div className="p-4 bg-[#FAF8F2] rounded-2xl border border-[#EAE6DB] space-y-3 text-xs">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-brand-charcoal flex items-center gap-1.5">
@@ -890,59 +889,19 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {/* Razorpay Online */}
-                  <label
-                    onClick={() => setPaymentMethod('prepaid')}
-                    className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
-                      paymentMethod === 'prepaid'
-                        ? 'border-[#967BB6] bg-white shadow-sm ring-1 ring-[#967BB6]'
-                        : 'border-[#EAE6DB] bg-white/60 hover:bg-white'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="payment_option"
-                      checked={paymentMethod === 'prepaid'}
-                      onChange={() => setPaymentMethod('prepaid')}
-                      className="mt-0.5 text-[#967BB6] focus:ring-[#967BB6]"
-                    />
-                    <div className="flex-1 space-y-0.5">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-brand-charcoal">Online Payment</span>
-                        <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">
-                          Recommended
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-brand-muted leading-tight">
-                        UPI, Cards, NetBanking, Wallets (via Razorpay)
-                      </p>
+                <div className="p-3.5 rounded-xl border border-[#967BB6] bg-white shadow-sm flex items-start gap-3">
+                  <div className="mt-0.5 w-4 h-4 rounded-full border-4 border-[#967BB6] bg-white shrink-0" />
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center justify-between flex-wrap gap-1">
+                      <span className="font-bold text-brand-charcoal">Online Payment (Prepaid Only)</span>
+                      <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                        Prepaid Only
+                      </span>
                     </div>
-                  </label>
-
-                  {/* Cash on Delivery */}
-                  <label
-                    onClick={() => setPaymentMethod('cod')}
-                    className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
-                      paymentMethod === 'cod'
-                        ? 'border-[#967BB6] bg-white shadow-sm ring-1 ring-[#967BB6]'
-                        : 'border-[#EAE6DB] bg-white/60 hover:bg-white'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="payment_option"
-                      checked={paymentMethod === 'cod'}
-                      onChange={() => setPaymentMethod('cod')}
-                      className="mt-0.5 text-[#967BB6] focus:ring-[#967BB6]"
-                    />
-                    <div className="flex-1 space-y-0.5">
-                      <span className="font-bold text-brand-charcoal block">Cash on Delivery</span>
-                      <p className="text-[11px] text-brand-muted leading-tight">
-                        Pay upon doorstep arrival
-                      </p>
-                    </div>
-                  </label>
+                    <p className="text-[11px] text-brand-muted leading-tight">
+                      UPI (Google Pay, PhonePe, Paytm), Credit &amp; Debit Cards, NetBanking &amp; Wallets via Razorpay
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -979,15 +938,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Connecting to Razorpay...</span>
                   </>
-                ) : paymentMethod === 'prepaid' ? (
+                ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
                     <span>Pay Securely with Razorpay • ₹{finalTotal.toLocaleString('en-IN')}</span>
-                  </>
-                ) : (
-                  <>
-                    <Truck className="w-4 h-4" />
-                    <span>Confirm COD Order • ₹{finalTotal.toLocaleString('en-IN')}</span>
                   </>
                 )}
               </button>
