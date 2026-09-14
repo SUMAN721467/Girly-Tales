@@ -169,6 +169,37 @@ ALTER TABLE public.reviews ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Approve
 CREATE INDEX IF NOT EXISTS idx_reviews_product_id ON public.reviews(product_id);
 
 -- ==============================================================================
+-- 4.1 TABLE: TESTIMONIALS (HOMEPAGE CUSTOMER QUOTES & TESTIMONIALS)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.testimonials (
+    id TEXT PRIMARY KEY,
+    author TEXT NOT NULL,
+    rating NUMERIC NOT NULL DEFAULT 5,
+    comment TEXT NOT NULL,
+    product_name TEXT DEFAULT '18K Anti-Tarnish Jewels',
+    product_id TEXT,
+    location TEXT DEFAULT 'Verified Buyer',
+    verified BOOLEAN DEFAULT TRUE NOT NULL,
+    status TEXT DEFAULT 'Approved' NOT NULL,
+    order_index INTEGER DEFAULT 0 NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.testimonials ADD COLUMN IF NOT EXISTS author TEXT NOT NULL DEFAULT 'Verified Buyer';
+ALTER TABLE public.testimonials ADD COLUMN IF NOT EXISTS rating NUMERIC NOT NULL DEFAULT 5;
+ALTER TABLE public.testimonials ADD COLUMN IF NOT EXISTS comment TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.testimonials ADD COLUMN IF NOT EXISTS product_name TEXT DEFAULT '18K Anti-Tarnish Jewels';
+ALTER TABLE public.testimonials ADD COLUMN IF NOT EXISTS product_id TEXT;
+ALTER TABLE public.testimonials ADD COLUMN IF NOT EXISTS location TEXT DEFAULT 'Verified Buyer';
+ALTER TABLE public.testimonials ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT TRUE NOT NULL;
+ALTER TABLE public.testimonials ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Approved' NOT NULL;
+ALTER TABLE public.testimonials ADD COLUMN IF NOT EXISTS order_index INTEGER DEFAULT 0 NOT NULL;
+ALTER TABLE public.testimonials ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_testimonials_status ON public.testimonials(status);
+CREATE INDEX IF NOT EXISTS idx_testimonials_order_index ON public.testimonials(order_index);
+
+-- ==============================================================================
 -- 5. TABLE: COUPONS
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.coupons (
@@ -311,6 +342,7 @@ ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.testimonials ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.coupons ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.shipping_addresses ENABLE ROW LEVEL SECURITY;
@@ -369,6 +401,17 @@ CREATE POLICY "Public Read Reviews" ON public.reviews FOR SELECT USING (true);
 CREATE POLICY "Public Insert Reviews" ON public.reviews FOR INSERT WITH CHECK (true);
 CREATE POLICY "Public Update Reviews" ON public.reviews FOR UPDATE USING (true) WITH CHECK (true);
 CREATE POLICY "Public Delete Reviews" ON public.reviews FOR DELETE USING (true);
+
+-- 14.4.1 Testimonials
+DROP POLICY IF EXISTS "Public Read Testimonials" ON public.testimonials;
+DROP POLICY IF EXISTS "Public Write Testimonials" ON public.testimonials;
+DROP POLICY IF EXISTS "Public Insert Testimonials" ON public.testimonials;
+DROP POLICY IF EXISTS "Public Update Testimonials" ON public.testimonials;
+DROP POLICY IF EXISTS "Public Delete Testimonials" ON public.testimonials;
+CREATE POLICY "Public Read Testimonials" ON public.testimonials FOR SELECT USING (true);
+CREATE POLICY "Public Insert Testimonials" ON public.testimonials FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public Update Testimonials" ON public.testimonials FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Public Delete Testimonials" ON public.testimonials FOR DELETE USING (true);
 
 -- 14.5 Coupons
 DROP POLICY IF EXISTS "Public Read Coupons" ON public.coupons;
@@ -493,6 +536,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.categories;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.products;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.orders;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.reviews;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.testimonials;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.coupons;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.cart_items;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.wishlist;
@@ -592,6 +636,22 @@ VALUES
     ('f-3', 'Shipping & Delivery', 'How soon will my order be dispatched and delivered?', 'Orders placed before 2 PM IST are dispatched on the same business day. Delivery takes 2-4 business days for metro cities and 3-5 days for other locations.', 2),
     ('f-4', 'Returns & Exchanges', 'What is your size exchange and return policy?', 'We offer hassle-free 7-day doorstep size exchanges. If the nightwear size does not fit comfortably, you can request an exchange in 1 click from your account.', 3)
 ON CONFLICT (id) DO NOTHING;
+
+-- Testimonials Seed
+INSERT INTO public.testimonials (id, author, rating, comment, product_name, location, verified, status, order_index)
+VALUES 
+    ('t-1', 'Ananya S.', 5, 'Wore my necklace daily to the gym and in hot showers for 3 months — still 100% shiny gold with zero tarnish!', '18K Anti-Tarnish Necklace', 'Mumbai', TRUE, 'Approved', 0),
+    ('t-2', 'Priya M.', 5, 'The softest pure cotton nightwear I have ever worn. Breathable, airy, and the floral print is so aesthetic.', 'Blossom Pure Cotton PJ Set', 'Kolkata', TRUE, 'Approved', 1),
+    ('t-3', 'Rhea S.', 5, 'Luxury boutique unboxing with velvet pouch. Arrived in 2 days and looks just like solid 18K gold jewellery.', 'Clover Anti-Tarnish Bracelet', 'Bengaluru', TRUE, 'Approved', 2),
+    ('t-4', 'Sneha K.', 5, 'Completely hypoallergenic! I have sensitive skin and these earrings never cause any itchiness or redness.', 'Waterproof Huggie Hoops', 'Delhi', TRUE, 'Approved', 3)
+ON CONFLICT (id) DO UPDATE SET 
+    author = EXCLUDED.author,
+    rating = EXCLUDED.rating,
+    comment = EXCLUDED.comment,
+    product_name = EXCLUDED.product_name,
+    location = EXCLUDED.location,
+    status = EXCLUDED.status,
+    order_index = EXCLUDED.order_index;
 
 -- Products Seed (Nightwear & 18K Jewellery)
 INSERT INTO public.products (
@@ -747,5 +807,5 @@ ON CONFLICT (id) DO UPDATE SET
     care_instructions = EXCLUDED.care_instructions,
     delivery_policy = EXCLUDED.delivery_policy;
 
-SELECT 'GIRLY TALES SUPABASE DATABASE INITIALIZED SUCCESSFULLY! ALL 13 TABLES, STORAGE, RLS, AND SEED DATA ARE READY.' AS status;
+SELECT 'GIRLY TALES SUPABASE DATABASE INITIALIZED SUCCESSFULLY! ALL 14 TABLES, STORAGE, RLS, AND SEED DATA ARE READY.' AS status;
 `;

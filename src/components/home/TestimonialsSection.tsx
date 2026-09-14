@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Star, CheckCircle2 } from 'lucide-react';
 import { Product } from '../../types/product';
-import { DatabaseService, RealReview } from '../../lib/databaseService';
+import { DatabaseService, RealTestimonial } from '../../lib/databaseService';
 
 interface TestimonialItem {
   id: string;
@@ -12,40 +12,7 @@ interface TestimonialItem {
   productName: string;
 }
 
-const DEFAULT_TESTIMONIALS: TestimonialItem[] = [
-  {
-    id: 't-1',
-    author: 'Ananya S.',
-    location: 'Mumbai',
-    rating: 5,
-    comment: 'Wore my necklace daily to the gym and in hot showers for 3 months — still 100% shiny gold with zero tarnish!',
-    productName: '18K Anti-Tarnish Necklace'
-  },
-  {
-    id: 't-2',
-    author: 'Priya M.',
-    location: 'Kolkata',
-    rating: 5,
-    comment: 'The softest pure cotton nightwear I have ever worn. Breathable, airy, and the floral print is so aesthetic.',
-    productName: 'Blossom Pure Cotton PJ Set'
-  },
-  {
-    id: 't-3',
-    author: 'Rhea S.',
-    location: 'Bengaluru',
-    rating: 5,
-    comment: 'Luxury boutique unboxing with velvet pouch. Arrived in 2 days and looks just like solid 18K gold jewellery.',
-    productName: 'Clover Anti-Tarnish Bracelet'
-  },
-  {
-    id: 't-4',
-    author: 'Sneha K.',
-    location: 'Delhi',
-    rating: 5,
-    comment: 'Completely hypoallergenic! I have sensitive skin and these earrings never cause any itchiness or redness.',
-    productName: 'Waterproof Huggie Hoops'
-  }
-];
+
 
 interface TestimonialsSectionProps {
   products?: Product[];
@@ -56,32 +23,56 @@ export const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({
   products = [],
   onSelectProduct
 }) => {
-  const [reviewsList, setReviewsList] = useState<TestimonialItem[]>(DEFAULT_TESTIMONIALS);
+  const [reviewsList, setReviewsList] = useState<TestimonialItem[]>(() => {
+    const initialTestimonials = DatabaseService.getCachedTestimonials();
+    const approved = initialTestimonials.filter((r) => r.status === 'Approved' || r.status === 'Featured');
+    return approved.slice(0, 4).map((r) => ({
+      id: r.id,
+      author: r.author || 'Verified Customer',
+      location: r.location || 'Verified Buyer',
+      rating: r.rating || 5,
+      comment: r.comment,
+      productName: r.productName || '18K Anti-Tarnish Jewels',
+    }));
+  });
 
-  useEffect(() => {
-    let isMounted = true;
-    DatabaseService.getReviews()
-      .then((revs) => {
-        if (isMounted && Array.isArray(revs) && revs.length > 0) {
-          const approved = revs.filter((r) => r.status === 'Approved' || r.status === 'Featured');
-          if (approved.length > 0) {
-            const mapped: TestimonialItem[] = approved.slice(0, 4).map((r) => ({
-              id: r.id,
-              author: r.author || 'Verified Customer',
-              location: 'Verified Buyer',
-              rating: r.rating || 5,
-              comment: r.comment,
-              productName: r.productName || 'Girly Tales Item'
-            }));
-            setReviewsList(mapped);
-          }
+  const loadAndSetReviews = () => {
+    DatabaseService.getTestimonials()
+      .then((items) => {
+        if (Array.isArray(items)) {
+          const approved = items.filter((r) => r.status === 'Approved' || r.status === 'Featured');
+          const mapped: TestimonialItem[] = approved.slice(0, 4).map((r) => ({
+            id: r.id,
+            author: r.author || 'Verified Customer',
+            location: r.location || 'Verified Buyer',
+            rating: r.rating || 5,
+            comment: r.comment,
+            productName: r.productName || '18K Anti-Tarnish Jewels',
+          }));
+          setReviewsList(mapped);
         }
       })
       .catch(() => {});
+  };
+
+  useEffect(() => {
+    loadAndSetReviews();
+
+    const handleSync = (e: any) => {
+      if (!e.detail?.type || e.detail?.type === 'testimonials' || e.detail?.type === 'reviews' || e.detail?.type === 'all') {
+        loadAndSetReviews();
+      }
+    };
+
+    window.addEventListener('gt_db_sync', handleSync);
     return () => {
-      isMounted = false;
+      window.removeEventListener('gt_db_sync', handleSync);
     };
   }, []);
+
+  if (!reviewsList || reviewsList.length === 0) {
+    return null;
+  }
 
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 sm:mt-16">

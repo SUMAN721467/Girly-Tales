@@ -7,7 +7,7 @@ import {
   Database, Copy, ExternalLink, ShieldCheck, AlertCircle, CheckCircle, Sparkles,
   UploadCloud, Image as ImageIcon, MoveLeft, MoveRight, Star, Loader2,
   MapPin, Send, Mail, Phone, Calendar, MessageSquare,
-  Heart, ShoppingCart, User, Ticket
+  Heart, ShoppingCart, User, Ticket, Quote
 } from 'lucide-react';
 import { Product } from '../types/product';
 import { useCart } from '../context/CartContext';
@@ -25,6 +25,9 @@ import {
   CustomerCartItem,
   CustomerWishlistItem,
   RealReview, 
+  DEFAULT_REVIEWS,
+  RealTestimonial,
+  DEFAULT_TESTIMONIALS,
   RealCoupon,
   RealCategory,
   PromotionItem,
@@ -44,6 +47,7 @@ type AdminTab =
   | 'orders'
   | 'customers'
   | 'reviews'
+  | 'testimonials'
   | 'coupons'
   | 'homepage'
   | 'promotions'
@@ -203,6 +207,31 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const adminReviewFileInputRef = useRef<HTMLInputElement>(null);
   const adminEditReviewFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Dedicated Testimonials Section State (for "WHAT OUR CUSTOMERS SAY")
+  const [testimonials, setTestimonials] = useState<RealTestimonial[]>(() => DatabaseService.getCachedTestimonials());
+  const [testimonialSearch, setTestimonialSearch] = useState('');
+  const [testimonialFilter, setTestimonialFilter] = useState<'all' | 'live' | 'hidden'>('all');
+  const [isTestimonialModalOpen, setIsTestimonialModalOpen] = useState(false);
+  const [editingTestimonialId, setEditingTestimonialId] = useState<string | null>(null);
+  const [testimonialForm, setTestimonialForm] = useState<{
+    author: string;
+    productName: string;
+    location: string;
+    rating: number;
+    comment: string;
+    verified: boolean;
+    isLive: boolean;
+  }>({
+    author: '',
+    productName: '',
+    location: 'Verified Buyer',
+    rating: 5,
+    comment: '',
+    verified: true,
+    isLive: true,
+  });
+  const [isSavingTestimonial, setIsSavingTestimonial] = useState(false);
+
   // Edit Review Modal state
   const [editingReview, setEditingReview] = useState<RealReview | null>(null);
   const [editReviewForm, setEditReviewForm] = useState<{
@@ -280,6 +309,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         ordersResult, 
         productsResult, 
         reviewsResult, 
+        testimonialsResult,
         couponsResult, 
         catsResult,
         settingsResult,
@@ -290,6 +320,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         DatabaseService.getOrders(),
         DatabaseService.getProducts(),
         DatabaseService.getReviews(),
+        DatabaseService.getTestimonials(true),
         DatabaseService.getCoupons(),
         DatabaseService.getCategories(),
         DatabaseService.getStoreSettings(),
@@ -322,6 +353,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         setReviews(reviewsResult.value);
       } else {
         console.warn('[Admin Reviews Load Note]', reviewsResult.reason);
+      }
+
+      if (testimonialsResult.status === 'fulfilled') {
+        setTestimonials(testimonialsResult.value);
+      } else {
+        console.warn('[Admin Testimonials Load Note]', testimonialsResult.reason);
       }
 
       if (couponsResult.status === 'fulfilled') {
@@ -431,6 +468,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     const matchedProduct = productsList.find((p) => p.id === adminNewReviewForm.productId);
     const resolvedProductName = matchedProduct ? matchedProduct.name : adminNewReviewForm.productName || 'General Store Review';
 
+    let safeNewCreatedAt = new Date().toISOString();
+    if (adminNewReviewForm.date) {
+      try {
+        const d = new Date(adminNewReviewForm.date);
+        if (!isNaN(d.getTime())) safeNewCreatedAt = d.toISOString();
+      } catch {}
+    }
+
     setIsSavingAdminReview(true);
     try {
       const added = await DatabaseService.addReview({
@@ -442,7 +487,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         images: adminNewReviewForm.images,
         verified: adminNewReviewForm.verified,
         status: adminNewReviewForm.status,
-        createdAt: adminNewReviewForm.date ? new Date(adminNewReviewForm.date).toISOString() : new Date().toISOString(),
+        createdAt: safeNewCreatedAt,
       });
 
       setReviews((prev) => [added, ...prev]);
@@ -498,6 +543,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     const matchedProduct = productsList.find((p) => p.id === editReviewForm.productId);
     const resolvedProductName = matchedProduct ? matchedProduct.name : editReviewForm.productName || 'General Store Review';
 
+    let safeCreatedAt: string | undefined = undefined;
+    if (editReviewForm.date) {
+      try {
+        const d = new Date(editReviewForm.date);
+        if (!isNaN(d.getTime())) safeCreatedAt = d.toISOString();
+      } catch {}
+    }
+
     setIsSavingEditReview(true);
     try {
       const updated = await DatabaseService.updateReview(editReviewForm.id, {
@@ -509,11 +562,17 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         images: editReviewForm.images,
         status: editReviewForm.status,
         verified: editReviewForm.verified,
-        createdAt: editReviewForm.date ? new Date(editReviewForm.date).toISOString() : undefined,
+        createdAt: safeCreatedAt,
       });
 
       if (updated) {
-        setReviews((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+        setReviews((prev) => {
+          const exists = prev.some((r) => String(r.id).trim().toLowerCase() === String(updated.id).trim().toLowerCase());
+          if (exists) {
+            return prev.map((r) => (String(r.id).trim().toLowerCase() === String(updated.id).trim().toLowerCase() ? updated : r));
+          }
+          return [updated, ...prev];
+        });
       }
       setEditingReview(null);
       triggerToast('Review Updated', 'Review modifications saved.', undefined, 'success');
@@ -521,6 +580,158 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       triggerToast('Update Failed', err.message || 'Could not update review.', undefined, 'error');
     } finally {
       setIsSavingEditReview(false);
+    }
+  };
+
+  // Dedicated Testimonials Section Handlers
+  const handleOpenAddTestimonial = () => {
+    setEditingTestimonialId(null);
+    setTestimonialForm({
+      author: '',
+      productName: productsList[0]?.name || '18K Anti-Tarnish Necklace',
+      location: 'Verified Buyer',
+      rating: 5,
+      comment: '',
+      verified: true,
+      isLive: true,
+    });
+    setIsTestimonialModalOpen(true);
+  };
+
+  const handleOpenEditTestimonial = (t: RealTestimonial) => {
+    setEditingTestimonialId(t.id);
+    setTestimonialForm({
+      author: t.author || '',
+      productName: t.productName || '18K Anti-Tarnish Jewels',
+      location: t.location || 'Verified Buyer',
+      rating: t.rating || 5,
+      comment: t.comment || '',
+      verified: t.verified !== false,
+      isLive: t.status === 'Approved' || t.status === 'Featured',
+    });
+    setIsTestimonialModalOpen(true);
+  };
+
+  const handleSaveTestimonial = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!testimonialForm.author.trim() || !testimonialForm.comment.trim()) {
+      triggerToast('Validation Error', 'Customer name and testimonial quote are required.', undefined, 'error');
+      return;
+    }
+
+    setIsSavingTestimonial(true);
+    try {
+      const statusValue: 'Approved' | 'Featured' | 'Hidden' = testimonialForm.isLive ? 'Featured' : 'Hidden';
+
+      if (editingTestimonialId) {
+        const updated = await DatabaseService.updateTestimonial(editingTestimonialId, {
+          author: testimonialForm.author.trim(),
+          productName: testimonialForm.productName.trim() || '18K Anti-Tarnish Jewels',
+          location: testimonialForm.location.trim() || 'Verified Buyer',
+          rating: testimonialForm.rating,
+          comment: testimonialForm.comment.trim(),
+          verified: testimonialForm.verified,
+          status: statusValue,
+        });
+        if (updated) {
+          setTestimonials((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+        }
+        triggerToast('Testimonial Updated', 'Saved and updated in database.', undefined, 'success');
+      } else {
+        const added = await DatabaseService.addTestimonial({
+          author: testimonialForm.author.trim(),
+          productName: testimonialForm.productName.trim() || '18K Anti-Tarnish Jewels',
+          location: testimonialForm.location.trim() || 'Verified Buyer',
+          rating: testimonialForm.rating,
+          comment: testimonialForm.comment.trim(),
+          verified: testimonialForm.verified,
+          status: statusValue,
+        });
+        if (added) {
+          setTestimonials((prev) => [added, ...prev]);
+        }
+        triggerToast('Testimonial Added', 'Stored in database and published to homepage.', undefined, 'success');
+      }
+      setIsTestimonialModalOpen(false);
+    } catch (err: any) {
+      triggerToast('Save Failed', err.message || 'Could not save testimonial.', undefined, 'error');
+    } finally {
+      setIsSavingTestimonial(false);
+    }
+  };
+
+  const handleToggleTestimonialLive = async (t: RealTestimonial) => {
+    const isCurrentlyLive = t.status === 'Approved' || t.status === 'Featured';
+    const nextStatus: 'Approved' | 'Featured' | 'Hidden' = isCurrentlyLive ? 'Hidden' : 'Featured';
+    try {
+      const updated = await DatabaseService.updateTestimonial(t.id, { status: nextStatus });
+      if (updated) {
+        setTestimonials((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+      }
+      triggerToast(
+        isCurrentlyLive ? 'Hidden from Homepage' : 'Live on Homepage',
+        `Testimonial from ${t.author} is now ${isCurrentlyLive ? 'hidden' : 'live'}.`,
+        undefined,
+        'success'
+      );
+    } catch (err: any) {
+      triggerToast('Update Failed', err.message || 'Could not update status.', undefined, 'error');
+    }
+  };
+
+  const handleDeleteTestimonial = (t: RealTestimonial) => {
+    setDeleteConfirmInput('');
+    setDeleteTarget({
+      type: 'Testimonial',
+      name: t.author,
+      id: t.id,
+      description: `Testimonial quote: "${t.comment.slice(0, 60)}..."`,
+      onConfirm: async () => {
+        setIsDeletingItem(true);
+        try {
+          await DatabaseService.deleteTestimonial(t.id);
+          setTestimonials((prev) => prev.filter((r) => r.id !== t.id));
+          triggerToast('Testimonial Deleted', 'Removed permanently from database.', undefined, 'success');
+        } catch (err: any) {
+          triggerToast('Delete Failed', err.message || 'Could not delete testimonial.', undefined, 'error');
+        } finally {
+          setIsDeletingItem(false);
+        }
+      },
+    });
+  };
+
+  const handleRestoreDefaultTestimonials = async () => {
+    try {
+      let restoredCount = 0;
+      for (const def of DEFAULT_TESTIMONIALS) {
+        const alreadyExists = testimonials.some(
+          (r) => r.author.trim().toLowerCase() === def.author.trim().toLowerCase()
+        );
+        if (!alreadyExists) {
+          const added = await DatabaseService.addTestimonial({
+            author: def.author,
+            productName: def.productName,
+            rating: def.rating,
+            comment: def.comment,
+            location: def.location,
+            verified: true,
+            status: 'Approved',
+          });
+          if (added) {
+            setTestimonials((prev) => [added, ...prev]);
+            restoredCount++;
+          }
+        }
+      }
+      triggerToast(
+        'Default Testimonials',
+        restoredCount > 0 ? `Restored ${restoredCount} testimonials in database.` : 'All default testimonials already exist.',
+        undefined,
+        'success'
+      );
+    } catch (err: any) {
+      triggerToast('Restore Failed', err.message || 'Could not restore defaults.', undefined, 'error');
     }
   };
 
@@ -747,6 +958,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'orders' },
+            () => debouncedLoad()
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'testimonials' },
             () => debouncedLoad()
           )
           .on(
@@ -1676,6 +1892,21 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             }`}
           >
             Reviews ({reviews.length})
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('testimonials');
+              setIsCreatingProduct(false);
+            }}
+            className={`px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'testimonials'
+                ? 'bg-white text-brand-charcoal shadow-xs'
+                : 'text-brand-muted hover:text-brand-charcoal hover:bg-white/40'
+            }`}
+          >
+            <Quote className="w-3.5 h-3.5 text-[#967BB6]" />
+            <span>Testimonials ({reviews.filter((r) => r.status === 'Approved' || r.status === 'Featured').length})</span>
           </button>
 
           <button
@@ -3922,7 +4153,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                                   type="button"
                                   onClick={async () => {
                                     await DatabaseService.updateReviewStatus(rev.id, st);
-                                    setReviews((prev) => prev.map((r) => (r.id === rev.id ? { ...r, status: st } : r)));
+                                    setReviews((prev) => prev.map((r) => (String(r.id).trim().toLowerCase() === String(rev.id).trim().toLowerCase() ? { ...r, status: st } : r)));
                                     triggerToast('Status Updated', `Review set to ${st}.`, undefined, 'success');
                                   }}
                                   className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase transition-all cursor-pointer ${
@@ -3959,7 +4190,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                                   description: `Product: ${rev.productName} | Rating: ${rev.rating}★`,
                                   onConfirm: async () => {
                                     await DatabaseService.deleteReview(rev.id);
-                                    setReviews((prev) => prev.filter((r) => r.id !== rev.id));
+                                    setReviews((prev) => prev.filter((r) => String(r.id).trim().toLowerCase() !== String(rev.id).trim().toLowerCase()));
                                     triggerToast('Review Deleted', 'Removed from database.', undefined, 'info');
                                   },
                                 });
@@ -4368,6 +4599,551 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                         className="px-5 py-2 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-xs disabled:opacity-50 cursor-pointer"
                       >
                         {isSavingEditReview ? 'Saving...' : 'Save Changes'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB: TESTIMONIALS (HOMEPAGE "WHAT OUR CUSTOMERS SAY" MANAGER) */}
+        {activeTab === 'testimonials' && (
+          <div className="space-y-6 animate-fade-in">
+            {/* Header Card */}
+            <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-[#FAF8F2] border border-[#EAE6DB] flex items-center justify-center text-[#967BB6] shrink-0 shadow-2xs">
+                    <Quote className="w-6 h-6 stroke-[2]" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif text-2xl text-brand-charcoal font-medium">Customer Testimonials</h3>
+                    <p className="text-xs text-brand-muted">
+                      Manage quotes displayed in the <span className="font-bold text-brand-charcoal">"WHAT OUR CUSTOMERS SAY"</span> section on the homepage.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleRestoreDefaultTestimonials}
+                    className="px-4 py-2.5 bg-[#FAF8F2] hover:bg-[#F2EDE2] border border-[#EAE6DB] text-brand-charcoal text-xs font-bold rounded-xl transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                    title="Restore standard 4 testimonials if missing"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-brand-muted" />
+                    <span>Restore Defaults</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleOpenAddTestimonial}
+                    className="px-5 py-2.5 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-xs flex items-center gap-2 shrink-0 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>+ Add Testimonial</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* KPI Summary Cards */}
+              {(() => {
+                const liveTestimonials = testimonials.filter((r) => r.status === 'Approved' || r.status === 'Featured');
+                const avgRating = liveTestimonials.length > 0
+                  ? liveTestimonials.reduce((acc, r) => acc + (r.rating || 5), 0) / liveTestimonials.length
+                  : 5.0;
+
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+                    <div className="p-4 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Live on Homepage</span>
+                      <div className="flex items-baseline gap-1.5 mt-1">
+                        <span className="text-2xl font-black text-brand-charcoal">{liveTestimonials.length}</span>
+                        <span className="text-[10px] text-emerald-700 font-bold">Active</span>
+                      </div>
+                      <span className="text-[10px] text-brand-muted">First 4 shown on homepage</span>
+                    </div>
+
+                    <div className="p-4 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Customer Rating</span>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="text-2xl font-black text-brand-charcoal">{avgRating.toFixed(1)}</span>
+                        <div className="flex text-amber-500 text-xs">★★★★★</div>
+                      </div>
+                      <span className="text-[10px] text-brand-muted">Over 3,800+ happy buyers</span>
+                    </div>
+
+                    <div className="p-4 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Verified Buyers</span>
+                      <span className="text-2xl font-black text-emerald-700 mt-1 block">100%</span>
+                      <span className="text-[10px] text-brand-muted">All have Verified badge</span>
+                    </div>
+
+                    <div className="p-4 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Total Stored</span>
+                      <span className="text-2xl font-black text-brand-charcoal mt-1 block">{testimonials.length}</span>
+                      <span className="text-[10px] text-brand-muted">In testimonials database</span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* LIVE HOMEPAGE PREVIEW (Matches exactly the homepage "WHAT OUR CUSTOMERS SAY") */}
+            <div className="bg-[#FAF8F2] rounded-3xl border-2 border-[#967BB6]/30 p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between gap-4 flex-wrap pb-2 border-b border-[#EAE6DB]">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs font-black uppercase tracking-wider text-brand-charcoal">
+                    Live Homepage Preview ("WHAT OUR CUSTOMERS SAY")
+                  </span>
+                </div>
+                <span className="text-[11px] text-brand-muted font-medium">
+                  Matches exact design shown on the homepage
+                </span>
+              </div>
+
+              {/* Homepage Title Preview */}
+              <div className="text-center py-2 space-y-1">
+                <h4 className="font-sans font-black text-xl sm:text-2xl text-brand-charcoal uppercase tracking-tight">
+                  WHAT OUR CUSTOMERS SAY
+                </h4>
+                <div className="flex items-center justify-center gap-1.5 text-xs text-brand-muted">
+                  <div className="flex text-amber-500 text-xs">★★★★★</div>
+                  <span className="font-bold text-brand-charcoal">4.9 / 5.0</span>
+                  <span>•</span>
+                  <span>Over 3,800+ happy buyers across India</span>
+                </div>
+              </div>
+
+              {/* 4 Preview Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+                {(() => {
+                  const live = testimonials.filter((r) => r.status === 'Approved' || r.status === 'Featured');
+                  const displayList = live.slice(0, 4);
+
+                  if (displayList.length === 0) {
+                    return (
+                      <div className="col-span-full py-8 text-center text-brand-muted bg-white rounded-2xl border border-dashed border-[#EAE6DB] space-y-1">
+                        <p className="text-xs font-bold text-brand-charcoal">No live testimonials active</p>
+                        <p className="text-[11px] text-brand-muted">
+                          Testimonials deleted or hidden from the database won't appear on the homepage. Click "+ Add Testimonial" below to publish one.
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return displayList.map((item, idx) => (
+                    <div
+                      key={item.id || idx}
+                      className="bg-white rounded-2xl p-5 shadow-sm border border-[#EAE6DB] flex flex-col justify-between hover:shadow-md transition-all relative group"
+                    >
+                      {/* Top: Stars & Verified Badge */}
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-3">
+                          <div className="flex items-center gap-0.5">
+                            {[...Array(Number(item.rating) || 5)].map((_, i) => (
+                              <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                            ))}
+                          </div>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                            <CheckCircle2 className="w-3 h-3" />
+                            Verified
+                          </span>
+                        </div>
+
+                        {/* Quote */}
+                        <p className="text-brand-charcoal text-xs sm:text-[13px] font-medium leading-relaxed italic line-clamp-4">
+                          "{item.comment}"
+                        </p>
+                      </div>
+
+                      {/* Bottom Author & Product */}
+                      <div className="mt-4 pt-3 border-t border-gray-100">
+                        <p className="text-xs font-bold text-brand-charcoal">
+                          {item.author}{' '}
+                          <span className="text-[10px] font-normal text-brand-muted">
+                            ({item.location || 'Verified Buyer'})
+                          </span>
+                        </p>
+                        <p className="text-[10px] font-medium text-[#967BB6] mt-0.5 truncate">
+                          ✦ {item.productName || '18K Anti-Tarnish Jewels'}
+                        </p>
+
+                        {/* Action Toolbar on Preview Card */}
+                        <div className="flex items-center justify-between gap-1.5 mt-3 pt-2.5 border-t border-dashed border-gray-200">
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                            Slot #{idx + 1}
+                          </span>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditTestimonial(item)}
+                              className="p-1 text-brand-muted hover:text-[#967BB6] hover:bg-[#FAF8F2] rounded-lg transition-colors cursor-pointer"
+                              title="Edit Testimonial"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleTestimonialLive(item)}
+                              className="p-1 text-brand-muted hover:text-amber-600 hover:bg-[#FAF8F2] rounded-lg transition-colors cursor-pointer"
+                              title="Hide from Homepage"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteTestimonial(item)}
+                              className="p-1 text-brand-muted hover:text-rose-600 hover:bg-[#FAF8F2] rounded-lg transition-colors cursor-pointer"
+                              title="Delete Testimonial"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+            </div>
+
+            {/* Testimonials Management Table / Directory */}
+            <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-5">
+              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-brand-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={testimonialSearch}
+                    onChange={(e) => setTestimonialSearch(e.target.value)}
+                    placeholder="Search testimonials by customer name, product, or review text..."
+                    className="w-full pl-10 pr-4 py-2 text-xs border border-[#EAE6DB] rounded-xl bg-[#FAF8F2] focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                  />
+                </div>
+
+                {/* Filter Pills */}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTestimonialFilter('all')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                      testimonialFilter === 'all'
+                        ? 'bg-[#967BB6] text-white shadow-xs'
+                        : 'bg-[#FAF8F2] text-brand-muted hover:text-brand-charcoal'
+                    }`}
+                  >
+                    All ({testimonials.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTestimonialFilter('live')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                      testimonialFilter === 'live'
+                        ? 'bg-emerald-700 text-white shadow-xs'
+                        : 'bg-[#FAF8F2] text-brand-muted hover:text-brand-charcoal'
+                    }`}
+                  >
+                    Live on Homepage ({testimonials.filter((r) => r.status === 'Approved' || r.status === 'Featured').length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTestimonialFilter('hidden')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                      testimonialFilter === 'hidden'
+                        ? 'bg-zinc-700 text-white shadow-xs'
+                        : 'bg-[#FAF8F2] text-brand-muted hover:text-brand-charcoal'
+                    }`}
+                  >
+                    Hidden ({testimonials.filter((r) => r.status === 'Hidden').length})
+                  </button>
+                </div>
+              </div>
+
+              {/* Testimonials List */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-[#EAE6DB] text-brand-muted font-bold uppercase tracking-wider text-[10px]">
+                      <th className="py-3 px-3">Customer</th>
+                      <th className="py-3 px-3">Rating</th>
+                      <th className="py-3 px-3">Associated Product</th>
+                      <th className="py-3 px-3">Testimonial Quote</th>
+                      <th className="py-3 px-3">Homepage Status</th>
+                      <th className="py-3 px-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#EAE6DB]/60">
+                    {(() => {
+                      const filtered = testimonials.filter((r) => {
+                        const isLive = r.status === 'Approved' || r.status === 'Featured';
+                        if (testimonialFilter === 'live' && !isLive) return false;
+                        if (testimonialFilter === 'hidden' && isLive) return false;
+
+                        if (testimonialSearch.trim()) {
+                          const q = testimonialSearch.toLowerCase().trim();
+                          return (
+                            (r.author || '').toLowerCase().includes(q) ||
+                            (r.productName || '').toLowerCase().includes(q) ||
+                            (r.comment || '').toLowerCase().includes(q)
+                          );
+                        }
+                        return true;
+                      });
+
+                      if (filtered.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={6} className="py-8 text-center text-brand-muted">
+                              No testimonials match your filter. Click "+ Add Testimonial" above to create one.
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return filtered.map((t) => {
+                        const isLive = t.status === 'Approved' || t.status === 'Featured';
+
+                        return (
+                          <tr key={t.id} className="hover:bg-[#FAF8F2]/60 transition-colors">
+                            <td className="py-3 px-3 font-bold text-brand-charcoal">
+                              <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 rounded-full bg-[#967BB6]/15 text-[#967BB6] font-black flex items-center justify-center text-[10px]">
+                                  {getInitials(t.author)}
+                                </div>
+                                <div>
+                                  <span className="block">{t.author}</span>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    {t.location && (
+                                      <span className="text-[9px] text-brand-muted font-normal">
+                                        {t.location}
+                                      </span>
+                                    )}
+                                    {t.verified !== false && (
+                                      <span className="text-[9px] text-emerald-700 font-semibold flex items-center gap-0.5">
+                                        <CheckCircle2 className="w-2.5 h-2.5" /> Verified
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="py-3 px-3">
+                              <div className="flex items-center gap-1 text-amber-500">
+                                <span>{'★'.repeat(t.rating || 5)}</span>
+                                <span className="text-[10px] text-brand-muted font-bold">({t.rating || 5})</span>
+                              </div>
+                            </td>
+
+                            <td className="py-3 px-3 font-medium text-brand-charcoal max-w-[180px] truncate">
+                              <span className="text-[#967BB6] font-bold">✦ </span>
+                              {t.productName || 'General Store'}
+                            </td>
+
+                            <td className="py-3 px-3 text-brand-muted max-w-[320px]">
+                              <p className="italic line-clamp-2">"{t.comment}"</p>
+                            </td>
+
+                            <td className="py-3 px-3">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleTestimonialLive(t)}
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                  isLive
+                                    ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                                    : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                                }`}
+                              >
+                                {isLive ? '✓ Live on Homepage' : 'Hidden'}
+                              </button>
+                            </td>
+
+                            <td className="py-3 px-3 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditTestimonial(t)}
+                                  className="p-1.5 text-brand-muted hover:text-[#967BB6] hover:bg-[#FAF8F2] rounded-lg transition-colors cursor-pointer"
+                                  title="Edit Testimonial"
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteTestimonial(t)}
+                                  className="p-1.5 text-brand-muted hover:text-rose-600 hover:bg-[#FAF8F2] rounded-lg transition-colors cursor-pointer"
+                                  title="Delete Testimonial"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Modal: Add / Edit Testimonial */}
+            {isTestimonialModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+                <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 max-w-lg w-full shadow-2xl space-y-5 animate-scale-up">
+                  <div className="flex items-center justify-between border-b border-[#EAE6DB] pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-[#FAF8F2] border border-[#EAE6DB] flex items-center justify-center text-[#967BB6]">
+                        <Quote className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-serif text-lg font-bold text-brand-charcoal">
+                          {editingTestimonialId ? 'Edit Testimonial' : 'Add Customer Testimonial'}
+                        </h4>
+                        <p className="text-xs text-brand-muted">
+                          Featured in the "WHAT OUR CUSTOMERS SAY" homepage section.
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsTestimonialModalOpen(false)}
+                      className="p-1.5 text-brand-muted hover:text-brand-charcoal rounded-xl hover:bg-[#FAF8F2] cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSaveTestimonial} className="space-y-4">
+                    {/* Customer Name and Location (2 columns) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">
+                          Customer Name *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={testimonialForm.author}
+                          onChange={(e) => setTestimonialForm((p) => ({ ...p, author: e.target.value }))}
+                          placeholder="e.g. Ananya S."
+                          className="w-full px-3.5 py-2 text-xs border border-[#EAE6DB] rounded-xl bg-[#FAF8F2] focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">
+                          Customer Location / City
+                        </label>
+                        <input
+                          type="text"
+                          value={testimonialForm.location}
+                          onChange={(e) => setTestimonialForm((p) => ({ ...p, location: e.target.value }))}
+                          placeholder="e.g. Mumbai, Bengaluru, Delhi"
+                          className="w-full px-3.5 py-2 text-xs border border-[#EAE6DB] rounded-xl bg-[#FAF8F2] focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Associated Product */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">
+                        Associated Product
+                      </label>
+                      <input
+                        type="text"
+                        value={testimonialForm.productName}
+                        onChange={(e) => setTestimonialForm((p) => ({ ...p, productName: e.target.value }))}
+                        placeholder="e.g. 18K Anti-Tarnish Necklace"
+                        className="w-full px-3.5 py-2 text-xs border border-[#EAE6DB] rounded-xl bg-[#FAF8F2] focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                      />
+                    </div>
+
+                    {/* Rating (1 to 5 stars) */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">
+                        Star Rating ({testimonialForm.rating} of 5)
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => setTestimonialForm((p) => ({ ...p, rating: star }))}
+                            className="p-1 text-amber-400 hover:scale-125 transition-transform cursor-pointer"
+                          >
+                            <Star
+                              className={`w-6 h-6 ${
+                                star <= testimonialForm.rating
+                                  ? 'fill-amber-400 text-amber-400'
+                                  : 'text-gray-300'
+                              }`}
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Testimonial Quote */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">
+                        Testimonial Quote / Feedback *
+                      </label>
+                      <textarea
+                        required
+                        rows={4}
+                        value={testimonialForm.comment}
+                        onChange={(e) => setTestimonialForm((p) => ({ ...p, comment: e.target.value }))}
+                        placeholder="Wore my necklace daily to the gym and in hot showers for 3 months — still 100% shiny gold with zero tarnish!"
+                        className="w-full px-3.5 py-2 text-xs border border-[#EAE6DB] rounded-xl bg-[#FAF8F2] focus:bg-white focus:outline-none focus:border-[#967BB6] resize-none"
+                      />
+                    </div>
+
+                    {/* Toggles */}
+                    <div className="grid grid-cols-2 gap-3 pt-2">
+                      <label className="flex items-center gap-2 p-3 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={testimonialForm.verified}
+                          onChange={(e) => setTestimonialForm((p) => ({ ...p, verified: e.target.checked }))}
+                          className="rounded text-[#967BB6] focus:ring-[#967BB6]"
+                        />
+                        <span className="text-xs font-bold text-brand-charcoal">Verified Buyer Badge</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 p-3 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={testimonialForm.isLive}
+                          onChange={(e) => setTestimonialForm((p) => ({ ...p, isLive: e.target.checked }))}
+                          className="rounded text-[#967BB6] focus:ring-[#967BB6]"
+                        />
+                        <span className="text-xs font-bold text-emerald-800">Show on Homepage</span>
+                      </label>
+                    </div>
+
+                    {/* Submit Buttons */}
+                    <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#EAE6DB]">
+                      <button
+                        type="button"
+                        onClick={() => setIsTestimonialModalOpen(false)}
+                        className="px-4 py-2 text-xs font-bold text-brand-muted hover:text-brand-charcoal rounded-xl cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSavingTestimonial}
+                        className="px-6 py-2.5 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-xs disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                      >
+                        {isSavingTestimonial && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                        <span>{editingTestimonialId ? 'Save Changes' : 'Publish Testimonial'}</span>
                       </button>
                     </div>
                   </form>
@@ -5077,7 +5853,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   <h3 className="font-serif text-lg text-brand-charcoal font-medium">Database &amp; Storage Health</h3>
                   <p className="text-xs text-brand-muted">Real-time verification of required Supabase tables, row counts, and storage bucket.</p>
                 </div>
-                <span className="text-xs font-bold text-brand-muted">13 Schema Tables + Storage</span>
+                <span className="text-xs font-bold text-brand-muted">14 Schema Tables + Storage</span>
               </div>
 
               {/* Storage Bucket Indicator */}
@@ -5111,7 +5887,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   { name: 'categories', label: 'Categories Table', desc: 'Shop navigation & custom category ordering', count: categoriesList.length },
                   { name: 'products', label: 'Products Catalog', desc: 'Nightwear, 18K Jewellery, prices, stock & specs', count: productsList.length },
                   { name: 'orders', label: 'Customer Orders', desc: 'Customer checkout, payment status & delivery address', count: orders.length },
-                  { name: 'reviews', label: 'Product Reviews', desc: 'Ratings, customer testimonials & moderation flags', count: reviews.length },
+                  { name: 'reviews', label: 'Product Reviews', desc: 'Ratings, product reviews & moderation flags', count: reviews.length },
+                  { name: 'testimonials', label: 'Testimonials Table', desc: 'Homepage quotes, ratings, author names & slots', count: testimonials.length },
                   { name: 'coupons', label: 'Coupons & Discounts', desc: 'Active promo codes, spend tiers & usage counts', count: coupons.length },
                   { name: 'profiles', label: 'User Profiles', desc: 'Synced with Supabase Auth users for avatars & phone', count: customers.length },
                   { name: 'shipping_addresses', label: 'Customer Addresses', desc: 'Saved delivery addresses per customer', count: 0 },

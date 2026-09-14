@@ -19,47 +19,46 @@ interface CategorySliderProps {
 
 const DEFAULT_CATEGORIES: CategoryItem[] = [
   {
-    id: 'cat-nightwear',
-    name: 'LUXURY NIGHTWEAR',
-    tagline: 'Cloud-Soft Cotton & Mulberry Silk Sets',
-    image: slide1,
-    category: 'nightwear',
-    ctaText: 'SHOP NIGHTWEAR'
-  },
-  {
     id: 'cat-jewellery',
-    name: '18K ANTI-TARNISH JEWELS',
+    name: 'JEWELLERY',
     tagline: 'Waterproof, Shower-Safe & Hypoallergenic',
     image: slide2,
     category: 'jewellery',
     ctaText: 'SHOP JEWELLERY'
   },
   {
-    id: 'cat-party',
-    name: 'PARTY & OCCASION',
-    tagline: 'Statement Layered Chains & Sparkling Huggies',
+    id: 'cat-nightwear',
+    name: 'NIGHTWEAR',
+    tagline: 'Cloud-Soft Luxury Living',
     image: slide1,
-    category: 'jewellery',
-    ctaText: 'EXPLORE PARTY'
+    category: 'nightwear',
+    ctaText: 'SHOP NIGHTWEAR'
   },
   {
-    id: 'cat-wedding',
-    name: 'WEDDING & FESTIVE',
-    tagline: 'Bridal Glow & Fine Occasion Wear',
+    id: 'cat-hair-accessories',
+    name: 'HAIR ACCESSORIES',
+    tagline: 'Cloud-Soft Luxury Living',
     image: slide2,
-    category: 'jewellery',
-    ctaText: 'SHOP FESTIVE'
+    category: 'hair-accessories',
+    ctaText: 'SHOP HAIR ACCESSORIES'
   },
   {
     id: 'cat-daily',
     name: 'DAILY ESSENTIALS',
-    tagline: 'Everyday Sleep Shirts & Minimalist Rings',
+    tagline: 'Cloud-Soft Luxury Living',
     image: slide1,
-    category: 'nightwear',
+    category: 'daily-essentials',
     ctaText: 'SHOP ESSENTIALS'
+  },
+  {
+    id: 'cat-anti-tarnish',
+    name: '100% ANTI-TARNISH',
+    tagline: 'Cloud-Soft Luxury Living',
+    image: slide1,
+    category: '100-anti-tarnish',
+    ctaText: 'SHOP ANTI-TARNISH'
   }
 ];
-
 
 export const CategorySlider: React.FC<CategorySliderProps> = ({
   categories = DEFAULT_CATEGORIES,
@@ -68,12 +67,22 @@ export const CategorySlider: React.FC<CategorySliderProps> = ({
   const displayCategories = React.useMemo(() => {
     if (!categories || categories.length === 0) return DEFAULT_CATEGORIES;
     if (categories.length >= 5) return categories;
-    const existingSlugs = new Set(categories.map((c) => c.category));
-    const missing = DEFAULT_CATEGORIES.filter((d) => !existingSlugs.has(d.category));
+    const existingNames = new Set(categories.map((c) => (c.name || '').toUpperCase()));
     const combined = [...categories];
-    for (const m of missing) {
+    for (const d of DEFAULT_CATEGORIES) {
       if (combined.length >= 5) break;
-      combined.push(m);
+      if (!existingNames.has(d.name.toUpperCase())) {
+        combined.push(d);
+        existingNames.add(d.name.toUpperCase());
+      }
+    }
+    let idx = 0;
+    while (combined.length < 5 && idx < DEFAULT_CATEGORIES.length) {
+      combined.push({
+        ...DEFAULT_CATEGORIES[idx],
+        id: `cat-fill-${idx}-${Date.now()}`
+      });
+      idx++;
     }
     return combined;
   }, [categories]);
@@ -95,12 +104,12 @@ export const CategorySlider: React.FC<CategorySliderProps> = ({
     setActiveIndex(index);
   };
 
-  // Auto-slide every 2 seconds (paused on hover)
+  // Auto-slide every 3 seconds (paused on hover)
   useEffect(() => {
     if (isPaused) return;
     const interval = setInterval(() => {
       nextSlide();
-    }, 2000);
+    }, 3000);
     return () => clearInterval(interval);
   }, [nextSlide, isPaused]);
 
@@ -121,7 +130,7 @@ export const CategorySlider: React.FC<CategorySliderProps> = ({
   };
 
   /**
-   * Computes position offset relative to activeIndex in range [-2, -1, 0, 1, 2]
+   * Computes circular position offset relative to activeIndex in range [-2, -1, 0, 1, 2]
    */
   const getOffset = (index: number) => {
     let diff = index - activeIndex;
@@ -193,13 +202,13 @@ export const CategorySlider: React.FC<CategorySliderProps> = ({
               pointerEvents = 'auto';
             } else if (isPrev) {
               // Left Card
-              transformStyles = 'translate3d(-78%, 0, 0) scale(0.92)';
+              transformStyles = 'translate3d(-80%, 0, 0) scale(0.92)';
               zIndex = 20;
               opacity = 0.88;
               pointerEvents = 'auto';
             } else if (isNext) {
               // Right Card
-              transformStyles = 'translate3d(78%, 0, 0) scale(0.92)';
+              transformStyles = 'translate3d(80%, 0, 0) scale(0.92)';
               zIndex = 20;
               opacity = 0.88;
               pointerEvents = 'auto';
@@ -258,12 +267,12 @@ export const CategorySlider: React.FC<CategorySliderProps> = ({
 
                 {/* Category Details & CTA Overlay */}
                 <div
-                  className={`absolute inset-x-3 sm:inset-x-5 bottom-4 sm:bottom-7 flex flex-col items-center text-center z-20 transition-all duration-500 ${
+                  className={`absolute inset-x-2 sm:inset-x-4 bottom-4 sm:bottom-7 flex flex-col items-center text-center z-20 transition-all duration-500 ${
                     isCenter ? 'opacity-100 translate-y-0' : 'opacity-85 translate-y-1'
                   }`}
                 >
                   {/* Category Name */}
-                  <h3 className="font-sans font-black text-sm sm:text-base md:text-xl text-white uppercase tracking-[0.16em] pb-1 border-b-[1.5px] border-white drop-shadow-md">
+                  <h3 className="font-sans font-black text-sm sm:text-base md:text-xl text-white uppercase tracking-[0.10em] sm:tracking-[0.14em] pb-1 border-b-[1.5px] border-white drop-shadow-md px-1 max-w-[95%] text-center">
                     {item.name}
                   </h3>
 

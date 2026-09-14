@@ -135,6 +135,7 @@ if (typeof window !== 'undefined') {
       'girly_tales_db_faqs_v1',
       'girly_tales_shipping_addresses_v1',
       'girly_tales_saved_addresses_v1',
+      'gt_cached_testimonials_v1',
     ];
     keysToPurge.forEach((k) => {
       localStorage.removeItem(k);
@@ -145,7 +146,7 @@ if (typeof window !== 'undefined') {
 
 // Global live sync broadcaster for real-time reactivity across components
 export const notifyDatabaseChange = (
-  type: 'categories' | 'products' | 'orders' | 'reviews' | 'coupons' | 'cart' | 'wishlist' | 'settings' | 'promotions' | 'shipping' | 'faqs' | 'all'
+  type: 'categories' | 'products' | 'orders' | 'reviews' | 'testimonials' | 'coupons' | 'cart' | 'wishlist' | 'settings' | 'promotions' | 'shipping' | 'faqs' | 'all'
 ) => {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('gt_db_sync', { detail: { type } }));
@@ -267,6 +268,20 @@ export interface RealReview {
   verified: boolean;
   status: 'Approved' | 'Pending' | 'Featured' | 'Hidden';
   createdAt: string;
+}
+
+export interface RealTestimonial {
+  id: string;
+  author: string;
+  rating: number;
+  comment: string;
+  productName: string;
+  productId?: string;
+  location?: string;
+  verified: boolean;
+  status: 'Approved' | 'Featured' | 'Hidden';
+  orderIndex?: number;
+  createdAt?: string;
 }
 
 export interface RealCoupon {
@@ -400,6 +415,7 @@ let inMemoryCategories: RealCategory[] = [];
 let inMemoryProducts: Product[] = [];
 let inMemoryOrders: RealOrder[] = [];
 let inMemoryReviews: RealReview[] = [];
+let inMemoryTestimonials: RealTestimonial[] = [];
 let inMemoryCoupons: RealCoupon[] = [];
 let inMemoryStoreSettings: StoreSettings | null = null;
 let inMemoryPromotions: PromotionItem[] = [];
@@ -411,6 +427,114 @@ const PRODUCTS_CACHE_KEY = 'gt_cached_products_v3';
 const CATEGORIES_CACHE_KEY = 'gt_cached_categories_v3';
 const ORDERS_CACHE_KEY = 'gt_cached_orders_v3';
 const COUPONS_CACHE_KEY = 'gt_cached_coupons_v3';
+const REVIEWS_CACHE_KEY = 'gt_cached_reviews_v3';
+const TESTIMONIALS_CACHE_KEY = 'gt_cached_testimonials_v2';
+
+export const DEFAULT_TESTIMONIALS: RealTestimonial[] = [
+  {
+    id: 't-1',
+    author: 'Ananya S.',
+    location: 'Mumbai',
+    rating: 5,
+    comment: 'Wore my necklace daily to the gym and in hot showers for 3 months — still 100% shiny gold with zero tarnish!',
+    productName: '18K Anti-Tarnish Necklace',
+    verified: true,
+    status: 'Approved',
+    orderIndex: 0,
+    createdAt: new Date(Date.now() - 7 * 86400000).toISOString(),
+  },
+  {
+    id: 't-2',
+    author: 'Priya M.',
+    location: 'Kolkata',
+    rating: 5,
+    comment: 'The softest pure cotton nightwear I have ever worn. Breathable, airy, and the floral print is so aesthetic.',
+    productName: 'Blossom Pure Cotton PJ Set',
+    verified: true,
+    status: 'Approved',
+    orderIndex: 1,
+    createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
+  },
+  {
+    id: 't-3',
+    author: 'Rhea S.',
+    location: 'Bengaluru',
+    rating: 5,
+    comment: 'Luxury boutique unboxing with velvet pouch. Arrived in 2 days and looks just like solid 18K gold jewellery.',
+    productName: 'Clover Anti-Tarnish Bracelet',
+    verified: true,
+    status: 'Approved',
+    orderIndex: 2,
+    createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
+  },
+  {
+    id: 't-4',
+    author: 'Sneha K.',
+    location: 'Delhi',
+    rating: 5,
+    comment: 'Completely hypoallergenic! I have sensitive skin and these earrings never cause any itchiness or redness.',
+    productName: 'Waterproof Huggie Hoops',
+    verified: true,
+    status: 'Approved',
+    orderIndex: 3,
+    createdAt: new Date(Date.now() - 86400000).toISOString(),
+  },
+];
+
+export const DEFAULT_REVIEWS: RealReview[] = [
+  {
+    id: 't-1',
+    productId: '',
+    productName: '18K Anti-Tarnish Necklace',
+    author: 'Ananya S.',
+    rating: 5,
+    comment: 'Wore my necklace daily to the gym and in hot showers for 3 months — still 100% shiny gold with zero tarnish!',
+    title: '100% Shiny Gold',
+    images: [],
+    verified: true,
+    status: 'Approved',
+    createdAt: new Date(Date.now() - 7 * 86400000).toISOString(),
+  },
+  {
+    id: 't-2',
+    productId: '',
+    productName: 'Blossom Pure Cotton PJ Set',
+    author: 'Priya M.',
+    rating: 5,
+    comment: 'The softest pure cotton nightwear I have ever worn. Breathable, airy, and the floral print is so aesthetic.',
+    title: 'Breathable & Airy',
+    images: [],
+    verified: true,
+    status: 'Approved',
+    createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
+  },
+  {
+    id: 't-3',
+    productId: '',
+    productName: 'Clover Anti-Tarnish Bracelet',
+    author: 'Rhea S.',
+    rating: 5,
+    comment: 'Luxury boutique unboxing with velvet pouch. Arrived in 2 days and looks just like solid 18K gold jewellery.',
+    title: 'Luxury Boutique Unboxing',
+    images: [],
+    verified: true,
+    status: 'Approved',
+    createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
+  },
+  {
+    id: 't-4',
+    productId: '',
+    productName: 'Waterproof Huggie Hoops',
+    author: 'Sneha K.',
+    rating: 5,
+    comment: 'Completely hypoallergenic! I have sensitive skin and these earrings never cause any itchiness or redness.',
+    title: 'Completely Hypoallergenic',
+    images: [],
+    verified: true,
+    status: 'Approved',
+    createdAt: new Date(Date.now() - 86400000).toISOString(),
+  },
+];
 
 const DEFAULT_COUPONS: RealCoupon[] = [
   {
@@ -465,6 +589,21 @@ try {
     if (inMemoryCoupons.length === 0) {
       inMemoryCoupons = DEFAULT_COUPONS;
     }
+    const savedRevs = localStorage.getItem(REVIEWS_CACHE_KEY);
+    if (savedRevs) {
+      const parsed = JSON.parse(savedRevs);
+      if (Array.isArray(parsed) && parsed.length > 0) inMemoryReviews = parsed;
+    }
+    if (inMemoryReviews.length === 0) {
+      inMemoryReviews = [...DEFAULT_REVIEWS];
+    }
+    const savedTestimonials = localStorage.getItem(TESTIMONIALS_CACHE_KEY);
+    if (savedTestimonials !== null) {
+      try {
+        const parsed = JSON.parse(savedTestimonials);
+        if (Array.isArray(parsed)) inMemoryTestimonials = parsed;
+      } catch {}
+    }
   }
 } catch (e) {}
 
@@ -472,10 +611,12 @@ let activeProductsPromise: Promise<Product[]> | null = null;
 let activeCategoriesPromise: Promise<RealCategory[]> | null = null;
 let activeOrdersPromise: Promise<RealOrder[]> | null = null;
 let activeCouponsPromise: Promise<RealCoupon[]> | null = null;
+let activeTestimonialsPromise: Promise<RealTestimonial[]> | null = null;
 let lastProductsFetchTime = 0;
 let lastCategoriesFetchTime = 0;
 let lastOrdersFetchTime = 0;
 let lastCouponsFetchTime = 0;
+let lastTestimonialsFetchTime = 0;
 
 export function mapRawOrder(d: any): RealOrder {
   const cleanId = String(d.id || d.order_id || '').trim();
@@ -1810,9 +1951,13 @@ export const DatabaseService = {
   },
 
   // ==================== 4. REVIEWS ====================
+  getCachedReviews(): RealReview[] {
+    return inMemoryReviews.length > 0 ? inMemoryReviews : DEFAULT_REVIEWS;
+  },
+
   async getReviews(productId?: string): Promise<RealReview[]> {
     if (!isSupabaseConfigured) {
-      return inMemoryReviews;
+      return this.getCachedReviews();
     }
 
     try {
@@ -1831,9 +1976,9 @@ export const DatabaseService = {
         rawData = await fetchSupabaseRestFallback<any[]>(queryPath);
       }
 
-      if (Array.isArray(rawData)) {
+      if (Array.isArray(rawData) && rawData.length > 0) {
         const mapped: RealReview[] = rawData.map((d: any) => ({
-          id: d.id,
+          id: String(d.id),
           productId: d.product_id || d.productId || '',
           productName: d.product_name || d.productName || 'Product Review',
           author: d.author || 'Verified Customer',
@@ -1856,13 +2001,18 @@ export const DatabaseService = {
           createdAt: d.created_at || new Date().toISOString(),
         }));
         inMemoryReviews = mapped;
+        try {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(REVIEWS_CACHE_KEY, JSON.stringify(mapped));
+          }
+        } catch {}
         return mapped;
       }
 
-      return inMemoryReviews;
+      return this.getCachedReviews();
     } catch (e) {
       console.error('Supabase getReviews error:', e);
-      return inMemoryReviews;
+      return this.getCachedReviews();
     }
   },
 
@@ -1924,6 +2074,12 @@ export const DatabaseService = {
     }
 
     inMemoryReviews = [newReview, ...inMemoryReviews];
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(REVIEWS_CACHE_KEY, JSON.stringify(inMemoryReviews));
+      }
+    } catch {}
+
     notifyDatabaseChange('reviews');
     return newReview;
   },
@@ -1934,10 +2090,10 @@ export const DatabaseService = {
   ): Promise<RealReview> {
     const client = requireSupabase();
     const payload: any = {};
-    if (updates.productId !== undefined) payload.product_id = updates.productId;
+    if (updates.productId !== undefined) payload.product_id = updates.productId || null;
     if (updates.productName !== undefined) payload.product_name = updates.productName;
     if (updates.author !== undefined) payload.author = updates.author;
-    if (updates.rating !== undefined) payload.rating = updates.rating;
+    if (updates.rating !== undefined) payload.rating = Number(updates.rating) || 5;
     if (updates.comment !== undefined) payload.comment = updates.comment;
     if (updates.title !== undefined) payload.title = updates.title;
     if (updates.images !== undefined) payload.images = updates.images;
@@ -1961,8 +2117,12 @@ export const DatabaseService = {
     }
 
     let updatedReview: RealReview | null = null;
+    let found = false;
+    const cleanId = String(id).trim().toLowerCase();
+
     inMemoryReviews = inMemoryReviews.map((r) => {
-      if (r.id === id) {
+      if (String(r.id).trim().toLowerCase() === cleanId) {
+        found = true;
         updatedReview = {
           ...r,
           ...updates,
@@ -1973,9 +2133,31 @@ export const DatabaseService = {
       return r;
     });
 
+    if (!found) {
+      updatedReview = {
+        id: String(id),
+        productId: updates.productId || '',
+        productName: updates.productName || 'General Store Review',
+        author: updates.author || 'Verified Customer',
+        rating: updates.rating !== undefined ? Math.max(1, Math.min(5, Number(updates.rating))) : 5,
+        comment: updates.comment || '',
+        title: updates.title || '',
+        images: updates.images || [],
+        verified: updates.verified !== false,
+        status: updates.status || 'Approved',
+        createdAt: updates.createdAt || new Date().toISOString(),
+      };
+      inMemoryReviews = [updatedReview, ...inMemoryReviews];
+    }
+
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(REVIEWS_CACHE_KEY, JSON.stringify(inMemoryReviews));
+      }
+    } catch {}
+
     notifyDatabaseChange('reviews');
-    if (!updatedReview) throw new Error('Review not found after update');
-    return updatedReview;
+    return updatedReview!;
   },
 
   async uploadReviewImage(file: File): Promise<string> {
@@ -2006,7 +2188,374 @@ export const DatabaseService = {
       }
     }
 
-    inMemoryReviews = inMemoryReviews.filter((r) => r.id !== id);
+    const cleanId = String(id).trim().toLowerCase();
+    inMemoryReviews = inMemoryReviews.filter((r) => String(r.id).trim().toLowerCase() !== cleanId);
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(REVIEWS_CACHE_KEY, JSON.stringify(inMemoryReviews));
+      }
+    } catch {}
+
+    notifyDatabaseChange('reviews');
+  },
+
+  // ==================== 4.1 TESTIMONIALS ====================
+  getCachedTestimonials(): RealTestimonial[] {
+    return inMemoryTestimonials;
+  },
+
+  async getTestimonials(forceFresh = false): Promise<RealTestimonial[]> {
+    if (!isSupabaseConfigured) {
+      return this.getCachedTestimonials();
+    }
+
+    const now = Date.now();
+    if (inMemoryTestimonials.length > 0 && now - lastTestimonialsFetchTime < 30000 && !forceFresh) {
+      return inMemoryTestimonials;
+    }
+
+    if (activeTestimonialsPromise && !forceFresh) {
+      return activeTestimonialsPromise;
+    }
+
+    if (inMemoryTestimonials.length > 0 && !forceFresh) {
+      this.fetchFreshTestimonials().catch(() => {});
+      return inMemoryTestimonials;
+    }
+
+    return this.fetchFreshTestimonials();
+  },
+
+  async fetchFreshTestimonials(): Promise<RealTestimonial[]> {
+    if (activeTestimonialsPromise) return activeTestimonialsPromise;
+
+    activeTestimonialsPromise = (async () => {
+      try {
+        const client = requireSupabase();
+
+        // 1. Try querying dedicated 'testimonials' table
+        let rawData: any[] | null = null;
+        let testimonialsTableExists = true;
+
+        try {
+          const { data, error } = await withTimeout(
+            client
+              .from('testimonials')
+              .select('*')
+              .order('order_index', { ascending: true })
+              .order('created_at', { ascending: false }),
+            4000,
+            { data: null, error: 'timeout' }
+          );
+
+          if (error) {
+            if (
+              error !== null &&
+              typeof error === 'object' &&
+              (error.code === '42P01' ||
+                error.message?.toLowerCase().includes('relation') ||
+                error.message?.toLowerCase().includes('does not exist'))
+            ) {
+              testimonialsTableExists = false;
+            }
+          } else if (Array.isArray(data)) {
+            // Even if data is [] (all testimonials deleted in DB), treat as valid DB response
+            rawData = data;
+          }
+        } catch {
+          testimonialsTableExists = false;
+        }
+
+        // 2. Fallback to direct REST if client timed out or had error
+        if (rawData === null && testimonialsTableExists) {
+          try {
+            const restData = await fetchSupabaseRestFallback<any[]>('testimonials?select=*&order=order_index.asc,created_at.desc');
+            if (Array.isArray(restData)) {
+              rawData = restData;
+            }
+          } catch {}
+        }
+
+        // 3. If dedicated table exists in DB, respect the exact rows (including 0 rows)
+        if (testimonialsTableExists && Array.isArray(rawData)) {
+          const mapped: RealTestimonial[] = rawData.map((d: any, idx: number) => ({
+            id: String(d.id),
+            author: d.author || 'Verified Customer',
+            rating: Number(d.rating) || 5,
+            comment: d.comment || '',
+            productName: d.product_name || d.productName || '18K Anti-Tarnish Jewels',
+            productId: d.product_id || d.productId || '',
+            location: d.location || 'Verified Buyer',
+            verified: d.verified !== false,
+            status: (d.status as any) || 'Approved',
+            orderIndex: d.order_index !== undefined ? Number(d.order_index) : idx,
+            createdAt: d.created_at || new Date().toISOString(),
+          }));
+
+          inMemoryTestimonials = mapped;
+          lastTestimonialsFetchTime = Date.now();
+          try {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(TESTIMONIALS_CACHE_KEY, JSON.stringify(mapped));
+            }
+          } catch {}
+          return mapped;
+        }
+
+        // 4. Fallback ONLY if testimonials table does not exist at all in DB schema
+        if (!testimonialsTableExists) {
+          try {
+            const revs = await this.getReviews();
+            if (Array.isArray(revs)) {
+              const approved = revs.filter((r) => r.status === 'Approved' || r.status === 'Featured');
+              const fallbackMapped: RealTestimonial[] = approved.slice(0, 8).map((r, idx) => ({
+                id: r.id,
+                author: r.author || 'Verified Customer',
+                rating: r.rating || 5,
+                comment: r.comment,
+                productName: r.productName || '18K Anti-Tarnish Jewels',
+                productId: r.productId || '',
+                location: 'Verified Buyer',
+                verified: r.verified !== false,
+                status: (r.status as any) || 'Approved',
+                orderIndex: idx,
+                createdAt: r.createdAt,
+              }));
+              inMemoryTestimonials = fallbackMapped;
+              try {
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem(TESTIMONIALS_CACHE_KEY, JSON.stringify(fallbackMapped));
+                }
+              } catch {}
+              return fallbackMapped;
+            }
+          } catch {}
+        }
+
+        return inMemoryTestimonials;
+      } catch (e) {
+        console.warn('fetchFreshTestimonials note:', e);
+        return inMemoryTestimonials;
+      } finally {
+        activeTestimonialsPromise = null;
+      }
+    })();
+
+    return activeTestimonialsPromise;
+  },
+
+  async addTestimonial(testimonialData: {
+    author: string;
+    productName: string;
+    rating: number;
+    comment: string;
+    productId?: string;
+    location?: string;
+    verified?: boolean;
+    status?: 'Approved' | 'Featured' | 'Hidden';
+    orderIndex?: number;
+  }): Promise<RealTestimonial> {
+    const client = requireSupabase();
+
+    const newTestimonial: RealTestimonial = {
+      id: 'testi-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+      author: testimonialData.author.trim(),
+      productName: testimonialData.productName.trim() || '18K Anti-Tarnish Jewels',
+      productId: testimonialData.productId || '',
+      location: testimonialData.location || 'Verified Buyer',
+      rating: Math.max(1, Math.min(5, Number(testimonialData.rating) || 5)),
+      comment: testimonialData.comment.trim(),
+      verified: testimonialData.verified !== false,
+      status: testimonialData.status || 'Approved',
+      orderIndex: testimonialData.orderIndex ?? inMemoryTestimonials.length,
+      createdAt: new Date().toISOString(),
+    };
+
+    const payload = {
+      id: newTestimonial.id,
+      author: newTestimonial.author,
+      product_name: newTestimonial.productName,
+      product_id: newTestimonial.productId || null,
+      location: newTestimonial.location,
+      rating: newTestimonial.rating,
+      comment: newTestimonial.comment,
+      verified: newTestimonial.verified,
+      status: newTestimonial.status,
+      order_index: newTestimonial.orderIndex,
+      created_at: newTestimonial.createdAt,
+    };
+
+    // 1. Write to testimonials table
+    let insertError: any = null;
+    try {
+      const { error } = await client.from('testimonials').insert(payload);
+      insertError = error;
+    } catch (err) {
+      insertError = err;
+    }
+
+    if (insertError) {
+      const ok = await supabaseRestMutation('testimonials', 'POST', '', payload);
+      if (!ok) {
+        // Fallback write to reviews table so it is persisted even before SQL migration
+        await this.addReview({
+          author: newTestimonial.author,
+          productName: newTestimonial.productName,
+          rating: newTestimonial.rating,
+          comment: newTestimonial.comment,
+          verified: newTestimonial.verified,
+          status: newTestimonial.status as any,
+        }).catch(() => {});
+      }
+    } else {
+      // Dual write to reviews table as safety backup
+      await client
+        .from('reviews')
+        .upsert({
+          id: newTestimonial.id,
+          author: newTestimonial.author,
+          product_name: newTestimonial.productName,
+          rating: newTestimonial.rating,
+          comment: newTestimonial.comment,
+          verified: newTestimonial.verified,
+          status: newTestimonial.status,
+          created_at: newTestimonial.createdAt,
+        })
+        .catch(() => {});
+    }
+
+    inMemoryTestimonials = [newTestimonial, ...inMemoryTestimonials.filter((t) => t.id !== newTestimonial.id)];
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(TESTIMONIALS_CACHE_KEY, JSON.stringify(inMemoryTestimonials));
+      }
+    } catch {}
+
+    notifyDatabaseChange('testimonials');
+    notifyDatabaseChange('reviews');
+    return newTestimonial;
+  },
+
+  async updateTestimonial(
+    id: string,
+    updates: Partial<RealTestimonial>
+  ): Promise<RealTestimonial> {
+    const client = requireSupabase();
+    const payload: any = {};
+    if (updates.author !== undefined) payload.author = updates.author;
+    if (updates.productName !== undefined) payload.product_name = updates.productName;
+    if (updates.productId !== undefined) payload.product_id = updates.productId || null;
+    if (updates.location !== undefined) payload.location = updates.location;
+    if (updates.rating !== undefined) payload.rating = Number(updates.rating) || 5;
+    if (updates.comment !== undefined) payload.comment = updates.comment;
+    if (updates.verified !== undefined) payload.verified = updates.verified;
+    if (updates.status !== undefined) payload.status = updates.status;
+    if (updates.orderIndex !== undefined) payload.order_index = updates.orderIndex;
+
+    let updateError: any = null;
+    try {
+      const { error } = await client.from('testimonials').update(payload).eq('id', id);
+      updateError = error;
+    } catch (err) {
+      updateError = err;
+    }
+
+    if (updateError) {
+      const ok = await supabaseRestMutation('testimonials', 'PATCH', `id=eq.${encodeURIComponent(id)}`, payload);
+      if (!ok) {
+        await this.updateReview(id, {
+          author: updates.author,
+          productName: updates.productName,
+          rating: updates.rating,
+          comment: updates.comment,
+          verified: updates.verified,
+          status: updates.status as any,
+        }).catch(() => {});
+      }
+    } else {
+      await client
+        .from('reviews')
+        .update({
+          author: updates.author,
+          product_name: updates.productName,
+          rating: updates.rating,
+          comment: updates.comment,
+          status: updates.status,
+        })
+        .eq('id', id)
+        .catch(() => {});
+    }
+
+    let updatedTestimonial: RealTestimonial | null = null;
+    const cleanId = String(id).trim().toLowerCase();
+
+    inMemoryTestimonials = inMemoryTestimonials.map((t) => {
+      if (String(t.id).trim().toLowerCase() === cleanId) {
+        updatedTestimonial = {
+          ...t,
+          ...updates,
+          rating: updates.rating !== undefined ? Math.max(1, Math.min(5, Number(updates.rating))) : t.rating,
+        };
+        return updatedTestimonial;
+      }
+      return t;
+    });
+
+    if (!updatedTestimonial) {
+      updatedTestimonial = {
+        id,
+        author: updates.author || 'Verified Customer',
+        productName: updates.productName || '18K Anti-Tarnish Jewels',
+        rating: updates.rating || 5,
+        comment: updates.comment || '',
+        verified: updates.verified !== false,
+        status: updates.status || 'Approved',
+        location: updates.location || 'Verified Buyer',
+        orderIndex: updates.orderIndex ?? 0,
+        createdAt: updates.createdAt || new Date().toISOString(),
+      };
+      inMemoryTestimonials = [updatedTestimonial, ...inMemoryTestimonials];
+    }
+
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(TESTIMONIALS_CACHE_KEY, JSON.stringify(inMemoryTestimonials));
+      }
+    } catch {}
+
+    notifyDatabaseChange('testimonials');
+    notifyDatabaseChange('reviews');
+    return updatedTestimonial;
+  },
+
+  async deleteTestimonial(id: string): Promise<void> {
+    const client = requireSupabase();
+    let delError: any = null;
+    try {
+      const { error } = await client.from('testimonials').delete().eq('id', id);
+      delError = error;
+    } catch (err) {
+      delError = err;
+    }
+
+    if (delError) {
+      const ok = await supabaseRestMutation('testimonials', 'DELETE', `id=eq.${encodeURIComponent(id)}`);
+      if (!ok) {
+        await this.deleteReview(id).catch(() => {});
+      }
+    } else {
+      await client.from('reviews').delete().eq('id', id).catch(() => {});
+    }
+
+    const cleanId = String(id).trim().toLowerCase();
+    inMemoryTestimonials = inMemoryTestimonials.filter((t) => String(t.id).trim().toLowerCase() !== cleanId);
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(TESTIMONIALS_CACHE_KEY, JSON.stringify(inMemoryTestimonials));
+      }
+    } catch {}
+
+    notifyDatabaseChange('testimonials');
     notifyDatabaseChange('reviews');
   },
 
@@ -2468,6 +3017,7 @@ export const DatabaseService = {
             }
           } catch (e) {}
 
+          notifyDatabaseChange('categories');
           return mapped;
         }
 
@@ -3158,6 +3708,7 @@ export const DatabaseService = {
           { name: 'promotions', count: 0, status: 'error', message: 'Supabase credentials not configured' },
           { name: 'shipping_rules', count: 0, status: 'error', message: 'Supabase credentials not configured' },
           { name: 'faqs', count: 0, status: 'error', message: 'Supabase credentials not configured' },
+          { name: 'testimonials', count: 0, status: 'error', message: 'Supabase credentials not configured' },
         ],
       };
     }
@@ -3168,6 +3719,7 @@ export const DatabaseService = {
       'products',
       'orders',
       'reviews',
+      'testimonials',
       'coupons',
       'profiles',
       'shipping_addresses',

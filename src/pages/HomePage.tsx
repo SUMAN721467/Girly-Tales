@@ -71,7 +71,7 @@ export const HomePage: React.FC<HomePageProps> = ({
     try {
       const [prods, cats] = await Promise.all([
         DatabaseService.getProducts(),
-        DatabaseService.getCategories(),
+        DatabaseService.getCategories(true),
       ]);
       if (Array.isArray(prods)) {
         setProductsList(prods);
