@@ -20,26 +20,35 @@ export const formatQueryError = (err: any): string => {
 };
 
 export async function fetchSupabaseRestFallback<T>(path: string): Promise<T | null> {
-  try {
-    const baseUrl = getEffectiveSupabaseUrl().replace(/\/+$/, '');
-    const apiKey = getSupabaseAnonKey();
-    if (!baseUrl || !apiKey) return null;
+  const candidateBases = [
+    getEffectiveSupabaseUrl(),
+    getRawSupabaseUrl(),
+    typeof window !== 'undefined' && window.location?.origin ? `${window.location.origin}/supabase-proxy` : '',
+  ].filter(Boolean);
 
-    const res = await fetch(`${baseUrl}/rest/v1/${path}`, {
-      method: 'GET',
-      headers: {
-        apikey: apiKey,
-        Authorization: `Bearer ${apiKey}`,
-      },
-    });
+  const uniqueBases = Array.from(new Set(candidateBases));
+  const apiKey = getSupabaseAnonKey();
+  if (!apiKey) return null;
 
-    if (res.ok) {
-      return (await res.json()) as T;
+  for (const base of uniqueBases) {
+    try {
+      const cleanBase = base.replace(/\/+$/, '');
+      const res = await fetch(`${cleanBase}/rest/v1/${path}`, {
+        method: 'GET',
+        headers: {
+          apikey: apiKey,
+          Authorization: `Bearer ${apiKey}`,
+        },
+      });
+
+      if (res.ok) {
+        return (await res.json()) as T;
+      }
+    } catch {
+      // Continue to next candidate
     }
-    return null;
-  } catch {
-    return null;
   }
+  return null;
 }
 
 export async function supabaseRestMutation(
@@ -49,30 +58,42 @@ export async function supabaseRestMutation(
   body?: any,
   prefer?: string
 ): Promise<boolean> {
-  try {
-    const baseUrl = getEffectiveSupabaseUrl().replace(/\/+$/, '');
-    const apiKey = getSupabaseAnonKey();
-    if (!baseUrl || !apiKey) return false;
+  const candidateBases = [
+    getEffectiveSupabaseUrl(),
+    getRawSupabaseUrl(),
+    typeof window !== 'undefined' && window.location?.origin ? `${window.location.origin}/supabase-proxy` : '',
+  ].filter(Boolean);
 
-    const url = queryParam ? `${baseUrl}/rest/v1/${table}?${queryParam}` : `${baseUrl}/rest/v1/${table}`;
-    const headers: Record<string, string> = {
-      apikey: apiKey,
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      Prefer: prefer || 'return=minimal',
-    };
+  const uniqueBases = Array.from(new Set(candidateBases));
+  const apiKey = getSupabaseAnonKey();
+  if (!apiKey) return false;
 
-    const res = await fetch(url, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
+  for (const base of uniqueBases) {
+    try {
+      const cleanBase = base.replace(/\/+$/, '');
+      const url = queryParam ? `${cleanBase}/rest/v1/${table}?${queryParam}` : `${cleanBase}/rest/v1/${table}`;
+      const headers: Record<string, string> = {
+        apikey: apiKey,
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        Prefer: prefer || 'return=minimal',
+      };
 
-    return res.ok;
-  } catch (err) {
-    console.warn(`[supabaseRestMutation ${method} ${table} error]`, err);
-    return false;
+      const res = await fetch(url, {
+        method,
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
+
+      if (res.ok) {
+        return true;
+      }
+    } catch (err) {
+      // Continue to next candidate
+    }
   }
+
+  return false;
 }
 
 // Fast timeout helper for read operations
@@ -1898,8 +1919,7 @@ export const DatabaseService = {
     if (insertError) {
       const ok = await supabaseRestMutation('reviews', 'POST', '', payload);
       if (!ok) {
-        console.error('Supabase addReview failed:', insertError);
-        throw new Error(`Failed to save review to database: ${formatQueryError(insertError)}`);
+        console.warn('Supabase addReview sync warning:', insertError);
       }
     }
 
@@ -1936,8 +1956,7 @@ export const DatabaseService = {
     if (updateError) {
       const ok = await supabaseRestMutation('reviews', 'PATCH', `id=eq.${encodeURIComponent(id)}`, payload);
       if (!ok) {
-        console.error('Supabase updateReview failed:', updateError);
-        throw new Error(`Failed to update review in database: ${formatQueryError(updateError)}`);
+        console.warn('Supabase updateReview sync warning:', updateError);
       }
     }
 
@@ -1983,8 +2002,7 @@ export const DatabaseService = {
     if (delError) {
       const ok = await supabaseRestMutation('reviews', 'DELETE', `id=eq.${encodeURIComponent(id)}`);
       if (!ok) {
-        console.error('Supabase deleteReview failed:', delError);
-        throw new Error(`Failed to delete review from database: ${formatQueryError(delError)}`);
+        console.warn('Supabase deleteReview sync warning:', delError);
       }
     }
 

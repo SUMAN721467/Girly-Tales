@@ -102,12 +102,12 @@ export const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({
         </div>
       </div>
 
-      {/* 4 Compact Cards Grid (matching Influencer section layout) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-6">
+      {/* 4 Compact Cards - Horizontal Scroll on Mobile, Grid on Tablet/Desktop */}
+      <div className="flex sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-6 overflow-x-auto sm:overflow-visible scrollbar-none snap-x snap-mandatory -mx-4 px-4 sm:mx-0 sm:px-0 pb-3 sm:pb-0">
         {reviewsList.map((item) => (
           <div
             key={item.id}
-            className="bg-white border border-[#EAE6DB] hover:border-[#967BB6] rounded-2xl p-4 sm:p-5 shadow-xs transition-colors flex flex-col justify-between text-left space-y-3"
+            className="w-[280px] min-w-[280px] sm:w-auto sm:min-w-0 snap-start shrink-0 sm:shrink bg-white border border-[#EAE6DB] hover:border-[#967BB6] rounded-2xl p-4 sm:p-5 shadow-xs transition-colors flex flex-col justify-between text-left space-y-3"
           >
             {/* Stars & Verified Pill */}
             <div className="flex items-center justify-between">

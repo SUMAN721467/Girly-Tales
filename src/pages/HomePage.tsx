@@ -181,11 +181,11 @@ export const HomePage: React.FC<HomePageProps> = ({
             </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-6">
+          <div className="flex sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-6 overflow-x-auto sm:overflow-visible scrollbar-none snap-x snap-mandatory -mx-4 px-4 sm:mx-0 sm:px-0 pb-3 sm:pb-0">
             {influencerReels.map((reel) => (
               <div
                 key={reel.id}
-                className="bg-white border border-[#EAE6DB] rounded-xl overflow-hidden flex flex-col justify-between shadow-xs"
+                className="w-[210px] min-w-[210px] sm:w-auto sm:min-w-0 snap-start shrink-0 sm:shrink bg-white border border-[#EAE6DB] rounded-xl overflow-hidden flex flex-col justify-between shadow-xs"
               >
                 {/* Reel Card Image */}
                 <div

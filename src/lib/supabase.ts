@@ -30,7 +30,12 @@ export const isSupabaseConfigured: boolean =
 // 1. Browser extension / AdBlocker / Brave Shields blocking *.supabase.co
 // 2. CORS preflight errors and mixed content blocks
 // 3. Regional ISP / DNS lookup issues on *.supabase.co
-export const getEffectiveSupabaseUrl = (): string => rawUrl;
+export const getEffectiveSupabaseUrl = (): string => {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}/supabase-proxy`;
+  }
+  return rawUrl;
+};
 
 export const getSupabaseAnonKey = (): string => rawKey;
 
@@ -46,6 +51,27 @@ export const normalizeStorageUrl = (url: string): string => {
   return url;
 };
 
+const resilientFetch: typeof fetch = async (input, init) => {
+  try {
+    return await fetch(input, init);
+  } catch (err: any) {
+    if (
+      typeof window !== 'undefined' &&
+      rawUrl &&
+      typeof input === 'string' &&
+      input.startsWith(rawUrl)
+    ) {
+      try {
+        const proxyUrl = input.replace(rawUrl, `${window.location.origin}/supabase-proxy`);
+        return await fetch(proxyUrl, init);
+      } catch {
+        throw err;
+      }
+    }
+    throw err;
+  }
+};
+
 let clientInstance: SupabaseClient | null = null;
 
 if (isSupabaseConfigured) {
@@ -57,6 +83,9 @@ if (isSupabaseConfigured) {
         detectSessionInUrl: true,
         storage: typeof window !== 'undefined' ? window.localStorage : undefined,
         storageKey: 'girly_tales_supabase_auth_session_v1',
+      },
+      global: {
+        fetch: resilientFetch,
       },
     });
   } catch (err) {
