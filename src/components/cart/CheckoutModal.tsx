@@ -163,7 +163,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
   };
 
-  const [availableCoupons, setAvailableCoupons] = useState<RealCoupon[]>([]);
+  const [availableCoupons, setAvailableCoupons] = useState<RealCoupon[]>(() => DatabaseService.getCachedCoupons());
 
   const loadCoupons = async () => {
     try {
@@ -176,14 +176,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      refreshCartFromCloud();
       setStep('details');
       setIsSubmitting(false);
       setCouponError('');
       loadSavedAddresses();
       loadCoupons();
     }
-  }, [isOpen, user, refreshCartFromCloud]);
+  }, [isOpen, user]);
 
   useEffect(() => {
     window.addEventListener('gt_addresses_sync', loadSavedAddresses);

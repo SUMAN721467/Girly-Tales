@@ -38,7 +38,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   const [couponInput, setCouponInput] = useState('');
   const [couponError, setCouponError] = useState('');
-  const [availableCoupons, setAvailableCoupons] = useState<RealCoupon[]>([]);
+  const [availableCoupons, setAvailableCoupons] = useState<RealCoupon[]>(() => DatabaseService.getCachedCoupons());
 
   const loadCoupons = async () => {
     try {
@@ -51,10 +51,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   useEffect(() => {
     if (isCartOpen) {
-      refreshCartFromCloud();
       loadCoupons();
     }
-  }, [isCartOpen, refreshCartFromCloud]);
+  }, [isCartOpen]);
 
   useEffect(() => {
     const unsub = DatabaseService.subscribeToChanges('coupons', loadCoupons);

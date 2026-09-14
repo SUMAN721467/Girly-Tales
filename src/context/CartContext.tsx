@@ -93,6 +93,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loadedUserRef = useRef<string | null>(null);
   const syncTimeoutRef = useRef<any>(null);
   const isInternalUpdateRef = useRef<boolean>(false);
+  const lastLocalCartUpdateRef = useRef<number>(0);
 
   // Helper to persist in local browser storage instantly
   const persistLocally = useCallback((updated: CartItem[], currentUser: typeof user) => {
@@ -113,16 +114,29 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
+      // If user performed an internal cart update in the last 4 seconds, do not clobber it!
+      if (Date.now() - lastLocalCartUpdateRef.current < 4000 || isInternalUpdateRef.current) {
+        return;
+      }
+
       const userId = currentUser.id || currentUser.email;
       const cleanEmail = (currentUser.email || currentUser.id || '').toLowerCase().trim();
       if (!userId && !cleanEmail) return;
 
-      setIsCartSyncing(true);
-
       try {
         const remoteCart = await CartService.fetchUserCart(userId, currentUser.email);
+        if (Date.now() - lastLocalCartUpdateRef.current < 4000 || isInternalUpdateRef.current) {
+          return;
+        }
+
         if (Array.isArray(remoteCart)) {
-          setItems(remoteCart);
+          setItems((currentItems) => {
+            // Guard: If remote returned empty but local has items updated recently, preserve local
+            if (remoteCart.length === 0 && currentItems.length > 0 && Date.now() - lastLocalCartUpdateRef.current < 6000) {
+              return currentItems;
+            }
+            return remoteCart;
+          });
           if (cleanEmail && typeof window !== 'undefined') {
             try {
               localStorage.setItem(`girly_tales_user_cart_${cleanEmail}`, JSON.stringify(remoteCart));
@@ -139,7 +153,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   const refreshCartFromCloud = useCallback(async () => {
-    if (isLoggedIn && user) {
+    if (isLoggedIn && user && Date.now() - lastLocalCartUpdateRef.current >= 4000 && !isInternalUpdateRef.current) {
       await loadRemoteCart(user);
     }
   }, [isLoggedIn, user, loadRemoteCart]);
@@ -319,9 +333,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => window.removeEventListener('gt_db_sync', handleSync);
   }, [isLoggedIn, user, loadRemoteCart]);
 
-  // 5. Debounced Sync Helper to push live cart changes to Supabase
+  // 5. Cloud Sync Helper to push live cart changes to Supabase
   const scheduleCloudSync = useCallback(
-    (updatedItems: CartItem[]) => {
+    (updatedItems: CartItem[], immediate = false) => {
       if (!isSupabaseConfigured || !isLoggedIn || !user) {
         return;
       }
@@ -334,20 +348,25 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       isInternalUpdateRef.current = true;
+      lastLocalCartUpdateRef.current = Date.now();
 
-      syncTimeoutRef.current = setTimeout(async () => {
-        setIsCartSyncing(true);
+      const doSync = async () => {
         try {
           await CartService.saveUserCart(userId, updatedItems, user.email);
         } catch (e) {
           console.warn('Supabase cloud cart sync error:', e);
         } finally {
-          setIsCartSyncing(false);
           setTimeout(() => {
             isInternalUpdateRef.current = false;
-          }, 800);
+          }, 1500);
         }
-      }, 200);
+      };
+
+      if (immediate) {
+        doSync();
+      } else {
+        syncTimeoutRef.current = setTimeout(doSync, 200);
+      }
     },
     [isLoggedIn, user]
   );
@@ -365,6 +384,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const color = selectedColor || defaultColor;
     const itemId = `${product.id}-${size || 'default'}-${color || 'default'}`;
 
+    lastLocalCartUpdateRef.current = Date.now();
+    isInternalUpdateRef.current = true;
+
     setItems((prev) => {
       let updated: CartItem[];
       const existing = prev.find((item) => item.id === itemId);
@@ -380,7 +402,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       persistLocally(updated, user);
       if (isLoggedIn && user) {
-        scheduleCloudSync(updated);
+        scheduleCloudSync(updated, true);
       }
       return updated;
     });
@@ -451,21 +473,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const openCart = () => {
     setIsCartOpen(true);
-    if (isLoggedIn && user) {
-      loadRemoteCart(user);
-    }
   };
 
   const closeCart = () => setIsCartOpen(false);
 
   const toggleCart = () => {
-    setIsCartOpen((prev) => {
-      const next = !prev;
-      if (next && isLoggedIn && user) {
-        loadRemoteCart(user);
-      }
-      return next;
-    });
+    setIsCartOpen((prev) => !prev);
   };
 
   // Totals calculations

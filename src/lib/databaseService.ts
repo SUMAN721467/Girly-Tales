@@ -389,6 +389,34 @@ const deletedOrderIds = new Set<string>();
 const PRODUCTS_CACHE_KEY = 'gt_cached_products_v3';
 const CATEGORIES_CACHE_KEY = 'gt_cached_categories_v3';
 const ORDERS_CACHE_KEY = 'gt_cached_orders_v3';
+const COUPONS_CACHE_KEY = 'gt_cached_coupons_v3';
+
+const DEFAULT_COUPONS: RealCoupon[] = [
+  {
+    id: 'cp-girly10',
+    code: 'GIRLY10',
+    discount: '10% OFF',
+    description: 'Flat 10% Discount on all orders',
+    minSpend: 0,
+    usedCount: 0,
+    status: 'Active',
+    expires: '2026-12-31',
+    showInList: true,
+    usageLimit: null,
+  },
+  {
+    id: 'cp-suman',
+    code: 'SUMAN',
+    discount: '20% OFF',
+    description: 'Special 20% OFF coupon',
+    minSpend: 0,
+    usedCount: 0,
+    status: 'Active',
+    expires: '2026-12-31',
+    showInList: true,
+    usageLimit: null,
+  },
+];
 
 // Load initial cache from localStorage immediately on script load (0ms boot)
 try {
@@ -408,15 +436,25 @@ try {
       const parsed = JSON.parse(savedOrders);
       if (Array.isArray(parsed) && parsed.length > 0) inMemoryOrders = parsed;
     }
+    const savedCoupons = localStorage.getItem(COUPONS_CACHE_KEY);
+    if (savedCoupons) {
+      const parsed = JSON.parse(savedCoupons);
+      if (Array.isArray(parsed) && parsed.length > 0) inMemoryCoupons = parsed;
+    }
+    if (inMemoryCoupons.length === 0) {
+      inMemoryCoupons = DEFAULT_COUPONS;
+    }
   }
 } catch (e) {}
 
 let activeProductsPromise: Promise<Product[]> | null = null;
 let activeCategoriesPromise: Promise<RealCategory[]> | null = null;
 let activeOrdersPromise: Promise<RealOrder[]> | null = null;
+let activeCouponsPromise: Promise<RealCoupon[]> | null = null;
 let lastProductsFetchTime = 0;
 let lastCategoriesFetchTime = 0;
 let lastOrdersFetchTime = 0;
+let lastCouponsFetchTime = 0;
 
 export function mapRawOrder(d: any): RealOrder {
   const cleanId = String(d.id || d.order_id || '').trim();
@@ -1955,58 +1993,126 @@ export const DatabaseService = {
   },
 
   // ==================== 5. COUPONS ====================
-  async getCoupons(): Promise<RealCoupon[]> {
+  getCachedCoupons(): RealCoupon[] {
+    return inMemoryCoupons.length > 0 ? inMemoryCoupons : DEFAULT_COUPONS;
+  },
+
+  async getCoupons(forceFresh = false): Promise<RealCoupon[]> {
     if (!isSupabaseConfigured) {
+      return this.getCachedCoupons();
+    }
+
+    const now = Date.now();
+    // 1. If cache is fresh (< 30s) and not forced, return in 0ms
+    const isCacheFresh = inMemoryCoupons.length > 0 && now - lastCouponsFetchTime < 30000;
+    if (isCacheFresh && !forceFresh) {
       return inMemoryCoupons;
     }
 
-    try {
-      const client = requireSupabase();
-      const query = client.from('coupons').select('*').order('created_at', { ascending: false });
-      const { data, error } = await withTimeout(query, 8000, { data: null, error: 'timeout' });
+    // 2. If already in flight, reuse promise
+    if (activeCouponsPromise && !forceFresh) {
+      return activeCouponsPromise;
+    }
 
-      let rawData = data;
-      if (error || !Array.isArray(rawData)) {
-        rawData = await fetchSupabaseRestFallback<any[]>('coupons?select=*&order=created_at.desc');
-      }
-
-      if (Array.isArray(rawData)) {
-        const mapped: RealCoupon[] = rawData.map((d: any) => {
-          let showInList = false;
-          let usageLimit: number | null = null;
-          let cleanDesc = d.description || '';
-
-          if (cleanDesc && typeof cleanDesc === 'string' && cleanDesc.startsWith('{') && cleanDesc.endsWith('}')) {
-            try {
-              const meta = JSON.parse(cleanDesc);
-              showInList = Boolean(meta.showInList);
-              usageLimit = meta.usageLimit !== undefined ? meta.usageLimit : null;
-              cleanDesc = meta.desc || '';
-            } catch (e) {}
-          }
-
-          return {
-            id: d.id,
-            code: d.code,
-            discount: d.discount,
-            description: cleanDesc,
-            minSpend: Number(d.min_spend ?? d.minSpend ?? 0),
-            usedCount: Number(d.used_count ?? d.usedCount ?? 0),
-            status: d.status || 'Active',
-            expires: d.expires || '2026-12-31',
-            showInList,
-            usageLimit,
-          };
-        });
-        inMemoryCoupons = mapped;
-        return mapped;
-      }
-
-      return inMemoryCoupons;
-    } catch (e) {
-      console.error('Supabase getCoupons error:', e);
+    // 3. Stale-while-revalidate: return in-memory cache instantly (0ms) and refresh in background
+    if (inMemoryCoupons.length > 0 && !forceFresh) {
+      this.fetchFreshCoupons().catch(() => {});
       return inMemoryCoupons;
     }
+
+    return this.fetchFreshCoupons();
+  },
+
+  async fetchFreshCoupons(): Promise<RealCoupon[]> {
+    if (activeCouponsPromise) return activeCouponsPromise;
+
+    activeCouponsPromise = (async () => {
+      try {
+        const client = requireSupabase();
+
+        // High-speed parallel candidate race: direct REST proxy vs Supabase client (2000ms timeout)
+        const restPromise = fetchSupabaseRestFallback<any[]>('coupons?select=*&order=created_at.desc');
+        const clientPromise = withTimeout(
+          client
+            .from('coupons')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .then(({ data, error }) => {
+              if (error || !Array.isArray(data)) throw error || new Error('client coupons error');
+              return data;
+            }),
+          2000,
+          null
+        );
+
+        let rawData: any[] = [];
+        try {
+          rawData = await Promise.race([
+            clientPromise.then((d) => {
+              if (Array.isArray(d) && d.length > 0) return d;
+              throw new Error('client empty or timed out');
+            }),
+            restPromise.then((d) => {
+              if (Array.isArray(d)) return d;
+              throw new Error('rest empty');
+            }),
+          ]);
+        } catch {
+          try {
+            const fallback = await restPromise;
+            if (Array.isArray(fallback)) rawData = fallback;
+          } catch {}
+        }
+
+        if (Array.isArray(rawData) && rawData.length > 0) {
+          const mapped: RealCoupon[] = rawData.map((d: any) => {
+            let showInList = false;
+            let usageLimit: number | null = null;
+            let cleanDesc = d.description || '';
+
+            if (cleanDesc && typeof cleanDesc === 'string' && cleanDesc.startsWith('{') && cleanDesc.endsWith('}')) {
+              try {
+                const meta = JSON.parse(cleanDesc);
+                showInList = Boolean(meta.showInList);
+                usageLimit = meta.usageLimit !== undefined ? meta.usageLimit : null;
+                cleanDesc = meta.desc || '';
+              } catch (e) {}
+            }
+
+            return {
+              id: d.id,
+              code: d.code,
+              discount: d.discount,
+              description: cleanDesc,
+              minSpend: Number(d.min_spend ?? d.minSpend ?? 0),
+              usedCount: Number(d.used_count ?? d.usedCount ?? 0),
+              status: d.status || 'Active',
+              expires: d.expires || '2026-12-31',
+              showInList,
+              usageLimit,
+            };
+          });
+
+          inMemoryCoupons = mapped;
+          lastCouponsFetchTime = Date.now();
+          try {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(COUPONS_CACHE_KEY, JSON.stringify(mapped));
+            }
+          } catch {}
+          return mapped;
+        }
+
+        return this.getCachedCoupons();
+      } catch (e) {
+        console.warn('Supabase fetchFreshCoupons note:', e);
+        return this.getCachedCoupons();
+      } finally {
+        activeCouponsPromise = null;
+      }
+    })();
+
+    return activeCouponsPromise;
   },
 
   async addCoupon(coupon: RealCoupon): Promise<void> {
@@ -2047,6 +2153,11 @@ export const DatabaseService = {
     }
 
     inMemoryCoupons = [coupon, ...inMemoryCoupons.filter((c) => c.id !== coupon.id)];
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(COUPONS_CACHE_KEY, JSON.stringify(inMemoryCoupons));
+      }
+    } catch {}
     notifyDatabaseChange('coupons');
   },
 
@@ -2102,6 +2213,11 @@ export const DatabaseService = {
     }
 
     inMemoryCoupons = inMemoryCoupons.map((c) => (c.id === id ? updated : c));
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(COUPONS_CACHE_KEY, JSON.stringify(inMemoryCoupons));
+      }
+    } catch {}
     notifyDatabaseChange('coupons');
   },
 
@@ -2124,6 +2240,11 @@ export const DatabaseService = {
     }
 
     inMemoryCoupons = inMemoryCoupons.filter((c) => c.id !== id);
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(COUPONS_CACHE_KEY, JSON.stringify(inMemoryCoupons));
+      }
+    } catch {}
     notifyDatabaseChange('coupons');
   },
 

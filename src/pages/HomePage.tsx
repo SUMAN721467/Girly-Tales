@@ -4,6 +4,7 @@ import { ProductCard } from '../components/product/ProductCard';
 import { BannerCarousel } from '../components/home/BannerCarousel';
 import { ComfortMarquee } from '../components/home/ComfortMarquee';
 import { CategorySlider } from '../components/home/CategorySlider';
+import { TestimonialsSection } from '../components/home/TestimonialsSection';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { DatabaseService, RealCategory } from '../lib/databaseService';
@@ -264,7 +265,13 @@ export const HomePage: React.FC<HomePageProps> = ({
         </section>
       )}
 
-      {/* 5. BRAND VALUE PROPOSITION STRIP */}
+      {/* 5. VERIFIED CUSTOMER TESTIMONIALS & REVIEWS */}
+      <TestimonialsSection
+        products={productsList}
+        onSelectProduct={onSelectProduct}
+      />
+
+      {/* 6. BRAND VALUE PROPOSITION STRIP */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 sm:mt-16">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-4 bg-white border border-[#EAE6DB] p-4 sm:p-6 text-center">
           <div className="space-y-1 p-2">

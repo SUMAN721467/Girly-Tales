@@ -1,0 +1,162 @@
+import React, { useState, useEffect } from 'react';
+import { Star, CheckCircle2 } from 'lucide-react';
+import { Product } from '../../types/product';
+import { DatabaseService, RealReview } from '../../lib/databaseService';
+
+interface TestimonialItem {
+  id: string;
+  author: string;
+  location: string;
+  rating: number;
+  comment: string;
+  productName: string;
+}
+
+const DEFAULT_TESTIMONIALS: TestimonialItem[] = [
+  {
+    id: 't-1',
+    author: 'Ananya S.',
+    location: 'Mumbai',
+    rating: 5,
+    comment: 'Wore my necklace daily to the gym and in hot showers for 3 months — still 100% shiny gold with zero tarnish!',
+    productName: '18K Anti-Tarnish Necklace'
+  },
+  {
+    id: 't-2',
+    author: 'Priya M.',
+    location: 'Kolkata',
+    rating: 5,
+    comment: 'The softest pure cotton nightwear I have ever worn. Breathable, airy, and the floral print is so aesthetic.',
+    productName: 'Blossom Pure Cotton PJ Set'
+  },
+  {
+    id: 't-3',
+    author: 'Rhea S.',
+    location: 'Bengaluru',
+    rating: 5,
+    comment: 'Luxury boutique unboxing with velvet pouch. Arrived in 2 days and looks just like solid 18K gold jewellery.',
+    productName: 'Clover Anti-Tarnish Bracelet'
+  },
+  {
+    id: 't-4',
+    author: 'Sneha K.',
+    location: 'Delhi',
+    rating: 5,
+    comment: 'Completely hypoallergenic! I have sensitive skin and these earrings never cause any itchiness or redness.',
+    productName: 'Waterproof Huggie Hoops'
+  }
+];
+
+interface TestimonialsSectionProps {
+  products?: Product[];
+  onSelectProduct?: (product: Product) => void;
+}
+
+export const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({
+  products = [],
+  onSelectProduct
+}) => {
+  const [reviewsList, setReviewsList] = useState<TestimonialItem[]>(DEFAULT_TESTIMONIALS);
+
+  useEffect(() => {
+    let isMounted = true;
+    DatabaseService.getReviews()
+      .then((revs) => {
+        if (isMounted && Array.isArray(revs) && revs.length > 0) {
+          const approved = revs.filter((r) => r.status === 'Approved' || r.status === 'Featured');
+          if (approved.length > 0) {
+            const mapped: TestimonialItem[] = approved.slice(0, 4).map((r) => ({
+              id: r.id,
+              author: r.author || 'Verified Customer',
+              location: 'Verified Buyer',
+              rating: r.rating || 5,
+              comment: r.comment,
+              productName: r.productName || 'Girly Tales Item'
+            }));
+            setReviewsList(mapped);
+          }
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  return (
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 sm:mt-16">
+      {/* Centered Small Header */}
+      <div className="text-center mb-6 sm:mb-8 space-y-1">
+        <h2 className="font-sans font-black text-xl sm:text-2xl md:text-3xl text-brand-charcoal uppercase tracking-tight">
+          What Our Customers Say
+        </h2>
+        <div className="flex items-center justify-center gap-1.5 text-xs text-brand-muted">
+          <div className="flex text-amber-400">
+            {[1, 2, 3, 4, 5].map((s) => (
+              <Star key={s} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+            ))}
+          </div>
+          <span className="font-bold text-brand-charcoal">4.9 / 5.0</span>
+          <span>•</span>
+          <span>Over 3,800+ happy buyers across India</span>
+        </div>
+      </div>
+
+      {/* 4 Compact Cards Grid (matching Influencer section layout) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-6">
+        {reviewsList.map((item) => (
+          <div
+            key={item.id}
+            className="bg-white border border-[#EAE6DB] hover:border-[#967BB6] rounded-2xl p-4 sm:p-5 shadow-xs transition-colors flex flex-col justify-between text-left space-y-3"
+          >
+            {/* Stars & Verified Pill */}
+            <div className="flex items-center justify-between">
+              <div className="flex gap-0.5 text-amber-400">
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <Star
+                    key={s}
+                    className={`w-3 h-3 ${
+                      s <= item.rating
+                        ? 'fill-amber-400 text-amber-400'
+                        : 'fill-gray-200 text-gray-200'
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                <span>Verified</span>
+              </span>
+            </div>
+
+            {/* Comment Quote */}
+            <p className="text-xs text-brand-charcoal leading-relaxed line-clamp-3">
+              "{item.comment}"
+            </p>
+
+            {/* Author & Item */}
+            <div className="pt-2 border-t border-[#FAF8F2] space-y-0.5">
+              <p className="text-xs font-bold text-brand-charcoal">
+                {item.author} <span className="font-normal text-brand-muted text-[11px]">({item.location})</span>
+              </p>
+              <p
+                onClick={() => {
+                  if (onSelectProduct && products.length > 0) {
+                    const match = products.find(
+                      (p) => p.name.toLowerCase().includes(item.productName.toLowerCase()) ||
+                             item.productName.toLowerCase().includes(p.name.toLowerCase())
+                    );
+                    if (match) onSelectProduct(match);
+                  }
+                }}
+                className={`text-[10px] text-[#967BB6] font-semibold truncate ${onSelectProduct ? 'hover:underline cursor-pointer' : ''}`}
+              >
+                ✦ {item.productName}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+};

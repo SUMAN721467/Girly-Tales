@@ -37,7 +37,7 @@ export const CartPage: React.FC<CartPageProps> = ({
 
   const [couponCode, setCouponCode] = useState('');
   const [couponError, setCouponError] = useState('');
-  const [availableCoupons, setAvailableCoupons] = useState<RealCoupon[]>([]);
+  const [availableCoupons, setAvailableCoupons] = useState<RealCoupon[]>(() => DatabaseService.getCachedCoupons());
 
   const loadCoupons = async () => {
     try {
