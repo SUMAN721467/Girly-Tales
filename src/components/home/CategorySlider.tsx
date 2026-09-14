@@ -65,10 +65,23 @@ export const CategorySlider: React.FC<CategorySliderProps> = ({
   categories = DEFAULT_CATEGORIES,
   onNavigate,
 }) => {
+  const displayCategories = React.useMemo(() => {
+    if (!categories || categories.length === 0) return DEFAULT_CATEGORIES;
+    if (categories.length >= 5) return categories;
+    const existingSlugs = new Set(categories.map((c) => c.category));
+    const missing = DEFAULT_CATEGORIES.filter((d) => !existingSlugs.has(d.category));
+    const combined = [...categories];
+    for (const m of missing) {
+      if (combined.length >= 5) break;
+      combined.push(m);
+    }
+    return combined;
+  }, [categories]);
+
   const [activeIndex, setActiveIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const touchStartX = useRef<number | null>(null);
-  const total = categories.length;
+  const total = displayCategories.length;
 
   const nextSlide = useCallback(() => {
     setActiveIndex((prev) => (prev + 1) % total);
@@ -159,7 +172,7 @@ export const CategorySlider: React.FC<CategorySliderProps> = ({
 
         {/* Sleek 3D Overlapping Stack Carousel Stage (Fitted Snugly to Card Ratio) */}
         <div className="relative w-full h-[350px] sm:h-[370px] md:h-[350px] lg:h-[380px] xl:h-[450px] 2xl:h-[470px] flex items-center justify-center overflow-visible">
-          {categories.map((item, idx) => {
+          {displayCategories.map((item, idx) => {
             const offset = getOffset(idx);
             const isCenter = offset === 0;
             const isPrev = offset === -1;
@@ -280,7 +293,7 @@ export const CategorySlider: React.FC<CategorySliderProps> = ({
 
         {/* Small Pagination Indicator Dots */}
         <div className="flex items-center justify-center gap-1.5 mt-2.5 sm:mt-3.5">
-          {categories.map((_, dotIdx) => {
+          {displayCategories.map((_, dotIdx) => {
             const isActive = dotIdx === activeIndex;
             return (
               <button
