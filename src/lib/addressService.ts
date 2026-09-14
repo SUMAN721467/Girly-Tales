@@ -1,7 +1,8 @@
 import { supabase, isSupabaseConfigured, requireSupabase } from './supabase';
 import { ShippingAddress } from '../types/product';
+import { fetchSupabaseRestFallback, supabaseRestMutation, formatQueryError } from './databaseService';
 
-// Purge any legacy browser storage keys
+// Purge legacy browser storage keys
 if (typeof window !== 'undefined') {
   try {
     localStorage.removeItem('girly_tales_shipping_addresses_v1');
@@ -11,7 +12,7 @@ if (typeof window !== 'undefined') {
   } catch (e) {}
 }
 
-// In-memory runtime cache for fast synchronous reads (updated ONLY after successful DB operations)
+// In-memory runtime cache for fast synchronous reads
 let inMemoryAddresses: ShippingAddress[] = [];
 
 export const notifyAddressChange = () => {
@@ -26,49 +27,84 @@ export const AddressService = {
     notifyAddressChange();
   },
 
-  // Fetch shipping addresses directly from Supabase Database for a specific user
-  async getAddresses(userEmail?: string): Promise<ShippingAddress[]> {
-    if (!userEmail) {
+  // Fetch shipping addresses directly from Supabase Database for a specific user (by email or user_id)
+  async getAddresses(userEmail?: string, userId?: string): Promise<ShippingAddress[]> {
+    const cleanEmail = (userEmail || '').toLowerCase().trim();
+    const cleanUserId = (userId || '').trim();
+
+    if (!cleanEmail && !cleanUserId) {
       inMemoryAddresses = [];
       return [];
     }
 
-    const normalizedEmail = userEmail.toLowerCase().trim();
+    let rows: any[] | null = null;
 
     if (isSupabaseConfigured) {
+      // 1. First attempt via Supabase Client
       try {
         const client = requireSupabase();
-        const { data, error } = await client
-          .from('shipping_addresses')
-          .select('*')
-          .eq('user_email', normalizedEmail)
+        let query = client.from('shipping_addresses').select('*');
+
+        if (cleanEmail && cleanUserId) {
+          query = query.or(`user_email.eq.${cleanEmail},user_id.eq.${cleanUserId}`);
+        } else if (cleanEmail) {
+          query = query.eq('user_email', cleanEmail);
+        } else {
+          query = query.eq('user_id', cleanUserId);
+        }
+
+        const { data, error } = await query
           .order('is_default', { ascending: false })
           .order('created_at', { ascending: false });
 
-        if (error) {
-          throw error;
+        if (!error && Array.isArray(data)) {
+          rows = data;
+        } else if (error) {
+          console.warn('[AddressService getAddresses Supabase client failed, trying REST fallback]', error);
         }
-
-        if (Array.isArray(data)) {
-          const mapped: ShippingAddress[] = data.map((d: any) => ({
-            id: String(d.id),
-            fullName: d.full_name || d.fullName || 'Customer',
-            phone: d.phone || '',
-            pincode: d.pincode || '',
-            city: d.city || '',
-            state: d.state || '',
-            addressLine: d.address_line || d.addressLine || d.address || '',
-            type: (d.type as 'Home' | 'Work' | 'Other') || 'Home',
-            isDefault: Boolean(d.is_default || d.isDefault),
-          }));
-
-          inMemoryAddresses = mapped;
-          return mapped;
-        }
-      } catch (err) {
-        console.error('Supabase getAddresses error:', err);
-        throw err;
+      } catch (clientErr) {
+        console.warn('[AddressService getAddresses Supabase client threw, trying REST fallback]', clientErr);
       }
+
+      // 2. Direct REST Fallback (uses Anon Key without session cookie issues)
+      if (!rows) {
+        try {
+          let restQuery = '';
+          if (cleanEmail && cleanUserId) {
+            restQuery = `shipping_addresses?or=(user_email.eq.${encodeURIComponent(cleanEmail)},user_id.eq.${encodeURIComponent(cleanUserId)})&order=is_default.desc,created_at.desc`;
+          } else if (cleanEmail) {
+            restQuery = `shipping_addresses?user_email=eq.${encodeURIComponent(cleanEmail)}&order=is_default.desc,created_at.desc`;
+          } else {
+            restQuery = `shipping_addresses?user_id=eq.${encodeURIComponent(cleanUserId)}&order=is_default.desc,created_at.desc`;
+          }
+
+          const fallbackData = await fetchSupabaseRestFallback<any[]>(restQuery);
+          if (Array.isArray(fallbackData)) {
+            rows = fallbackData;
+          }
+        } catch (restErr) {
+          console.warn('[AddressService getAddresses REST fallback error]', restErr);
+        }
+      }
+    }
+
+    if (Array.isArray(rows)) {
+      const mapped: ShippingAddress[] = rows.map((d: any) => ({
+        id: String(d.id),
+        fullName: d.full_name || d.fullName || 'Customer',
+        phone: d.phone || '',
+        pincode: d.pincode || '',
+        city: d.city || '',
+        state: d.state || '',
+        addressLine: d.address_line || d.addressLine || d.address || '',
+        type: (d.type as 'Home' | 'Work' | 'Other') || 'Home',
+        isDefault: Boolean(d.is_default || d.isDefault),
+        userId: d.user_id || undefined,
+        userEmail: d.user_email || undefined,
+      }));
+
+      inMemoryAddresses = mapped;
+      return mapped;
     }
 
     return inMemoryAddresses;
@@ -78,9 +114,14 @@ export const AddressService = {
     return inMemoryAddresses;
   },
 
-  // Save new shipping address into Supabase Database
-  async addAddress(addressData: Omit<ShippingAddress, 'id'>, userEmail?: string): Promise<ShippingAddress> {
-    const client = requireSupabase();
+  // Save new shipping address into Supabase Database linked with userEmail and userId
+  async addAddress(
+    addressData: Omit<ShippingAddress, 'id'>,
+    userEmail?: string,
+    userId?: string
+  ): Promise<ShippingAddress> {
+    const cleanEmail = (userEmail || '').toLowerCase().trim();
+    const cleanUserId = (userId || '').trim();
     const newId = 'addr-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
     const shouldBeDefault = addressData.isDefault || inMemoryAddresses.length === 0;
 
@@ -88,20 +129,14 @@ export const AddressService = {
       ...addressData,
       id: newId,
       isDefault: shouldBeDefault,
+      userEmail: cleanEmail || undefined,
+      userId: cleanUserId || undefined,
     };
 
-    // If new address is set as default, reset other addresses is_default in Supabase
-    if (shouldBeDefault && userEmail) {
-      await client
-        .from('shipping_addresses')
-        .update({ is_default: false })
-        .eq('user_email', userEmail.toLowerCase().trim());
-    }
-
-    // 1. Call Supabase FIRST
-    const { error } = await client.from('shipping_addresses').insert({
+    const payload = {
       id: newId,
-      user_email: userEmail ? userEmail.toLowerCase().trim() : '',
+      user_email: cleanEmail,
+      user_id: cleanUserId || null,
       full_name: addressData.fullName,
       phone: addressData.phone,
       pincode: addressData.pincode,
@@ -111,14 +146,51 @@ export const AddressService = {
       type: addressData.type || 'Home',
       is_default: shouldBeDefault,
       created_at: new Date().toISOString(),
-    });
+    };
 
-    if (error) {
-      console.error('Supabase addAddress failed:', error);
-      throw new Error(`Failed to save shipping address: ${error.message}`);
+    // If new address is set as default, reset other addresses is_default in Supabase
+    if (shouldBeDefault && (cleanEmail || cleanUserId)) {
+      try {
+        const client = requireSupabase();
+        let query = client.from('shipping_addresses').update({ is_default: false });
+        if (cleanEmail && cleanUserId) {
+          await query.or(`user_email.eq.${cleanEmail},user_id.eq.${cleanUserId}`);
+        } else if (cleanEmail) {
+          await query.eq('user_email', cleanEmail);
+        } else {
+          await query.eq('user_id', cleanUserId);
+        }
+      } catch {
+        const resetFilter = cleanEmail && cleanUserId
+          ? `or=(user_email.eq.${encodeURIComponent(cleanEmail)},user_id.eq.${encodeURIComponent(cleanUserId)})`
+          : cleanEmail
+          ? `user_email=eq.${encodeURIComponent(cleanEmail)}`
+          : `user_id=eq.${encodeURIComponent(cleanUserId)}`;
+        await supabaseRestMutation('shipping_addresses', 'PATCH', resetFilter, { is_default: false });
+      }
     }
 
-    // 2. Update in-memory runtime cache ONLY on DB success
+    // 1. Call Supabase Client
+    let insertErr: any = null;
+    try {
+      const client = requireSupabase();
+      const { error } = await client.from('shipping_addresses').insert(payload);
+      insertErr = error;
+    } catch (err) {
+      insertErr = err;
+    }
+
+    // 2. Direct REST Fallback
+    if (insertErr) {
+      console.warn('[AddressService addAddress Supabase client failed, trying REST mutation]', insertErr);
+      const ok = await supabaseRestMutation('shipping_addresses', 'POST', '', payload, 'return=representation');
+      if (!ok) {
+        console.error('Supabase addAddress failed completely:', insertErr);
+        throw new Error(`Failed to save shipping address: ${formatQueryError(insertErr)}`);
+      }
+    }
+
+    // 3. Update in-memory runtime cache
     const updated = shouldBeDefault
       ? inMemoryAddresses.map((a) => ({ ...a, isDefault: false }))
       : [...inMemoryAddresses];
@@ -132,16 +204,32 @@ export const AddressService = {
   async updateAddress(
     id: string,
     updatedFields: Partial<ShippingAddress>,
-    userEmail?: string
+    userEmail?: string,
+    userId?: string
   ): Promise<ShippingAddress> {
-    const client = requireSupabase();
+    const cleanEmail = (userEmail || '').toLowerCase().trim();
+    const cleanUserId = (userId || '').trim();
     const isSettingDefault = updatedFields.isDefault;
 
-    if (isSettingDefault && userEmail) {
-      await client
-        .from('shipping_addresses')
-        .update({ is_default: false })
-        .eq('user_email', userEmail.toLowerCase().trim());
+    if (isSettingDefault && (cleanEmail || cleanUserId)) {
+      try {
+        const client = requireSupabase();
+        let query = client.from('shipping_addresses').update({ is_default: false });
+        if (cleanEmail && cleanUserId) {
+          await query.or(`user_email.eq.${cleanEmail},user_id.eq.${cleanUserId}`);
+        } else if (cleanEmail) {
+          await query.eq('user_email', cleanEmail);
+        } else {
+          await query.eq('user_id', cleanUserId);
+        }
+      } catch {
+        const resetFilter = cleanEmail && cleanUserId
+          ? `or=(user_email.eq.${encodeURIComponent(cleanEmail)},user_id.eq.${encodeURIComponent(cleanUserId)})`
+          : cleanEmail
+          ? `user_email=eq.${encodeURIComponent(cleanEmail)}`
+          : `user_id=eq.${encodeURIComponent(cleanUserId)}`;
+        await supabaseRestMutation('shipping_addresses', 'PATCH', resetFilter, { is_default: false });
+      }
     }
 
     const updatePayload: any = {};
@@ -153,22 +241,43 @@ export const AddressService = {
     if (updatedFields.addressLine !== undefined) updatePayload.address_line = updatedFields.addressLine;
     if (updatedFields.type !== undefined) updatePayload.type = updatedFields.type;
     if (updatedFields.isDefault !== undefined) updatePayload.is_default = updatedFields.isDefault;
+    if (cleanEmail) updatePayload.user_email = cleanEmail;
+    if (cleanUserId) updatePayload.user_id = cleanUserId;
 
-    // 1. Call Supabase FIRST
-    const { error } = await client
-      .from('shipping_addresses')
-      .update(updatePayload)
-      .eq('id', id);
-
-    if (error) {
-      console.error('Supabase updateAddress failed:', error);
-      throw new Error(`Failed to update shipping address: ${error.message}`);
+    // 1. Call Supabase Client
+    let updateErr: any = null;
+    try {
+      const client = requireSupabase();
+      const { error } = await client.from('shipping_addresses').update(updatePayload).eq('id', id);
+      updateErr = error;
+    } catch (err) {
+      updateErr = err;
     }
 
-    // 2. Update cache ONLY on DB success
+    // 2. Direct REST Fallback
+    if (updateErr) {
+      console.warn('[AddressService updateAddress Supabase client failed, trying REST mutation]', updateErr);
+      const ok = await supabaseRestMutation(
+        'shipping_addresses',
+        'PATCH',
+        `id=eq.${encodeURIComponent(id)}`,
+        updatePayload,
+        'return=representation'
+      );
+      if (!ok) {
+        throw new Error(`Failed to update shipping address: ${formatQueryError(updateErr)}`);
+      }
+    }
+
+    // 3. Update cache
     inMemoryAddresses = inMemoryAddresses.map((addr) => {
       if (addr.id === id) {
-        return { ...addr, ...updatedFields };
+        return {
+          ...addr,
+          ...updatedFields,
+          userEmail: cleanEmail || addr.userEmail,
+          userId: cleanUserId || addr.userId,
+        };
       }
       if (isSettingDefault) {
         return { ...addr, isDefault: false };
@@ -184,23 +293,28 @@ export const AddressService = {
 
   // Permanently delete address from Supabase Database
   async deleteAddress(id: string): Promise<void> {
-    const client = requireSupabase();
-    // 1. Call Supabase FIRST
-    const { error } = await client.from('shipping_addresses').delete().eq('id', id);
-    if (error) {
-      console.error('Supabase deleteAddress failed:', error);
-      throw new Error(`Failed to delete shipping address: ${error.message}`);
+    let delErr: any = null;
+    try {
+      const client = requireSupabase();
+      const { error } = await client.from('shipping_addresses').delete().eq('id', id);
+      delErr = error;
+    } catch (err) {
+      delErr = err;
     }
 
-    // 2. Update cache ONLY on DB success
+    if (delErr) {
+      console.warn('[AddressService deleteAddress Supabase client failed, trying REST mutation]', delErr);
+      const ok = await supabaseRestMutation('shipping_addresses', 'DELETE', `id=eq.${encodeURIComponent(id)}`);
+      if (!ok) {
+        throw new Error(`Failed to delete shipping address: ${formatQueryError(delErr)}`);
+      }
+    }
+
+    // Update cache
     const remaining = inMemoryAddresses.filter((a) => a.id !== id);
     if (remaining.length > 0 && !remaining.some((a) => a.isDefault)) {
       remaining[0].isDefault = true;
-      client
-        .from('shipping_addresses')
-        .update({ is_default: true })
-        .eq('id', remaining[0].id)
-        .then();
+      this.setDefaultAddress(remaining[0].id).catch(() => {});
     }
 
     inMemoryAddresses = remaining;
@@ -208,23 +322,50 @@ export const AddressService = {
   },
 
   // Set default shipping address in Supabase Database
-  async setDefaultAddress(id: string, userEmail?: string): Promise<void> {
-    const client = requireSupabase();
-    if (userEmail) {
-      await client
-        .from('shipping_addresses')
-        .update({ is_default: false })
-        .eq('user_email', userEmail.toLowerCase().trim());
+  async setDefaultAddress(id: string, userEmail?: string, userId?: string): Promise<void> {
+    const cleanEmail = (userEmail || '').toLowerCase().trim();
+    const cleanUserId = (userId || '').trim();
+
+    if (cleanEmail || cleanUserId) {
+      try {
+        const client = requireSupabase();
+        let query = client.from('shipping_addresses').update({ is_default: false });
+        if (cleanEmail && cleanUserId) {
+          await query.or(`user_email.eq.${cleanEmail},user_id.eq.${cleanUserId}`);
+        } else if (cleanEmail) {
+          await query.eq('user_email', cleanEmail);
+        } else {
+          await query.eq('user_id', cleanUserId);
+        }
+      } catch {
+        const resetFilter = cleanEmail && cleanUserId
+          ? `or=(user_email.eq.${encodeURIComponent(cleanEmail)},user_id.eq.${encodeURIComponent(cleanUserId)})`
+          : cleanEmail
+          ? `user_email=eq.${encodeURIComponent(cleanEmail)}`
+          : `user_id=eq.${encodeURIComponent(cleanUserId)}`;
+        await supabaseRestMutation('shipping_addresses', 'PATCH', resetFilter, { is_default: false });
+      }
     }
 
-    const { error } = await client
-      .from('shipping_addresses')
-      .update({ is_default: true })
-      .eq('id', id);
+    let setErr: any = null;
+    try {
+      const client = requireSupabase();
+      const { error } = await client.from('shipping_addresses').update({ is_default: true }).eq('id', id);
+      setErr = error;
+    } catch (err) {
+      setErr = err;
+    }
 
-    if (error) {
-      console.error('Supabase setDefaultAddress failed:', error);
-      throw new Error(`Failed to set default address: ${error.message}`);
+    if (setErr) {
+      const ok = await supabaseRestMutation(
+        'shipping_addresses',
+        'PATCH',
+        `id=eq.${encodeURIComponent(id)}`,
+        { is_default: true }
+      );
+      if (!ok) {
+        throw new Error(`Failed to set default address: ${formatQueryError(setErr)}`);
+      }
     }
 
     inMemoryAddresses = inMemoryAddresses.map((a) => ({

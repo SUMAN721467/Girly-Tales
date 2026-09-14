@@ -190,8 +190,8 @@ export const AccountPage: React.FC<AccountPageProps> = ({
 
   // Load Addresses & Orders
   const loadAddresses = async () => {
-    if (user?.email && isLoggedIn) {
-      const list = await AddressService.getAddresses(user.email);
+    if ((user?.email || user?.id) && isLoggedIn) {
+      const list = await AddressService.getAddresses(user.email, user.id);
       setAddresses(list);
     } else {
       setAddresses([]);
@@ -399,10 +399,10 @@ export const AccountPage: React.FC<AccountPageProps> = ({
     }
 
     if (editingAddressId) {
-      await AddressService.updateAddress(editingAddressId, addressForm, user?.email);
+      await AddressService.updateAddress(editingAddressId, addressForm, user?.email, user?.id);
       triggerToast('Address Updated! 🏠', 'Shipping address saved to Supabase.', undefined, 'success');
     } else {
-      await AddressService.addAddress(addressForm, user?.email);
+      await AddressService.addAddress(addressForm, user?.email, user?.id);
       triggerToast('Address Added! 📍', 'New shipping address saved to Supabase.', undefined, 'success');
     }
 
@@ -438,7 +438,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
 
   const handleSetDefaultAddress = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    await AddressService.setDefaultAddress(id, user?.email);
+    await AddressService.setDefaultAddress(id, user?.email, user?.id);
     await loadAddresses();
     triggerToast('Default Address Set ⭐', 'Primary shipping address updated in Supabase.', undefined, 'success');
   };

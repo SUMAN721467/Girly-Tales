@@ -93,5 +93,7 @@ export interface ShippingAddress {
   addressLine: string;
   type?: 'Home' | 'Work' | 'Other';
   isDefault?: boolean;
+  userId?: string;
+  userEmail?: string;
 }
 

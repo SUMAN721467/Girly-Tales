@@ -131,7 +131,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   // Load saved addresses on mount/open
   const loadSavedAddresses = async () => {
-    const list = await AddressService.getAddresses(user?.email);
+    const list = await AddressService.getAddresses(user?.email, user?.id);
     setSavedAddresses(list);
 
     if (list.length > 0) {
@@ -338,7 +338,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           addressLine: formData.address,
           type: formData.type || 'Home',
           isDefault: savedAddresses.length === 0,
-        }, user?.email);
+        }, user?.email, user?.id);
       } catch (err) {
         console.warn('Address auto-save note:', err);
       }
