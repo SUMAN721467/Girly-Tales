@@ -30,12 +30,7 @@ export const isSupabaseConfigured: boolean =
 // 1. Browser extension / AdBlocker / Brave Shields blocking *.supabase.co
 // 2. CORS preflight errors and mixed content blocks
 // 3. Regional ISP / DNS lookup issues on *.supabase.co
-export const getEffectiveSupabaseUrl = (): string => {
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    return `${window.location.origin}/supabase-proxy`;
-  }
-  return rawUrl;
-};
+export const getEffectiveSupabaseUrl = (): string => rawUrl;
 
 export const getSupabaseAnonKey = (): string => rawKey;
 
@@ -51,13 +46,11 @@ export const normalizeStorageUrl = (url: string): string => {
   return url;
 };
 
-const clientUrl = getEffectiveSupabaseUrl();
-
 let clientInstance: SupabaseClient | null = null;
 
 if (isSupabaseConfigured) {
   try {
-    clientInstance = createClient(clientUrl, rawKey, {
+    clientInstance = createClient(rawUrl, rawKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,

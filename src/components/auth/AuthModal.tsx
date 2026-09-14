@@ -164,14 +164,19 @@ export const AuthModal: React.FC = () => {
     }
   };
 
-  const handleGoogleSignIn = async () => {
+  const handleGoogleSignIn = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (isSubmitting) return;
     setErrorMsg('');
     setIsSubmitting(true);
     const res = await loginWithGoogle();
-    setIsSubmitting(false);
     if (res.success) {
       closeAuthModal();
     } else {
+      setIsSubmitting(false);
       setErrorMsg(res.error || 'Google sign in failed.');
     }
   };
@@ -183,6 +188,7 @@ export const AuthModal: React.FC = () => {
     >
       {/* Outer Card Container with Top Floating Close Button */}
       <div className="relative w-full max-w-[420px]" onClick={(e) => e.stopPropagation()}>
+
         
         {/* Floating Top Close Button (Nykaa Style) */}
         <button

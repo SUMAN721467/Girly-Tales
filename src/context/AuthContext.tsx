@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { User } from '../types/product';
 import { useToast } from './ToastContext';
 import { supabase, isSupabaseConfigured, getRawSupabaseUrl } from '../lib/supabase';
@@ -34,7 +34,7 @@ interface AuthContextType {
   openAuthModal: (tab?: 'login' | 'signup') => void;
   closeAuthModal: () => void;
   sendEmailOtp: (email: string) => Promise<{ success: boolean; error?: string }>;
-  verifyEmailOtp: (email: string, token: string) => Promise<{ success: boolean; error?: string }>;
+  verifyEmailOtp: (email: string, otp: string, name?: string) => Promise<{ success: boolean; error?: string }>;
   loginWithEmailOnly: (email: string, name?: string) => Promise<{ success: boolean; error?: string }>;
   loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
   login: (email: string, password?: string, name?: string) => Promise<{ success: boolean; error?: string }>;
@@ -104,34 +104,76 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<'login' | 'signup'>('login');
+  const isInitiatingOAuth = useRef(false);
   const { triggerToast } = useToast();
 
   // Listen to Supabase auth state changes and maintain 30-day session
   useEffect(() => {
-    // Handle OAuth callback error parameters in URL (e.g. bad_oauth_state / redirect_uri_not_allowed)
-    try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-      const errorMsg = urlParams.get('error_description') || hashParams.get('error_description');
-      const errorCode = urlParams.get('error_code') || hashParams.get('error_code') || urlParams.get('error') || hashParams.get('error');
-
-      if (errorMsg || errorCode) {
-        console.warn('[Supabase Auth OAuth Callback Note]', { errorCode, errorMsg });
-        const decoded = errorMsg ? decodeURIComponent(errorMsg.replace(/\+/g, ' ')) : '';
-        const displayTitle = errorCode === 'bad_oauth_state' ? 'Google Login Error' : 'Sign In Issue';
-        const displayMsg = decoded || (errorCode ? `OAuth Error: ${errorCode}` : 'Please try signing in with Google again.');
-        triggerToast(displayTitle, displayMsg, undefined, 'error');
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-    } catch (e) {}
-
     if (!isSupabaseConfigured) {
       return;
     }
 
     let mounted = true;
 
-    const checkSession = async () => {
+    // Handle OAuth callback (errors, PKCE code exchange, and initial session)
+    const handleAuthCallbackAndSession = async () => {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+        const errorMsg = urlParams.get('error_description') || hashParams.get('error_description');
+        const errorCode = urlParams.get('error_code') || hashParams.get('error_code') || urlParams.get('error') || hashParams.get('error');
+
+        if (errorMsg || errorCode) {
+          console.warn('[Supabase Auth OAuth Callback Note]', { errorCode, errorMsg });
+          const decoded = errorMsg ? decodeURIComponent(errorMsg.replace(/\+/g, ' ')) : '';
+          const displayTitle = errorCode === 'bad_oauth_state' ? 'Google Login Error' : 'Sign In Issue';
+          const displayMsg = decoded || (errorCode ? `OAuth Error: ${errorCode}` : 'Please try signing in with Google again.');
+          triggerToast(displayTitle, displayMsg, undefined, 'error');
+          window.history.replaceState({}, document.title, window.location.pathname);
+          return;
+        }
+
+        // If returning with PKCE code (?code=...)
+        const code = urlParams.get('code');
+        if (code) {
+          const { data: exchangeData, error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+          // Strip the ?code= parameter immediately to prevent reuse errors on page refresh
+          window.history.replaceState({}, document.title, window.location.pathname);
+
+          if (exchangeErr) {
+            console.warn('[Supabase exchangeCodeForSession failed]:', exchangeErr);
+          } else if (exchangeData?.session?.user && mounted) {
+            const u = exchangeData.session.user;
+            const userMeta = u.user_metadata || {};
+            const fallbackName = userMeta.name || userMeta.full_name || u.email?.split('@')[0] || 'Member';
+            const userEmail = u.email || '';
+            const userIsAdmin = checkIsAdmin(userEmail);
+            const newUser: User = {
+              id: u.id,
+              email: userEmail,
+              name: fallbackName.charAt(0).toUpperCase() + fallbackName.slice(1),
+              phone: userMeta.phone,
+              gender: userMeta.gender || undefined,
+              age: userMeta.age !== undefined && userMeta.age !== null ? userMeta.age : undefined,
+              isLoggedIn: true,
+              isAdmin: userIsAdmin,
+              role: userIsAdmin ? 'admin' : 'customer',
+              avatarUrl: userMeta.avatar_url || userMeta.avatarUrl,
+              createdAt: u.created_at,
+            };
+            setUser(newUser);
+            localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser));
+            renewSessionExpiry();
+            triggerToast('Welcome back! 🌟', `Signed in as ${userEmail}`, undefined, 'success');
+            setIsAuthModalOpen(false);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('OAuth callback processing warning:', e);
+      }
+
+      // Check existing session
       try {
         const expiryStr = localStorage.getItem(SESSION_EXPIRY_KEY);
         if (expiryStr && Date.now() > parseInt(expiryStr, 10)) {
@@ -164,13 +206,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           };
           setUser(newUser);
           localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser));
+          if (typeof window !== 'undefined' && window.location.hash.includes('access_token=')) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
         }
       } catch (err) {
         console.warn('Supabase session load info:', err);
       }
     };
 
-    checkSession();
+    handleAuthCallbackAndSession();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
       if (event === 'SIGNED_OUT') {
@@ -198,6 +243,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
         setUser(newUser);
         localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser));
+        if (typeof window !== 'undefined' && window.location.hash.includes('access_token=')) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+        if (event === 'SIGNED_IN') {
+          triggerToast('Welcome back! 🌟', `Signed in as ${userEmail}`, undefined, 'success');
+          setIsAuthModalOpen(false);
+        }
       }
     });
 
@@ -323,35 +375,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
+    if (isInitiatingOAuth.current) return { success: true };
+    isInitiatingOAuth.current = true;
     setIsLoading(true);
     try {
       if (isSupabaseConfigured) {
+        const isProduction = typeof window !== 'undefined' && window.location.hostname.includes('girlytales.in');
+        const redirectTo = isProduction ? 'https://www.girlytales.in/' : `${window.location.origin}/`;
+
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
-            redirectTo: window.location.origin,
-            skipBrowserRedirect: true,
+            redirectTo,
             queryParams: {
               prompt: 'select_account',
             },
           },
         });
         if (error) {
+          isInitiatingOAuth.current = false;
           setIsLoading(false);
           return { success: false, error: error.message };
         }
         if (data?.url) {
-          const rawUrl = getRawSupabaseUrl();
-          let targetUrl = data.url;
-          // Ensure OAuth authorization hits Supabase directly so OAuth state cookies are preserved on supabase.co
-          if (rawUrl && targetUrl.includes('/supabase-proxy')) {
-            targetUrl = targetUrl.replace(`${window.location.origin}/supabase-proxy`, rawUrl.replace(/\/+$/, ''));
-          }
-          window.location.assign(targetUrl);
+          window.location.assign(data.url);
           return { success: true };
         }
+        return { success: true };
       }
 
+      isInitiatingOAuth.current = false;
       // Demo Google login fallback
       const demoEmail = 'user@gmail.com';
       const userIsAdmin = checkIsAdmin(demoEmail);
@@ -369,6 +422,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
       return { success: true };
     } catch (err: any) {
+      isInitiatingOAuth.current = false;
       setIsLoading(false);
       return { success: false, error: err.message || 'Google sign in failed.' };
     }
