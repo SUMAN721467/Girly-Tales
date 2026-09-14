@@ -15,7 +15,8 @@ interface ToastContextType {
     message: string,
     submessage?: string,
     product?: Product,
-    type?: 'cart' | 'wishlist' | 'info' | 'success' | 'error'
+    type?: 'cart' | 'wishlist' | 'info' | 'success' | 'error',
+    duration?: number
   ) => void;
   dismissToast: (id: string) => void;
 }
@@ -34,7 +35,8 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       message: string,
       submessage?: string,
       product?: Product,
-      type: 'cart' | 'wishlist' | 'info' | 'success' | 'error' = 'cart'
+      type: 'cart' | 'wishlist' | 'info' | 'success' | 'error' = 'cart',
+      duration = 1500
     ) => {
       const id = Date.now().toString() + Math.random().toString(36).substring(2, 5);
       const newToast: ToastData = { id, message, submessage, product, type };
@@ -42,7 +44,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       setTimeout(() => {
         dismissToast(id);
-      }, 3800);
+      }, duration);
     },
     [dismissToast]
   );

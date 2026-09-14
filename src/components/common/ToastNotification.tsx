@@ -8,7 +8,7 @@ export const ToastContainer: React.FC = () => {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none px-4 md:px-0">
+    <div className="fixed top-4 right-4 sm:top-6 sm:right-6 z-[9999] flex flex-col gap-2.5 max-w-[calc(100vw-2rem)] sm:max-w-sm w-full pointer-events-none">
       {toasts.map((toast) => {
         const isCart = toast.type === 'cart';
         const isWishlist = toast.type === 'wishlist';
@@ -17,7 +17,7 @@ export const ToastContainer: React.FC = () => {
         return (
           <div
             key={toast.id}
-            className="pointer-events-auto flex items-center gap-3 bg-white/95 backdrop-blur-md p-3.5 rounded-2xl shadow-card border border-brand-lilac/20 animate-slide-up transition-all hover:shadow-lg"
+            className="pointer-events-auto flex items-center gap-3 bg-white/95 backdrop-blur-md p-3.5 rounded-2xl shadow-card border border-brand-lilac/20 animate-toast-in transition-all hover:shadow-lg"
           >
             {/* Image or Icon */}
             {toast.product ? (

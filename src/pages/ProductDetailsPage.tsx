@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Heart, Sparkles, Truck, RefreshCw, ChevronDown, ChevronUp, Ruler, ArrowLeft, ZoomIn, CheckCircle, Camera, Image as ImageIcon, Plus, Trash2, X, Loader2, Star, ShoppingBag, ArrowRight, Share2, Check } from 'lucide-react';
+import { Heart, Sparkles, Truck, RefreshCw, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Ruler, ArrowLeft, ZoomIn, CheckCircle, Camera, Image as ImageIcon, Plus, Trash2, X, Loader2, Star, ShoppingBag, ArrowRight, Share2, Check } from 'lucide-react';
 import { Product } from '../types/product';
 import { ProductCard } from '../components/product/ProductCard';
 import { SizeGuideModal } from '../components/common/SizeGuideModal';
@@ -29,6 +29,31 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   );
   const [quantity, setQuantity] = useState(1);
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
+
+  // Touch & Mouse Drag Slider State
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const touchStartData = useRef<{ x: number; y: number; isHorizontal?: boolean } | null>(null);
+  const mouseStartData = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const thumbnailRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const imagesList = product.images && product.images.length > 0
+    ? product.images
+    : ['https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80'];
+
+  // Reset active image when product changes
+  useEffect(() => {
+    setActiveImage(0);
+  }, [product.id]);
+
+  // Keep active thumbnail in view
+  useEffect(() => {
+    thumbnailRefs.current[activeImage]?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center',
+    });
+  }, [activeImage]);
 
   // Reviews State
   const [productReviews, setProductReviews] = useState<RealReview[]>([]);
@@ -156,35 +181,95 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
     });
   };
 
-  const handleImageTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (!e.touches[0]) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-    const rawX = e.touches[0].clientX - rect.left;
-    const rawY = e.touches[0].clientY - rect.top;
-
-    const xPercent = Math.max(0, Math.min(100, (rawX / rect.width) * 100));
-    const yPercent = Math.max(0, Math.min(100, (rawY / rect.height) * 100));
-
-    const lensWidth = 90;
-    const lensHeight = 112;
-    const halfW = lensWidth / 2;
-    const halfH = lensHeight / 2;
-
-    const lensX = Math.max(0, Math.min(rect.width - lensWidth, rawX - halfW));
-    const lensY = Math.max(0, Math.min(rect.height - lensHeight, rawY - halfH));
-
-    setZoomState({
-      isHovering: true,
-      xPercent,
-      yPercent,
-      lensX,
-      lensY,
-    });
-  };
-
   const handleImageMouseLeave = () => {
     setZoomState((prev) => ({ ...prev, isHovering: false }));
+    if (isDragging) {
+      setIsDragging(false);
+      setDragOffset(0);
+      mouseStartData.current = null;
+    }
+  };
+
+  // Touch slide / swipe gestures
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!e.touches[0]) return;
+    touchStartData.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+    };
+    setIsDragging(true);
+    setDragOffset(0);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!touchStartData.current || !e.touches[0]) return;
+    const diffX = e.touches[0].clientX - touchStartData.current.x;
+    const diffY = e.touches[0].clientY - touchStartData.current.y;
+
+    if (touchStartData.current.isHorizontal === undefined) {
+      if (Math.abs(diffX) > 6 || Math.abs(diffY) > 6) {
+        touchStartData.current.isHorizontal = Math.abs(diffX) > Math.abs(diffY);
+      }
+    }
+
+    if (touchStartData.current.isHorizontal) {
+      const isAtFirst = activeImage === 0 && diffX > 0;
+      const isAtLast = activeImage === imagesList.length - 1 && diffX < 0;
+      const effectiveDiff = (isAtFirst || isAtLast) ? diffX * 0.25 : diffX;
+      setDragOffset(effectiveDiff);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (touchStartData.current?.isHorizontal) {
+      const threshold = 40;
+      if (dragOffset < -threshold && activeImage < imagesList.length - 1) {
+        setActiveImage((prev) => prev + 1);
+      } else if (dragOffset > threshold && activeImage > 0) {
+        setActiveImage((prev) => prev - 1);
+      }
+    }
+    touchStartData.current = null;
+    setIsDragging(false);
+    setDragOffset(0);
+  };
+
+  // Mouse drag slide gestures for desktop
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    mouseStartData.current = { x: e.clientX, y: e.clientY, moved: false };
+    setIsDragging(true);
+    setDragOffset(0);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (mouseStartData.current && isDragging) {
+      const diffX = e.clientX - mouseStartData.current.x;
+      if (Math.abs(diffX) > 5) {
+        mouseStartData.current.moved = true;
+        const isAtFirst = activeImage === 0 && diffX > 0;
+        const isAtLast = activeImage === imagesList.length - 1 && diffX < 0;
+        setDragOffset((isAtFirst || isAtLast) ? diffX * 0.25 : diffX);
+      }
+      return;
+    }
+    handleImageMouseMove(e);
+  };
+
+  const handleMouseUp = () => {
+    if (mouseStartData.current && isDragging) {
+      if (mouseStartData.current.moved) {
+        const threshold = 40;
+        if (dragOffset < -threshold && activeImage < imagesList.length - 1) {
+          setActiveImage((prev) => prev + 1);
+        } else if (dragOffset > threshold && activeImage > 0) {
+          setActiveImage((prev) => prev - 1);
+        }
+      }
+    }
+    mouseStartData.current = null;
+    setIsDragging(false);
+    setDragOffset(0);
   };
 
   const [openAccordions, setOpenAccordions] = useState<{ [key: string]: boolean }>({
@@ -245,9 +330,8 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   };
 
   const currentImageSrc = normalizeStorageUrl(
-    product.images?.[activeImage] ||
-    product.images?.[0] ||
-    'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80'
+    imagesList[activeImage] ||
+    imagesList[0]
   );
 
   const relatedProducts = productsList.filter(
@@ -284,25 +368,87 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
             {/* Main Image Frame Wrapper with Relative Anchor */}
             <div className="relative w-full max-w-[380px] lg:max-w-[420px]">
               <div
-                onMouseMove={handleImageMouseMove}
+                onMouseMove={handleMouseMove}
                 onMouseEnter={handleImageMouseMove}
                 onMouseLeave={handleImageMouseLeave}
-                onTouchMove={handleImageTouchMove}
-                onTouchEnd={handleImageMouseLeave}
-                className="relative w-full aspect-[4/5] bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl overflow-hidden shadow-2xs flex items-center justify-center cursor-crosshair select-none"
+                onMouseDown={handleMouseDown}
+                onMouseUp={handleMouseUp}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                className="relative w-full aspect-[4/5] bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl overflow-hidden shadow-2xs flex items-center justify-center cursor-grab active:cursor-grabbing select-none touch-pan-y"
               >
-                {/* Main Product Image (Unscaled & Sharp) */}
-                <img
-                  src={currentImageSrc}
-                  alt={product.name}
-                  className="w-full h-full object-cover object-center pointer-events-none"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80';
+                {/* Real-Time Sliding Carousel Track */}
+                <div
+                  className="flex h-full w-full select-none"
+                  style={{
+                    transform: `translateX(calc(-${activeImage * 100}% + ${dragOffset}px))`,
+                    transition: isDragging ? 'none' : 'transform 0.35s cubic-bezier(0.22, 1, 0.36, 1)',
                   }}
-                />
+                >
+                  {imagesList.map((img, idx) => (
+                    <div
+                      key={idx}
+                      className="min-w-full h-full shrink-0 relative flex items-center justify-center overflow-hidden"
+                    >
+                      <img
+                        src={normalizeStorageUrl(img)}
+                        alt={`${product.name} - view ${idx + 1}`}
+                        className="w-full h-full object-cover object-center pointer-events-none select-none"
+                        draggable={false}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80';
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
 
-                {/* Classic Lens Box Overlay following cursor */}
-                {zoomState.isHovering && (
+                {/* Left & Right Chevron Slide Buttons */}
+                {imagesList.length > 1 && activeImage > 0 && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveImage((prev) => Math.max(0, prev - 1));
+                    }}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-brand-charcoal shadow-md flex items-center justify-center transition-all z-20 backdrop-blur-xs hover:scale-105 active:scale-95 cursor-pointer"
+                    aria-label="Previous image"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                )}
+
+                {imagesList.length > 1 && activeImage < imagesList.length - 1 && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveImage((prev) => Math.min(imagesList.length - 1, prev + 1));
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-brand-charcoal shadow-md flex items-center justify-center transition-all z-20 backdrop-blur-xs hover:scale-105 active:scale-95 cursor-pointer"
+                    aria-label="Next image"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                )}
+
+                {/* Slide Dot Indicators */}
+                {imagesList.length > 1 && (
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-20 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full pointer-events-none">
+                    {imagesList.map((_, i) => (
+                      <span
+                        key={i}
+                        className={`h-1.5 rounded-full transition-all duration-300 ${
+                          activeImage === i ? 'w-4 bg-white' : 'w-1.5 bg-white/50'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Classic Lens Box Overlay following cursor (Desktop hover only) */}
+                {zoomState.isHovering && !isDragging && dragOffset === 0 && (
                   <div
                     className="absolute border-2 border-[#967BB6] bg-[#967BB6]/20 backdrop-blur-[1px] rounded-lg pointer-events-none hidden lg:block shadow-md transition-all duration-75"
                     style={{
@@ -315,20 +461,20 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                 )}
 
                 {product.isNewArrival && (
-                  <span className="absolute top-3 left-3 bg-[#967BB6] text-white text-[9px] sm:text-[10px] font-bold px-2.5 py-1 uppercase tracking-wider rounded-md shadow-xs pointer-events-none">
+                  <span className="absolute top-3 left-3 bg-[#967BB6] text-white text-[9px] sm:text-[10px] font-bold px-2.5 py-1 uppercase tracking-wider rounded-md shadow-xs pointer-events-none z-10">
                     New Arrival
                   </span>
                 )}
 
                 {/* Hint Badge */}
-                <div className="absolute bottom-3 right-3 bg-black/65 backdrop-blur-md text-white px-2.5 py-1 rounded-full text-[10px] font-bold items-center gap-1 hidden lg:flex pointer-events-none opacity-85 transition-opacity">
+                <div className="absolute bottom-3 right-3 bg-black/65 backdrop-blur-md text-white px-2.5 py-1 rounded-full text-[10px] font-bold items-center gap-1 hidden lg:flex pointer-events-none opacity-85 transition-opacity z-10">
                   <ZoomIn className="w-3 h-3 text-[#fffeea]" />
                   <span>Hover to Zoom</span>
                 </div>
               </div>
 
               {/* Side Magnifier Window (Exclusive Zoom View) */}
-              {zoomState.isHovering && (
+              {zoomState.isHovering && !isDragging && dragOffset === 0 && (
                 <div
                   className="absolute left-[calc(100%+1rem)] top-0 z-50 w-[320px] h-[400px] xl:w-[380px] xl:h-[475px] bg-white rounded-2xl border-2 border-[#967BB6]/60 shadow-2xl overflow-hidden pointer-events-none hidden lg:block animate-fade-in bg-no-repeat"
                   style={{
@@ -347,11 +493,12 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
             </div>
 
             {/* Thumbnail Strip */}
-            {product.images.length > 1 && (
+            {imagesList.length > 1 && (
               <div className="flex gap-2 overflow-x-auto pb-1 justify-center w-full scrollbar-none">
-                {product.images.map((img, idx) => (
+                {imagesList.map((img, idx) => (
                   <button
                     key={idx}
+                    ref={(el) => { thumbnailRefs.current[idx] = el; }}
                     onClick={() => setActiveImage(idx)}
                     className={`w-12 sm:w-14 aspect-[4/5] rounded-lg border-2 overflow-hidden shrink-0 transition-all cursor-pointer ${
                       activeImage === idx

@@ -29,7 +29,7 @@ interface CartContextType {
   removeCoupon: () => void;
   toasts: ToastData[];
   dismissToast: (id: string) => void;
-  triggerToast: (message: string, submessage?: string, product?: Product, type?: 'cart' | 'wishlist' | 'info' | 'success' | 'error') => void;
+  triggerToast: (message: string, submessage?: string, product?: Product, type?: 'cart' | 'wishlist' | 'info' | 'success' | 'error', duration?: number) => void;
   isCartSyncing: boolean;
   refreshCartFromCloud: () => Promise<void>;
 }
