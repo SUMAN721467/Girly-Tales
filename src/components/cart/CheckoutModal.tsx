@@ -99,6 +99,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     removeCoupon,
     clearCart,
     triggerToast,
+    refreshCartFromCloud,
   } = useCart();
   const { user, isLoggedIn, openAuthModal } = useAuth();
 
@@ -175,13 +176,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      refreshCartFromCloud();
       setStep('details');
       setIsSubmitting(false);
       setCouponError('');
       loadSavedAddresses();
       loadCoupons();
     }
-  }, [isOpen, user]);
+  }, [isOpen, user, refreshCartFromCloud]);
 
   useEffect(() => {
     window.addEventListener('gt_addresses_sync', loadSavedAddresses);

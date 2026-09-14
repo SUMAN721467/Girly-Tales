@@ -32,6 +32,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     updateQuantity,
     removeFromCart,
     isCartSyncing,
+    refreshCartFromCloud,
   } = useCart();
   const { user, isLoggedIn, openAuthModal } = useAuth();
 
@@ -50,9 +51,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   useEffect(() => {
     if (isCartOpen) {
+      refreshCartFromCloud();
       loadCoupons();
     }
-  }, [isCartOpen]);
+  }, [isCartOpen, refreshCartFromCloud]);
 
   useEffect(() => {
     const unsub = DatabaseService.subscribeToChanges('coupons', loadCoupons);

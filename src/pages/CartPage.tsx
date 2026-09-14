@@ -31,6 +31,7 @@ export const CartPage: React.FC<CartPageProps> = ({
     removeCoupon,
     clearCart,
     isCartSyncing,
+    refreshCartFromCloud,
   } = useCart();
   const { user, isLoggedIn, openAuthModal } = useAuth();
 
@@ -48,10 +49,11 @@ export const CartPage: React.FC<CartPageProps> = ({
   };
 
   useEffect(() => {
+    refreshCartFromCloud();
     loadCoupons();
     const unsub = DatabaseService.subscribeToChanges('coupons', loadCoupons);
     return () => unsub();
-  }, []);
+  }, [refreshCartFromCloud]);
 
   const suggestedCoupons = availableCoupons.filter(
     (c) => c.showInList && c.status === 'Active' && (c.usageLimit == null || c.usedCount < c.usageLimit)
