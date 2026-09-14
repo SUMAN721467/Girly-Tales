@@ -1530,16 +1530,48 @@ export const DatabaseService = {
           }));
         }
 
-        let wishQuery = client.from('wishlist').select('*');
-        if (cleanId && cleanEmail && cleanId !== cleanEmail) {
-          wishQuery = wishQuery.or(`user_id.eq.${cleanId},user_id.eq.${cleanEmail}`);
-        } else if (cleanEmail) {
-          wishQuery = wishQuery.eq('user_id', cleanEmail);
-        } else if (cleanId) {
-          wishQuery = wishQuery.eq('user_id', cleanId);
+        // Fast REST or Client race for wishlist
+        let wishData: any[] | null = null;
+        try {
+          const anonKey = getSupabaseAnonKey();
+          const candidateUrls = [getEffectiveSupabaseUrl(), getRawSupabaseUrl()].filter(Boolean);
+          let filterQuery = '';
+          if (cleanId && cleanEmail && cleanId !== cleanEmail) {
+            filterQuery = `or=(user_id.eq.${encodeURIComponent(cleanId)},user_id.eq.${encodeURIComponent(cleanEmail)})`;
+          } else if (cleanEmail) {
+            filterQuery = `user_id=eq.${encodeURIComponent(cleanEmail)}`;
+          } else if (cleanId) {
+            filterQuery = `user_id=eq.${encodeURIComponent(cleanId)}`;
+          }
+          for (const base of candidateUrls) {
+            try {
+              const res = await fetch(`${base.replace(/\/+$/, '')}/rest/v1/wishlist?${filterQuery}&select=*`, {
+                headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+              });
+              if (res.ok) {
+                const rows = await res.json();
+                if (Array.isArray(rows)) {
+                  wishData = rows;
+                  break;
+                }
+              }
+            } catch {}
+          }
+        } catch {}
+
+        if (!wishData) {
+          let wishQuery = client.from('wishlist').select('*');
+          if (cleanId && cleanEmail && cleanId !== cleanEmail) {
+            wishQuery = wishQuery.or(`user_id.eq.${cleanId},user_id.eq.${cleanEmail}`);
+          } else if (cleanEmail) {
+            wishQuery = wishQuery.eq('user_id', cleanEmail);
+          } else if (cleanId) {
+            wishQuery = wishQuery.eq('user_id', cleanId);
+          }
+          const { data } = await withTimeout(wishQuery, 2500, { data: [] });
+          if (Array.isArray(data)) wishData = data;
         }
 
-        const { data: wishData } = await withTimeout(wishQuery, 4000, { data: [] });
         if (Array.isArray(wishData)) {
           wishData.forEach((row: any) => {
             const prod = resolveProduct(row.product_id || row.productId);

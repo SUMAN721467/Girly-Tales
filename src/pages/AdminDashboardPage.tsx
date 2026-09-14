@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Product } from '../types/product';
 import { useCart } from '../context/CartContext';
+import { useWishlist } from '../context/WishlistContext';
 import { useAuth } from '../context/AuthContext';
 import { 
   DatabaseService, 
@@ -70,6 +71,7 @@ const getInitials = (name?: string, email?: string): string => {
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNavigate }) => {
   const { user } = useAuth();
   const { items: currentCartItems, triggerToast } = useCart();
+  const { wishlistProducts: currentWishlistProducts } = useWishlist();
   const [activeTab, setActiveTab] = useState<AdminTab>('products');
   const [isLoadingData, setIsLoadingData] = useState(true);
 
@@ -549,7 +551,21 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     } else {
       setCustomerCartItems([]);
     }
-    setCustomerWishlistItems([]);
+
+    if (isSelf && currentWishlistProducts && currentWishlistProducts.length > 0) {
+      setCustomerWishlistItems(
+        currentWishlistProducts.map((p) => ({
+          id: p.id,
+          productId: p.id,
+          name: p.name,
+          image: p.images?.[0] || 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=400&q=80',
+          price: p.price,
+          addedAt: new Date().toISOString(),
+        }))
+      );
+    } else {
+      setCustomerWishlistItems([]);
+    }
 
     try {
       const activity = await DatabaseService.getCustomerActivity(cust.supabaseUid || cust.id, cust.email);
@@ -570,7 +586,20 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           }))
         );
       }
-      setCustomerWishlistItems(activity.wishlistItems);
+      if (activity.wishlistItems && activity.wishlistItems.length > 0) {
+        setCustomerWishlistItems(activity.wishlistItems);
+      } else if (isSelf && currentWishlistProducts && currentWishlistProducts.length > 0) {
+        setCustomerWishlistItems(
+          currentWishlistProducts.map((p) => ({
+            id: p.id,
+            productId: p.id,
+            name: p.name,
+            image: p.images?.[0] || 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=400&q=80',
+            price: p.price,
+            addedAt: new Date().toISOString(),
+          }))
+        );
+      }
     } catch (e) {
       console.warn('Customer activity fetch error:', e);
     } finally {
@@ -578,7 +607,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     }
   };
 
-  // Keep customer detail view's cart in sync if active cart items change
+  // Keep customer detail view's cart & wishlist in sync if active items change
   useEffect(() => {
     if (selectedCustomerDetail && user) {
       const isSelf = Boolean(
@@ -586,23 +615,49 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         (user.id && selectedCustomerDetail.id && user.id === selectedCustomerDetail.id) ||
         (user.id && selectedCustomerDetail.supabaseUid && user.id === selectedCustomerDetail.supabaseUid)
       );
-      if (isSelf && currentCartItems) {
-        setCustomerCartItems(
-          currentCartItems.map((item) => ({
-            id: item.id,
-            productId: item.product.id,
-            name: item.product.name,
-            image: item.product.images?.[0] || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80',
-            price: item.product.price,
-            quantity: item.quantity,
-            selectedSize: item.selectedSize,
-            selectedColor: item.selectedColor,
-            addedAt: new Date().toISOString(),
-          }))
-        );
+      if (isSelf) {
+        if (currentCartItems && currentCartItems.length > 0) {
+          setCustomerCartItems(
+            currentCartItems.map((item) => ({
+              id: item.id,
+              productId: item.product.id,
+              name: item.product.name,
+              image: item.product.images?.[0] || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80',
+              price: item.product.price,
+              quantity: item.quantity,
+              selectedSize: item.selectedSize,
+              selectedColor: item.selectedColor,
+              addedAt: new Date().toISOString(),
+            }))
+          );
+        }
+        if (currentWishlistProducts && currentWishlistProducts.length > 0) {
+          setCustomerWishlistItems(
+            currentWishlistProducts.map((p) => ({
+              id: p.id,
+              productId: p.id,
+              name: p.name,
+              image: p.images?.[0] || 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=400&q=80',
+              price: p.price,
+              addedAt: new Date().toISOString(),
+            }))
+          );
+        }
       }
     }
-  }, [currentCartItems, selectedCustomerDetail, user]);
+  }, [currentCartItems, currentWishlistProducts, selectedCustomerDetail, user]);
+
+  // Global listener to refresh customer detail view when cart or wishlist changes
+  useEffect(() => {
+    const handleSync = (e: any) => {
+      const type = e.detail?.type;
+      if ((type === 'wishlist' || type === 'cart' || type === 'all') && selectedCustomerDetail) {
+        handleViewCustomerDetails(selectedCustomerDetail);
+      }
+    };
+    window.addEventListener('gt_db_sync', handleSync);
+    return () => window.removeEventListener('gt_db_sync', handleSync);
+  }, [selectedCustomerDetail]);
 
 
 
