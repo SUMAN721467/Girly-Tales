@@ -330,6 +330,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           provider: 'google',
           options: {
             redirectTo: window.location.origin,
+            skipBrowserRedirect: true,
+            queryParams: {
+              prompt: 'select_account',
+            },
           },
         });
         if (error) {
@@ -343,7 +347,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (rawUrl && targetUrl.includes('/supabase-proxy')) {
             targetUrl = targetUrl.replace(`${window.location.origin}/supabase-proxy`, rawUrl.replace(/\/+$/, ''));
           }
-          window.location.href = targetUrl;
+          window.location.assign(targetUrl);
           return { success: true };
         }
       }
