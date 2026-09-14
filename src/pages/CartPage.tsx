@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShoppingBag, ArrowRight, Truck, Tag, ArrowLeft, Trash2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { CartItemRow } from '../components/cart/CartItemRow';
 import { Button } from '../components/common/Button';
 import { Product } from '../types/product';
+import { DatabaseService, RealCoupon } from '../lib/databaseService';
 
 interface CartPageProps {
   onNavigateToShop: () => void;
@@ -35,6 +36,26 @@ export const CartPage: React.FC<CartPageProps> = ({
 
   const [couponCode, setCouponCode] = useState('');
   const [couponError, setCouponError] = useState('');
+  const [availableCoupons, setAvailableCoupons] = useState<RealCoupon[]>([]);
+
+  const loadCoupons = async () => {
+    try {
+      const list = await DatabaseService.getCoupons();
+      setAvailableCoupons(list);
+    } catch (e) {
+      console.warn('Failed to load coupons in CartPage:', e);
+    }
+  };
+
+  useEffect(() => {
+    loadCoupons();
+    const unsub = DatabaseService.subscribeToChanges('coupons', loadCoupons);
+    return () => unsub();
+  }, []);
+
+  const suggestedCoupons = availableCoupons.filter(
+    (c) => c.showInList && c.status === 'Active' && (c.usageLimit == null || c.usedCount < c.usageLimit)
+  );
 
   const remaining = Math.max(0, freeShippingThreshold - subtotal);
 
@@ -55,6 +76,14 @@ export const CartPage: React.FC<CartPageProps> = ({
       setCouponError(res.message);
     } else {
       setCouponCode('');
+    }
+  };
+
+  const handleQuickApply = async (code: string) => {
+    setCouponError('');
+    const res = await applyCoupon(code);
+    if (!res.success) {
+      setCouponError(res.message);
     }
   };
 
@@ -184,7 +213,6 @@ export const CartPage: React.FC<CartPageProps> = ({
                     type="text"
                     value={couponCode}
                     onChange={(e) => setCouponCode(e.target.value)}
-                    placeholder="GIRLY10"
                     className="flex-1 bg-brand-ivory border border-brand-border rounded-xl px-3 py-2 text-xs uppercase focus:outline-none focus:border-brand-lilac"
                   />
                   <button
@@ -195,6 +223,23 @@ export const CartPage: React.FC<CartPageProps> = ({
                   </button>
                 </div>
                 {couponError && <p className="text-[11px] text-rose-500">{couponError}</p>}
+
+                {/* Quick suggestion chips (Only coupons with Show in list enabled by Admin) */}
+                {suggestedCoupons.length > 0 && (
+                  <div className="flex items-center gap-1.5 pt-2 flex-wrap">
+                    <span className="text-[10px] text-brand-muted font-bold">Suggested:</span>
+                    {suggestedCoupons.map((cp) => (
+                      <button
+                        key={cp.id}
+                        type="button"
+                        onClick={() => handleQuickApply(cp.code)}
+                        className="px-2 py-0.5 bg-white hover:bg-[#fffeea] border border-[#EAE6DB] hover:border-[#967BB6] rounded-md text-[10px] font-mono font-bold text-[#967BB6] transition-all cursor-pointer shadow-2xs"
+                      >
+                        {cp.code} ({cp.discount.includes('Discount') || cp.discount.includes('OFF') ? cp.discount : `${cp.discount} OFF`})
+                      </button>
+                    ))}
+                  </div>
+                )}
               </form>
             )}
           </div>
