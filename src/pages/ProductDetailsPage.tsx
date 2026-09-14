@@ -22,7 +22,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   onBackToShop,
   onOpenCheckout,
 }) => {
-  const [productsList, setProductsList] = useState<Product[]>([]);
+  const [productsList, setProductsList] = useState<Product[]>(() => DatabaseService.getCachedProducts());
   const [activeImage, setActiveImage] = useState(0);
   const [selectedSize, setSelectedSize] = useState<string | undefined>(
     product.sizes && product.sizes.length > 0 ? product.sizes[0] : undefined

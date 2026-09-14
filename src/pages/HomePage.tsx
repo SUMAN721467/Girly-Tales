@@ -55,8 +55,11 @@ export const HomePage: React.FC<HomePageProps> = ({
 }) => {
   const { items, addToCart, openCart } = useCart();
   const { user, isLoggedIn, openAuthModal } = useAuth();
-  const [productsList, setProductsList] = useState<Product[]>([]);
-  const [dbCategories, setDbCategories] = useState<RealCategory[]>([]);
+  const [productsList, setProductsList] = useState<Product[]>(() => DatabaseService.getCachedProducts());
+  const [dbCategories, setDbCategories] = useState<RealCategory[]>(() => {
+    const cached = DatabaseService.getCachedCategories();
+    return cached.length > 0 ? cached.filter((c) => c.isActive) : [];
+  });
 
   const loadHomeData = async () => {
     if (!isSupabaseConfigured) {

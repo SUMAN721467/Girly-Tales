@@ -374,7 +374,7 @@ const SEED_COUPONS: RealCoupon[] = [
   { id: 'cp-4', code: 'FREESHIP', discount: 'Free Express Delivery', description: 'Prepaid Orders Across All Pincodes', minSpend: 0, usedCount: 22, status: 'Active', expires: 'Unlimited' },
 ];
 
-// Runtime in-memory cached state (updated ONLY after successful Supabase DB mutations)
+// Runtime in-memory cached state with persistent fast storage
 let inMemoryCategories: RealCategory[] = [];
 let inMemoryProducts: Product[] = [];
 let inMemoryOrders: RealOrder[] = [];
@@ -385,6 +385,30 @@ let inMemoryPromotions: PromotionItem[] = [];
 let inMemoryShippingRules: ShippingRules | null = null;
 let inMemoryFaqs: FAQItem[] = [];
 const deletedOrderIds = new Set<string>();
+
+const PRODUCTS_CACHE_KEY = 'gt_cached_products_v3';
+const CATEGORIES_CACHE_KEY = 'gt_cached_categories_v3';
+
+// Load initial cache from localStorage immediately on script load (0ms boot)
+try {
+  if (typeof window !== 'undefined') {
+    const savedProds = localStorage.getItem(PRODUCTS_CACHE_KEY);
+    if (savedProds) {
+      const parsed = JSON.parse(savedProds);
+      if (Array.isArray(parsed) && parsed.length > 0) inMemoryProducts = parsed;
+    }
+    const savedCats = localStorage.getItem(CATEGORIES_CACHE_KEY);
+    if (savedCats) {
+      const parsed = JSON.parse(savedCats);
+      if (Array.isArray(parsed) && parsed.length > 0) inMemoryCategories = parsed;
+    }
+  }
+} catch (e) {}
+
+let activeProductsPromise: Promise<Product[]> | null = null;
+let activeCategoriesPromise: Promise<RealCategory[]> | null = null;
+let lastProductsFetchTime = 0;
+let lastCategoriesFetchTime = 0;
 
 export const DatabaseService = {
   // ==================== 1. ORDERS ====================
@@ -777,100 +801,142 @@ export const DatabaseService = {
     notifyDatabaseChange('orders');
   },
 
-  async getProducts(): Promise<Product[]> {
+  getCachedProducts(): Product[] {
+    return inMemoryProducts;
+  },
+
+  getCachedCategories(): RealCategory[] {
+    return inMemoryCategories;
+  },
+
+  async getProducts(forceFresh = false): Promise<Product[]> {
     if (!isSupabaseConfigured) {
-      throw new Error('Supabase is not configured. Please set valid VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in .env.');
+      return inMemoryProducts.length > 0 ? inMemoryProducts : MOCK_PRODUCTS;
     }
 
-    const fetchProductsFromDb = async (): Promise<any[]> => {
-      const client = requireSupabase();
-      const query = client
-        .from('products')
-        .select('*')
-        .order('created_at', { ascending: false });
+    const now = Date.now();
+    // 1. If cache is fresh (< 20s old) and not forced, return immediately
+    const isCacheFresh = inMemoryProducts.length > 0 && now - lastProductsFetchTime < 20000;
+    if (isCacheFresh && !forceFresh) {
+      return inMemoryProducts;
+    }
 
-      const { data, error } = await withTimeout(query, 10000, { data: null, error: 'timeout' });
+    // 2. If a fetch is already in-flight, reuse it (prevents duplicate requests)
+    if (activeProductsPromise && !forceFresh) {
+      return activeProductsPromise;
+    }
 
-      if (!error && Array.isArray(data)) {
-        return data;
-      }
+    // 3. Stale-While-Revalidate: Return cached products instantly (0ms) and refresh in background
+    if (inMemoryProducts.length > 0 && !forceFresh) {
+      this.fetchFreshProducts().catch(() => {});
+      return inMemoryProducts;
+    }
 
-      // If client query had an issue or timed out, attempt direct REST fallback with clean Anon API key
-      const fallbackData = await fetchSupabaseRestFallback<any[]>('products?select=*&order=created_at.desc');
-      if (Array.isArray(fallbackData)) {
-        return fallbackData;
-      }
+    return this.fetchFreshProducts();
+  },
 
-      if (error) {
-        if (error === 'timeout') {
-          throw new Error('Supabase products query timed out after 10000ms.');
-        }
-        console.error('[Supabase getProducts Error]', error);
-        throw error;
-      }
+  async fetchFreshProducts(): Promise<Product[]> {
+    if (activeProductsPromise) return activeProductsPromise;
 
-      return [];
-    };
-
-    let rawData: any[] = [];
-    try {
-      rawData = await fetchProductsFromDb();
-    } catch (firstErr: any) {
-      if (import.meta.env.DEV) {
-        console.warn('[Supabase getProducts] Initial attempt failed, retrying once after 500ms...', firstErr?.message);
-      }
-      await new Promise((resolve) => setTimeout(resolve, 500));
+    activeProductsPromise = (async () => {
       try {
-        rawData = await fetchProductsFromDb();
-      } catch (retryErr: any) {
-        console.error('[Supabase getProducts Retry Failed]', retryErr);
-        const errMsg = formatQueryError(retryErr);
-        throw new Error(`Products could not load: ${errMsg}`);
+        const client = requireSupabase();
+
+        // High-speed parallel race: query via client AND direct REST endpoint simultaneously
+        const restPromise = fetchSupabaseRestFallback<any[]>('products?select=*&order=created_at.desc');
+        const clientPromise = client
+          .from('products')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .then(({ data, error }) => {
+            if (error || !Array.isArray(data)) throw error || new Error('client error');
+            return data;
+          });
+
+        let rawData: any[] = [];
+        try {
+          // Whichever returns first with data wins (typically 200-350ms)
+          rawData = await Promise.race([
+            clientPromise,
+            restPromise.then((d) => {
+              if (Array.isArray(d) && d.length > 0) return d;
+              throw new Error('rest empty');
+            }),
+          ]);
+        } catch {
+          // Fast fallback with 2.5s maximum timeout
+          const fb = await withTimeout(restPromise, 2500, null);
+          if (Array.isArray(fb) && fb.length > 0) {
+            rawData = fb;
+          } else {
+            const cl = await withTimeout(clientPromise, 2500, null);
+            if (Array.isArray(cl)) rawData = cl;
+          }
+        }
+
+        if (Array.isArray(rawData) && rawData.length > 0) {
+          const mapped: Product[] = rawData.map((d: any) => ({
+            id: String(d.id),
+            name: d.name || 'Girly Tales Item',
+            slug: d.slug || String(d.id),
+            category: d.category || 'nightwear',
+            subCategory: d.sub_category || d.subCategory || '',
+            price: Number(d.price) || 0,
+            originalPrice: Number(d.original_price ?? d.originalPrice ?? d.price) || 0,
+            discount: Number(d.discount || 0),
+            rating: Number(d.rating || 5.0),
+            reviewCount: Number(d.review_count ?? d.reviewCount ?? 1),
+            images: (Array.isArray(d.images)
+              ? d.images
+              : typeof d.images === 'string'
+              ? (d.images.startsWith('[') ? JSON.parse(d.images) : [d.images])
+              : [d.image_url || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=600&q=80']
+            ).map(normalizeStorageUrl),
+            description: d.description || '',
+            shortDescription: d.short_description || d.shortDescription || '',
+            material: d.material || '',
+            inStock: d.in_stock !== false && d.inStock !== false,
+            stockQuantity: Number(d.stock_quantity ?? d.stockQuantity ?? 10),
+            sku: d.sku || '',
+            dimensions: d.dimensions || '',
+            variety: d.variety || '',
+            tag: d.tag || '',
+            sizes: d.sizes || (d.category === 'nightwear' ? ['XS', 'S', 'M', 'L', 'XL'] : undefined),
+            features: d.features || ['Premium Finish', 'Anti-Tarnish'],
+            highlights: d.highlights || [],
+            careInstructions: d.care_instructions || d.careInstructions || [],
+            deliveryPolicy: d.delivery_policy || d.deliveryPolicy || '',
+            specs: d.specs || {},
+            colors: d.colors || [],
+            antiTarnishGuarantee: d.anti_tarnish_guarantee || '',
+            waterproof: Boolean(d.waterproof),
+            hypoallergenic: Boolean(d.hypoallergenic),
+            isNewArrival: Boolean(d.is_new_arrival),
+            isBestSeller: Boolean(d.is_best_seller),
+          }));
+
+          inMemoryProducts = mapped;
+          lastProductsFetchTime = Date.now();
+
+          try {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(mapped));
+            }
+          } catch (e) {}
+
+          return mapped;
+        }
+
+        return inMemoryProducts;
+      } catch (err) {
+        console.warn('fetchFreshProducts error:', err);
+        return inMemoryProducts;
+      } finally {
+        activeProductsPromise = null;
       }
-    }
+    })();
 
-    const mapped: Product[] = rawData.map((d: any) => ({
-      id: String(d.id),
-      name: d.name || 'Girly Tales Item',
-      slug: d.slug || String(d.id),
-      category: d.category || 'nightwear',
-      subCategory: d.sub_category || d.subCategory || '',
-      price: Number(d.price) || 0,
-      originalPrice: Number(d.original_price ?? d.originalPrice ?? d.price) || 0,
-      discount: Number(d.discount || 0),
-      rating: Number(d.rating || 5.0),
-      reviewCount: Number(d.review_count ?? d.reviewCount ?? 1),
-      images: (Array.isArray(d.images)
-        ? d.images
-        : typeof d.images === 'string'
-        ? (d.images.startsWith('[') ? JSON.parse(d.images) : [d.images])
-        : [d.image_url || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=600&q=80']
-      ).map(normalizeStorageUrl),
-      description: d.description || '',
-      shortDescription: d.short_description || d.shortDescription || '',
-      material: d.material || '',
-      inStock: d.in_stock !== false && d.inStock !== false,
-      stockQuantity: Number(d.stock_quantity ?? d.stockQuantity ?? 10),
-      sku: d.sku || '',
-      dimensions: d.dimensions || '',
-      variety: d.variety || '',
-      tag: d.tag || '',
-      sizes: d.sizes || (d.category === 'nightwear' ? ['XS', 'S', 'M', 'L', 'XL'] : undefined),
-      features: d.features || ['Premium Finish', 'Anti-Tarnish'],
-      highlights: d.highlights || [],
-      careInstructions: d.care_instructions || d.careInstructions || [],
-      deliveryPolicy: d.delivery_policy || d.deliveryPolicy || '',
-      specs: d.specs || {},
-      colors: d.colors || [],
-      antiTarnishGuarantee: d.anti_tarnish_guarantee || '',
-      waterproof: Boolean(d.waterproof),
-      hypoallergenic: Boolean(d.hypoallergenic),
-      isNewArrival: Boolean(d.is_new_arrival),
-      isBestSeller: Boolean(d.is_best_seller),
-    }));
-
-    inMemoryProducts = mapped;
-    return mapped;
+    return activeProductsPromise;
   },
 
   async addProduct(product: Product): Promise<Product> {
@@ -1996,44 +2062,97 @@ export const DatabaseService = {
   },
 
   // ==================== 6. CATEGORIES ====================
-  async getCategories(): Promise<RealCategory[]> {
+  async getCategories(forceFresh = false): Promise<RealCategory[]> {
     if (!isSupabaseConfigured) {
       return inMemoryCategories;
     }
 
-    try {
-      const client = requireSupabase();
-      const query = client
-        .from('categories')
-        .select('*')
-        .order('order_index', { ascending: true });
-
-      const { data, error } = await withTimeout(query, 8000, { data: null, error: 'timeout' });
-
-      let rawCategories = data;
-      if (error || !Array.isArray(rawCategories)) {
-        rawCategories = await fetchSupabaseRestFallback<any[]>('categories?select=*&order=order_index.asc');
-      }
-
-      if (Array.isArray(rawCategories)) {
-        const mapped: RealCategory[] = rawCategories.map((d: any, idx: number) => ({
-          id: d.id,
-          name: d.name,
-          slug: d.slug || d.name.toLowerCase().replace(/\s+/g, '-'),
-          isActive: d.is_active !== false && d.isActive !== false,
-          orderIndex: d.order_index !== undefined ? Number(d.order_index) : idx,
-          createdAt: d.created_at || new Date().toISOString(),
-        }));
-
-        inMemoryCategories = mapped;
-        return mapped;
-      }
-
-      return inMemoryCategories;
-    } catch (e) {
-      console.error('Supabase fetch categories error:', e);
+    const now = Date.now();
+    const isCacheFresh = inMemoryCategories.length > 0 && now - lastCategoriesFetchTime < 30000;
+    if (isCacheFresh && !forceFresh) {
       return inMemoryCategories;
     }
+
+    if (activeCategoriesPromise && !forceFresh) {
+      return activeCategoriesPromise;
+    }
+
+    if (inMemoryCategories.length > 0 && !forceFresh) {
+      this.fetchFreshCategories().catch(() => {});
+      return inMemoryCategories;
+    }
+
+    return this.fetchFreshCategories();
+  },
+
+  async fetchFreshCategories(): Promise<RealCategory[]> {
+    if (activeCategoriesPromise) return activeCategoriesPromise;
+
+    activeCategoriesPromise = (async () => {
+      try {
+        const client = requireSupabase();
+
+        const restPromise = fetchSupabaseRestFallback<any[]>('categories?select=*&order=order_index.asc');
+        const clientPromise = client
+          .from('categories')
+          .select('*')
+          .order('order_index', { ascending: true })
+          .then(({ data, error }) => {
+            if (error || !Array.isArray(data)) throw error || new Error('client error');
+            return data;
+          });
+
+        let rawCategories: any[] = [];
+        try {
+          rawCategories = await Promise.race([
+            clientPromise,
+            restPromise.then((d) => {
+              if (Array.isArray(d) && d.length > 0) return d;
+              throw new Error('rest empty');
+            }),
+          ]);
+        } catch {
+          const fb = await withTimeout(restPromise, 2500, null);
+          if (Array.isArray(fb) && fb.length > 0) {
+            rawCategories = fb;
+          } else {
+            const cl = await withTimeout(clientPromise, 2500, null);
+            if (Array.isArray(cl)) rawCategories = cl;
+          }
+        }
+
+        if (Array.isArray(rawCategories) && rawCategories.length > 0) {
+          const mapped: RealCategory[] = rawCategories.map((d: any, idx: number) => ({
+            id: d.id,
+            name: d.name,
+            slug: d.slug || d.name.toLowerCase().replace(/\s+/g, '-'),
+            isActive: d.is_active !== false && d.isActive !== false,
+            orderIndex: d.order_index !== undefined ? Number(d.order_index) : idx,
+            createdAt: d.created_at || new Date().toISOString(),
+          }));
+
+          inMemoryCategories = mapped;
+          lastCategoriesFetchTime = Date.now();
+
+          try {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(CATEGORIES_CACHE_KEY, JSON.stringify(mapped));
+            }
+          } catch (e) {}
+
+          return mapped;
+        }
+
+        return inMemoryCategories;
+      } catch (e) {
+        console.warn('fetchFreshCategories note:', e);
+        return inMemoryCategories;
+      } finally {
+        activeCategoriesPromise = null;
+      }
+    })();
+
+    return activeCategoriesPromise;
   },
 
   async addCategory(categoryData: { name: string; isActive?: boolean }): Promise<RealCategory> {

@@ -40,7 +40,7 @@ export const AppContent: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>(() => DatabaseService.getCachedProducts());
 
   // Overlay states
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -99,6 +99,10 @@ export const AppContent: React.FC = () => {
   };
 
   useEffect(() => {
+    // Immediately parse route with cached products for 0ms navigation
+    const cached = DatabaseService.getCachedProducts();
+    parseCurrentRoute(cached.length > 0 ? cached : undefined);
+
     const initApp = async () => {
       try {
         const prods = await DatabaseService.getProducts();

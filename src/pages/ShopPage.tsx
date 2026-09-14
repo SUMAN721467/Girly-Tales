@@ -29,8 +29,12 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   initialCategory = 'all',
   onSelectProduct,
 }) => {
-  const [productsList, setProductsList] = useState<Product[]>([]);
-  const [dbCategories, setDbCategories] = useState<RealCategory[]>([]);
+  const [productsList, setProductsList] = useState<Product[]>(() => DatabaseService.getCachedProducts());
+  const [dbCategories, setDbCategories] = useState<RealCategory[]>(() => {
+    const cached = DatabaseService.getCachedCategories();
+    return cached.length > 0 ? cached.filter((c) => c.isActive) : [];
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(() => DatabaseService.getCachedProducts().length === 0);
   const [category, setCategory] = useState<string>(initialCategory);
   const [selectedSubCats, setSelectedSubCats] = useState<string[]>([]);
   const [maxPrice, setMaxPrice] = useState<number>(4000);
@@ -40,6 +44,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   const loadStorefrontData = async () => {
     if (!isSupabaseConfigured) {
       setProductsList(MOCK_PRODUCTS);
+      setIsLoading(false);
       return;
     }
 
@@ -66,6 +71,8 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       }
     } catch (e) {
       console.warn('Storefront data load warning:', e);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -408,6 +415,21 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                   product={product}
                   onSelectProduct={onSelectProduct}
                 />
+              ))}
+            </div>
+          ) : isLoading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3.5 sm:gap-6">
+              {[1, 2, 3, 4, 5, 6].map((n) => (
+                <div key={n} className="bg-white rounded-xl border border-[#EAE6DB] overflow-hidden animate-pulse">
+                  <div className="w-full aspect-[3/4] bg-[#FAF8F2] flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-full border-2 border-[#967BB6]/30 border-t-[#967BB6] animate-spin" />
+                  </div>
+                  <div className="p-3.5 space-y-2.5">
+                    <div className="h-3 bg-[#EAE6DB]/60 rounded w-1/3" />
+                    <div className="h-4 bg-[#EAE6DB] rounded w-4/5" />
+                    <div className="h-4 bg-[#EAE6DB]/70 rounded w-1/4 pt-1" />
+                  </div>
+                </div>
               ))}
             </div>
           ) : (
