@@ -2249,12 +2249,13 @@ export const DatabaseService = {
           );
 
           if (error) {
+            const errObj = error as any;
             if (
-              error !== null &&
-              typeof error === 'object' &&
-              (error.code === '42P01' ||
-                error.message?.toLowerCase().includes('relation') ||
-                error.message?.toLowerCase().includes('does not exist'))
+              errObj &&
+              typeof errObj === 'object' &&
+              (errObj.code === '42P01' ||
+                errObj.message?.toLowerCase().includes('relation') ||
+                errObj.message?.toLowerCase().includes('does not exist'))
             ) {
               testimonialsTableExists = false;
             }
@@ -2409,19 +2410,20 @@ export const DatabaseService = {
       }
     } else {
       // Dual write to reviews table as safety backup
-      await client
-        .from('reviews')
-        .upsert({
-          id: newTestimonial.id,
-          author: newTestimonial.author,
-          product_name: newTestimonial.productName,
-          rating: newTestimonial.rating,
-          comment: newTestimonial.comment,
-          verified: newTestimonial.verified,
-          status: newTestimonial.status,
-          created_at: newTestimonial.createdAt,
-        })
-        .catch(() => {});
+      try {
+        await client
+          .from('reviews')
+          .upsert({
+            id: newTestimonial.id,
+            author: newTestimonial.author,
+            product_name: newTestimonial.productName,
+            rating: newTestimonial.rating,
+            comment: newTestimonial.comment,
+            verified: newTestimonial.verified,
+            status: newTestimonial.status,
+            created_at: newTestimonial.createdAt,
+          });
+      } catch {}
     }
 
     inMemoryTestimonials = [newTestimonial, ...inMemoryTestimonials.filter((t) => t.id !== newTestimonial.id)];
@@ -2473,17 +2475,18 @@ export const DatabaseService = {
         }).catch(() => {});
       }
     } else {
-      await client
-        .from('reviews')
-        .update({
-          author: updates.author,
-          product_name: updates.productName,
-          rating: updates.rating,
-          comment: updates.comment,
-          status: updates.status,
-        })
-        .eq('id', id)
-        .catch(() => {});
+      try {
+        await client
+          .from('reviews')
+          .update({
+            author: updates.author,
+            product_name: updates.productName,
+            rating: updates.rating,
+            comment: updates.comment,
+            status: updates.status,
+          })
+          .eq('id', id);
+      } catch {}
     }
 
     let updatedTestimonial: RealTestimonial | null = null;
@@ -2544,7 +2547,9 @@ export const DatabaseService = {
         await this.deleteReview(id).catch(() => {});
       }
     } else {
-      await client.from('reviews').delete().eq('id', id).catch(() => {});
+      try {
+        await client.from('reviews').delete().eq('id', id);
+      } catch {}
     }
 
     const cleanId = String(id).trim().toLowerCase();
