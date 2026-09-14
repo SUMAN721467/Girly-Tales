@@ -388,6 +388,7 @@ const deletedOrderIds = new Set<string>();
 
 const PRODUCTS_CACHE_KEY = 'gt_cached_products_v3';
 const CATEGORIES_CACHE_KEY = 'gt_cached_categories_v3';
+const ORDERS_CACHE_KEY = 'gt_cached_orders_v3';
 
 // Load initial cache from localStorage immediately on script load (0ms boot)
 try {
@@ -402,155 +403,276 @@ try {
       const parsed = JSON.parse(savedCats);
       if (Array.isArray(parsed) && parsed.length > 0) inMemoryCategories = parsed;
     }
+    const savedOrders = localStorage.getItem(ORDERS_CACHE_KEY);
+    if (savedOrders) {
+      const parsed = JSON.parse(savedOrders);
+      if (Array.isArray(parsed) && parsed.length > 0) inMemoryOrders = parsed;
+    }
   }
 } catch (e) {}
 
 let activeProductsPromise: Promise<Product[]> | null = null;
 let activeCategoriesPromise: Promise<RealCategory[]> | null = null;
+let activeOrdersPromise: Promise<RealOrder[]> | null = null;
 let lastProductsFetchTime = 0;
 let lastCategoriesFetchTime = 0;
+let lastOrdersFetchTime = 0;
+
+export function mapRawOrder(d: any): RealOrder {
+  const cleanId = String(d.id || d.order_id || '').trim();
+
+  const rawSeller = d.seller_status || d.sellerStatus || d.status || 'Pending';
+  let sellerStatus: SellerStatus = 'Pending';
+  if (['Pending', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled by Seller'].includes(rawSeller)) {
+    sellerStatus = rawSeller as SellerStatus;
+  } else if (rawSeller === 'Processing') {
+    sellerStatus = 'Pending';
+  } else if (rawSeller === 'Cancelled') {
+    sellerStatus = 'Cancelled by Seller';
+  }
+
+  const rawCustomer = d.customer_status || d.customerStatus || (d.payment_method?.includes('Cash') ? 'Pending' : 'Paid');
+  let customerStatus: CustomerStatus = 'Paid';
+  if (['Paid', 'Pending', 'Cancelled by Customer', 'Payment Failed'].includes(rawCustomer)) {
+    customerStatus = rawCustomer as CustomerStatus;
+  }
+
+  let parsedItems: any[] = [];
+  if (Array.isArray(d.items)) {
+    parsedItems = d.items;
+  } else if (typeof d.items === 'string') {
+    try {
+      parsedItems = JSON.parse(d.items);
+    } catch {
+      parsedItems = [d.items];
+    }
+  }
+
+  return {
+    id: cleanId,
+    customerName: d.customer_name || d.customerName || 'Customer',
+    email: d.email || '',
+    phone: d.phone || '',
+    items: parsedItems,
+    total: Number(d.total) || 0,
+    subtotal: Number(d.subtotal) || Number(d.total) || 0,
+    shippingFee: Number(d.shipping_fee) || 0,
+    discountAmount: Number(d.discount_amount) || 0,
+    sellerStatus,
+    customerStatus,
+    status: sellerStatus,
+    paymentMethod: d.payment_method || d.paymentMethod || 'UPI / Prepaid',
+    address: d.address || '',
+    city: d.city || 'Mumbai',
+    state: d.state || 'Maharashtra',
+    pincode: d.pincode || '',
+    courierName: d.courier_name || d.courierName || '',
+    trackingNumber: d.tracking_number || d.trackingNumber || '',
+    trackingUrl: d.tracking_url || d.trackingUrl || '',
+    specialInstructions: d.special_instructions || d.specialInstructions || '',
+    createdAt: d.created_at || new Date().toISOString(),
+  };
+}
 
 export const DatabaseService = {
   // ==================== 1. ORDERS ====================
-  async getOrders(): Promise<RealOrder[]> {
-    const rawUrl = import.meta.env.VITE_SUPABASE_URL || '';
-    let host = '';
-    try {
-      if (rawUrl) host = new URL(rawUrl).host;
-    } catch {}
-
-    const isDev = import.meta.env.DEV;
-
-    if (isDev) {
-      console.log('[Supabase getOrders] Connecting...', {
-        isSupabaseConfigured,
-        urlHost: host || 'Not configured',
-      });
-    }
-
+  async getOrders(forceFresh = false): Promise<RealOrder[]> {
     if (!isSupabaseConfigured) {
-      throw new Error('Supabase is not configured. Please set valid VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in your .env.');
+      return inMemoryOrders;
     }
 
-    const fetchOrdersFromDb = async (): Promise<any[]> => {
+    const now = Date.now();
+    // 1. If cache is fresh (< 20s old) and not forced, return immediately (0ms)
+    const isCacheFresh = inMemoryOrders.length > 0 && now - lastOrdersFetchTime < 20000;
+    if (isCacheFresh && !forceFresh) {
+      return inMemoryOrders;
+    }
+
+    // 2. If a fetch is already in-flight, reuse it (prevents duplicate requests)
+    if (activeOrdersPromise && !forceFresh) {
+      return activeOrdersPromise;
+    }
+
+    // 3. Stale-While-Revalidate: Return cached orders instantly (0ms) and refresh in background
+    if (inMemoryOrders.length > 0 && !forceFresh) {
+      this.fetchFreshOrders().catch(() => {});
+      return inMemoryOrders;
+    }
+
+    return this.fetchFreshOrders();
+  },
+
+  async fetchFreshOrders(): Promise<RealOrder[]> {
+    if (activeOrdersPromise) return activeOrdersPromise;
+
+    activeOrdersPromise = (async () => {
+      try {
+        const client = requireSupabase();
+
+        // High-speed parallel candidate race: direct REST proxy vs Supabase client (2500ms timeout)
+        const restPromise = fetchSupabaseRestFallback<any[]>('orders?select=*&order=created_at.desc&limit=100');
+        const clientPromise = withTimeout(
+          client
+            .from('orders')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(100)
+            .then(({ data, error }) => {
+              if (error || !Array.isArray(data)) throw error || new Error('client orders error');
+              return data;
+            }),
+          2500,
+          null
+        );
+
+        let rawData: any[] = [];
+        try {
+          rawData = await Promise.race([
+            clientPromise.then((d) => {
+              if (Array.isArray(d) && d.length > 0) return d;
+              throw new Error('client empty or timed out');
+            }),
+            restPromise.then((d) => {
+              if (Array.isArray(d)) return d;
+              throw new Error('rest empty');
+            }),
+          ]);
+        } catch {
+          // If race leader failed, await REST fallback
+          try {
+            const fallback = await restPromise;
+            if (Array.isArray(fallback)) rawData = fallback;
+          } catch {}
+        }
+
+        if (Array.isArray(rawData)) {
+          const mapped = rawData.map(mapRawOrder).filter((o) => !!o.id && !deletedOrderIds.has(o.id));
+          inMemoryOrders = mapped;
+          lastOrdersFetchTime = Date.now();
+          try {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(mapped));
+            }
+          } catch {}
+          return mapped;
+        }
+
+        return inMemoryOrders;
+      } catch (err) {
+        console.warn('[Supabase fetchFreshOrders error]', err);
+        return inMemoryOrders;
+      } finally {
+        activeOrdersPromise = null;
+      }
+    })();
+
+    return activeOrdersPromise;
+  },
+
+  async getUserOrders(email?: string, userId?: string, forceFresh = false): Promise<RealOrder[]> {
+    const cleanEmail = (email || '').toLowerCase().trim();
+    const cleanId = (userId || '').trim();
+
+    if (!cleanEmail && !cleanId) {
+      return [];
+    }
+
+    const cacheKey = `gt_cached_user_orders_${cleanEmail || cleanId}`;
+
+    // 1. Instant 0ms load from localStorage cache
+    if (typeof window !== 'undefined' && !forceFresh) {
+      try {
+        const saved = localStorage.getItem(cacheKey);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Kick off background revalidation
+            this.fetchFreshUserOrders(cleanEmail, cleanId, cacheKey).catch(() => {});
+            return parsed;
+          }
+        }
+      } catch {}
+    }
+
+    // 2. Check inMemoryOrders if available (0ms)
+    if (inMemoryOrders.length > 0 && !forceFresh) {
+      const filtered = inMemoryOrders.filter((o) => {
+        const matchEmail = cleanEmail && o.email?.toLowerCase().trim() === cleanEmail;
+        return Boolean(matchEmail);
+      });
+      if (filtered.length > 0) {
+        this.fetchFreshUserOrders(cleanEmail, cleanId, cacheKey).catch(() => {});
+        return filtered;
+      }
+    }
+
+    return this.fetchFreshUserOrders(cleanEmail, cleanId, cacheKey);
+  },
+
+  async fetchFreshUserOrders(cleanEmail: string, cleanId: string, cacheKey: string): Promise<RealOrder[]> {
+    try {
       const client = requireSupabase();
-      const startTime = Date.now();
+      const encodedEmail = encodeURIComponent(cleanEmail);
 
-      const query = client
-        .from('orders')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(100);
+      // Targeted high-speed candidate race specifically for this user's email
+      const restPromise = fetchSupabaseRestFallback<any[]>(
+        `orders?email=ilike.${encodedEmail}&order=created_at.desc`
+      );
 
-      const { data, error } = await withTimeout(query, 10000, { data: null, error: 'timeout' });
-      const durationMs = Date.now() - startTime;
+      const clientPromise = withTimeout(
+        client
+          .from('orders')
+          .select('*')
+          .ilike('email', cleanEmail)
+          .order('created_at', { ascending: false })
+          .then(({ data, error }) => {
+            if (error || !Array.isArray(data)) throw error || new Error('client user orders error');
+            return data;
+          }),
+        2500,
+        null
+      );
 
-      if (!error && Array.isArray(data)) {
-        if (isDev) {
-          console.log(`[Supabase getOrders Success] Fetched ${data.length} rows in ${durationMs}ms`);
-        }
-        return data;
+      let rawData: any[] = [];
+      try {
+        rawData = await Promise.race([
+          clientPromise.then((d) => {
+            if (Array.isArray(d) && d.length > 0) return d;
+            throw new Error('client empty or timed out');
+          }),
+          restPromise.then((d) => {
+            if (Array.isArray(d)) return d;
+            throw new Error('rest empty');
+          }),
+        ]);
+      } catch {
+        const fallback = await restPromise;
+        if (Array.isArray(fallback)) rawData = fallback;
       }
 
-      // If client query had an issue or timed out, attempt direct REST fallback with clean Anon API key
-      const fallbackData = await fetchSupabaseRestFallback<any[]>('orders?select=*&order=created_at.desc&limit=100');
-      if (Array.isArray(fallbackData)) {
-        if (isDev) {
-          console.log(`[Supabase getOrders Fallback Success] Fetched ${fallbackData.length} rows via REST`);
-        }
-        return fallbackData;
-      }
+      if (Array.isArray(rawData)) {
+        const mapped = rawData.map(mapRawOrder).filter((o) => !!o.id && !deletedOrderIds.has(o.id));
+        try {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(cacheKey, JSON.stringify(mapped));
+          }
+        } catch {}
 
-      if (error) {
-        if (error === 'timeout') {
-          throw new Error('Supabase orders query timed out after 10000ms.');
-        }
-        if (isDev) {
-          console.error('[Supabase getOrders Error]', error);
-        }
-        throw error;
+        // Merge into inMemoryOrders so other parts of the app also have these orders
+        const existingMap = new Map<string, RealOrder>(inMemoryOrders.map((o) => [o.id, o]));
+        mapped.forEach((o) => existingMap.set(o.id, o));
+        inMemoryOrders = Array.from(existingMap.values()).sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+
+        return mapped;
       }
 
       return [];
-    };
-
-    let rawData: any[] = [];
-    try {
-      rawData = await fetchOrdersFromDb();
-    } catch (firstErr: any) {
-      if (isDev) {
-        console.warn('[Supabase getOrders] Initial attempt failed, retrying once after 500ms...', firstErr?.message);
-      }
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      try {
-        rawData = await fetchOrdersFromDb();
-      } catch (retryErr: any) {
-        console.error('[Supabase getOrders Retry Failed]', retryErr);
-        const errMsg = formatQueryError(retryErr);
-        throw new Error(`Orders could not load: ${errMsg}`);
-      }
+    } catch (err) {
+      console.warn('[fetchFreshUserOrders error]', err);
+      return [];
     }
-
-    const mapped: RealOrder[] = rawData
-      .map((d: any) => {
-        const cleanId = String(d.id || d.order_id || '').trim();
-
-        const rawSeller = d.seller_status || d.sellerStatus || d.status || 'Pending';
-        let sellerStatus: SellerStatus = 'Pending';
-        if (['Pending', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled by Seller'].includes(rawSeller)) {
-          sellerStatus = rawSeller as SellerStatus;
-        } else if (rawSeller === 'Processing') {
-          sellerStatus = 'Pending';
-        } else if (rawSeller === 'Cancelled') {
-          sellerStatus = 'Cancelled by Seller';
-        }
-
-        const rawCustomer = d.customer_status || d.customerStatus || (d.payment_method?.includes('Cash') ? 'Pending' : 'Paid');
-        let customerStatus: CustomerStatus = 'Paid';
-        if (['Paid', 'Pending', 'Cancelled by Customer', 'Payment Failed'].includes(rawCustomer)) {
-          customerStatus = rawCustomer as CustomerStatus;
-        }
-
-        let parsedItems: any[] = [];
-        if (Array.isArray(d.items)) {
-          parsedItems = d.items;
-        } else if (typeof d.items === 'string') {
-          try {
-            parsedItems = JSON.parse(d.items);
-          } catch {
-            parsedItems = [d.items];
-          }
-        }
-
-        return {
-          id: cleanId,
-          customerName: d.customer_name || d.customerName || 'Customer',
-          email: d.email || '',
-          phone: d.phone || '',
-          items: parsedItems,
-          total: Number(d.total) || 0,
-          subtotal: Number(d.subtotal) || Number(d.total) || 0,
-          shippingFee: Number(d.shipping_fee) || 0,
-          discountAmount: Number(d.discount_amount) || 0,
-          sellerStatus,
-          customerStatus,
-          status: sellerStatus,
-          paymentMethod: d.payment_method || d.paymentMethod || 'UPI / Prepaid',
-          address: d.address || '',
-          city: d.city || 'Mumbai',
-          state: d.state || 'Maharashtra',
-          pincode: d.pincode || '',
-          courierName: d.courier_name || d.courierName || '',
-          trackingNumber: d.tracking_number || d.trackingNumber || '',
-          trackingUrl: d.tracking_url || d.trackingUrl || '',
-          specialInstructions: d.special_instructions || d.specialInstructions || '',
-          createdAt: d.created_at || new Date().toISOString(),
-        };
-      })
-      .filter((ord) => !!ord.id);
-
-    inMemoryOrders = mapped;
-    return mapped;
   },
 
   async createOrder(order: Omit<RealOrder, 'createdAt' | 'sellerStatus' | 'customerStatus'> & { 
@@ -615,8 +737,23 @@ export const DatabaseService = {
       }
     }
 
-    // 2. Update in-memory state ONLY AFTER successful DB response
+    // 2. Update in-memory and local cache state ONLY AFTER successful DB response
     inMemoryOrders = [fullOrder, ...inMemoryOrders.filter((o) => o.id !== fullOrder.id)];
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(inMemoryOrders));
+        if (fullOrder.email) {
+          const userCacheKey = `gt_cached_user_orders_${fullOrder.email.toLowerCase().trim()}`;
+          const current = localStorage.getItem(userCacheKey);
+          let list: RealOrder[] = [];
+          if (current) {
+            try { list = JSON.parse(current); } catch {}
+          }
+          list = [fullOrder, ...list.filter((o) => o.id !== fullOrder.id)];
+          localStorage.setItem(userCacheKey, JSON.stringify(list));
+        }
+      }
+    } catch {}
     notifyDatabaseChange('orders');
 
     // 3. Send automated order confirmation email via Resend in background
@@ -696,6 +833,11 @@ export const DatabaseService = {
           }
         : o
     );
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(inMemoryOrders));
+      }
+    } catch {}
     notifyDatabaseChange('orders');
   },
 
@@ -728,6 +870,11 @@ export const DatabaseService = {
     inMemoryOrders = inMemoryOrders.map((o) =>
       o.id === cleanId ? { ...o, customerStatus } : o
     );
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(inMemoryOrders));
+      }
+    } catch {}
     notifyDatabaseChange('orders');
   },
 
@@ -760,6 +907,11 @@ export const DatabaseService = {
     inMemoryOrders = inMemoryOrders.map((o) =>
       o.id === cleanId ? { ...o, specialInstructions } : o
     );
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(inMemoryOrders));
+      }
+    } catch {}
     notifyDatabaseChange('orders');
   },
 
@@ -798,6 +950,11 @@ export const DatabaseService = {
     inMemoryOrders = inMemoryOrders.filter(
       (o) => o.id !== cleanId && o.id.toLowerCase() !== cleanId.toLowerCase()
     );
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(inMemoryOrders));
+      }
+    } catch {}
     notifyDatabaseChange('orders');
   },
 

@@ -156,8 +156,31 @@ export const AccountPage: React.FC<AccountPageProps> = ({
   const [addressToDelete, setAddressToDelete] = useState<ShippingAddress | null>(null);
   const [deleteConfirmationInput, setDeleteConfirmationInput] = useState('');
 
-  // Orders State & Detail View
-  const [userOrders, setUserOrders] = useState<RealOrder[]>([]);
+  // Orders State & Detail View (with instant 0ms cached boot)
+  const [userOrders, setUserOrders] = useState<RealOrder[]>(() => {
+    if (typeof window !== 'undefined' && user?.email) {
+      try {
+        const cached = localStorage.getItem(`gt_cached_user_orders_${user.email.toLowerCase().trim()}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
+  const [isLoadingOrders, setIsLoadingOrders] = useState<boolean>(() => {
+    if (typeof window !== 'undefined' && user?.email) {
+      try {
+        const cached = localStorage.getItem(`gt_cached_user_orders_${user.email.toLowerCase().trim()}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return false;
+        }
+      } catch {}
+    }
+    return true;
+  });
   const [selectedOrderForDetail, setSelectedOrderForDetail] = useState<RealOrder | null>(null);
   const [copiedOrderId, setCopiedOrderId] = useState(false);
   const [guestOrderId, setGuestOrderId] = useState('');
@@ -205,31 +228,62 @@ export const AccountPage: React.FC<AccountPageProps> = ({
   }, [user, isLoggedIn]);
 
   useEffect(() => {
-    const fetchOrders = async () => {
+    let isMounted = true;
+    const fetchOrders = async (showLoading = false) => {
+      if (!user?.email || !isLoggedIn) {
+        setUserOrders([]);
+        setIsLoadingOrders(false);
+        return;
+      }
+
+      const cleanEmail = user.email.toLowerCase().trim();
+      const cacheKey = `gt_cached_user_orders_${cleanEmail}`;
       try {
-        const allOrders = await DatabaseService.getOrders();
-        if (user?.email && isLoggedIn) {
-          const matching = allOrders.filter(
-            (o) => o.email.toLowerCase() === user.email.toLowerCase()
-          );
-          setUserOrders(matching);
-          setSelectedOrderForDetail((prev) => {
-            if (!prev) return null;
-            const updated = matching.find((o) => o.id === prev.id);
-            return updated || prev;
-          });
-        } else {
-          setUserOrders([]);
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setUserOrders(parsed);
+            setIsLoadingOrders(false);
+          }
         }
+      } catch {}
+
+      if (showLoading && userOrders.length === 0) {
+        setIsLoadingOrders(true);
+      }
+
+      try {
+        const matching = await DatabaseService.getUserOrders(user.email, user.id);
+        if (!isMounted) return;
+        setUserOrders(matching);
+        setSelectedOrderForDetail((prev) => {
+          if (!prev) return null;
+          const updated = matching.find((o) => o.id === prev.id);
+          return updated || prev;
+        });
       } catch (err) {
         console.warn('[AccountPage fetchOrders]', err);
+      } finally {
+        if (isMounted) setIsLoadingOrders(false);
       }
     };
-    fetchOrders();
 
-    const handleSync = () => fetchOrders();
+    fetchOrders(true);
+
+    const handleSync = (e: any) => {
+      const type = e.detail?.type;
+      if (!type || type === 'orders' || type === 'all') {
+        fetchOrders(false);
+      }
+    };
     window.addEventListener('gt_db_sync', handleSync);
-    return () => window.removeEventListener('gt_db_sync', handleSync);
+    window.addEventListener('focus', () => fetchOrders(false));
+    return () => {
+      isMounted = false;
+      window.removeEventListener('gt_db_sync', handleSync);
+      window.removeEventListener('focus', () => fetchOrders(false));
+    };
   }, [user, isLoggedIn]);
 
   useEffect(() => {
@@ -1744,8 +1798,37 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                 })}
               </div>
 
-              {/* Empty Orders Fallback */}
-              {userOrders.length === 0 && (
+              {/* Shimmering Loading Skeleton (prevents "No orders" flash) */}
+              {isLoadingOrders && userOrders.length === 0 && (
+                <div className="space-y-4 py-3 animate-fade-in">
+                  <div className="flex items-center gap-2.5 text-xs font-bold text-[#967BB6] bg-[#FAF8F2] border border-[#EAE6DB] px-4 py-2.5 rounded-2xl w-fit">
+                    <Loader2 className="w-4 h-4 animate-spin text-[#967BB6]" />
+                    <span>Syncing your orders with Girly Tales...</span>
+                  </div>
+                  {[1, 2].map((i) => (
+                    <div
+                      key={i}
+                      className="bg-white border border-[#EAE6DB] rounded-3xl p-5 animate-pulse flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-[#FAF8F2] border border-[#EAE6DB] shrink-0" />
+                        <div className="space-y-2">
+                          <div className="h-4 w-44 bg-[#FAF8F2] rounded-lg" />
+                          <div className="h-3 w-28 bg-[#FAF8F2] rounded-lg" />
+                          <div className="h-3 w-36 bg-[#FAF8F2] rounded-lg" />
+                        </div>
+                      </div>
+                      <div className="space-y-2 text-right">
+                        <div className="h-5 w-20 bg-[#FAF8F2] rounded-lg ml-auto" />
+                        <div className="h-6 w-32 bg-[#FAF8F2] rounded-full ml-auto" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Empty Orders Fallback (Only shown when NOT loading and truly 0 orders) */}
+              {!isLoadingOrders && userOrders.length === 0 && (
                 <div className="py-14 text-center text-brand-muted space-y-3 bg-white rounded-3xl border border-[#EAE6DB]">
                   <ShoppingBag className="w-10 h-10 mx-auto text-brand-muted-light" />
                   <p className="text-sm font-bold text-brand-charcoal">

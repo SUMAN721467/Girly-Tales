@@ -3,7 +3,7 @@ import {
   Mail, Phone, Sparkles, Heart, 
   ShoppingBag, CheckCircle2, LogOut, Clock, 
   Truck, Search, ArrowRight, User as UserIcon,
-  ShieldCheck, Package, ChevronRight, Lock
+  ShieldCheck, Package, ChevronRight, Lock, Loader2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -25,25 +25,71 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [accountTab, setAccountTab] = useState<'overview' | 'orders' | 'tracker'>(
     initialSection === 'orders' ? 'orders' : 'overview'
   );
-  const [userOrders, setUserOrders] = useState<RealOrder[]>([]);
+  const [userOrders, setUserOrders] = useState<RealOrder[]>(() => {
+    if (typeof window !== 'undefined' && user?.email) {
+      try {
+        const cached = localStorage.getItem(`gt_cached_user_orders_${user.email.toLowerCase().trim()}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
+  const [isLoadingOrders, setIsLoadingOrders] = useState<boolean>(() => {
+    if (typeof window !== 'undefined' && user?.email) {
+      try {
+        const cached = localStorage.getItem(`gt_cached_user_orders_${user.email.toLowerCase().trim()}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return false;
+        }
+      } catch {}
+    }
+    return true;
+  });
   const [guestOrderId, setGuestOrderId] = useState('');
   const [trackedOrder, setTrackedOrder] = useState<RealOrder | null>(null);
   const [trackerError, setTrackerError] = useState('');
   const [isSearchingOrder, setIsSearchingOrder] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchOrders = async () => {
-      const allOrders = await DatabaseService.getOrders();
       if (user?.email) {
-        const matching = allOrders.filter(
-          (o) => o.email.toLowerCase() === user.email.toLowerCase()
-        );
-        setUserOrders(matching.length > 0 ? matching : allOrders);
+        try {
+          const matching = await DatabaseService.getUserOrders(user.email, user.id);
+          if (isMounted) setUserOrders(matching);
+        } catch (err) {
+          console.warn('[LoginPage fetchOrders error]', err);
+        } finally {
+          if (isMounted) setIsLoadingOrders(false);
+        }
       } else {
-        setUserOrders(allOrders);
+        try {
+          const allOrders = await DatabaseService.getOrders();
+          if (isMounted) setUserOrders(allOrders);
+        } catch (err) {
+          console.warn('[LoginPage fetchOrders error]', err);
+        } finally {
+          if (isMounted) setIsLoadingOrders(false);
+        }
       }
     };
     fetchOrders();
+
+    const handleSync = (e: any) => {
+      const type = e.detail?.type;
+      if (!type || type === 'orders' || type === 'all') {
+        fetchOrders();
+      }
+    };
+    window.addEventListener('gt_db_sync', handleSync);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('gt_db_sync', handleSync);
+    };
   }, [user]);
 
   const handleTrackGuestOrder = async (e: React.FormEvent) => {
@@ -316,7 +362,27 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 </div>
               ))}
 
-              {userOrders.length === 0 && (
+              {/* Loading Skeleton */}
+              {isLoadingOrders && userOrders.length === 0 && (
+                <div className="space-y-4 py-3">
+                  <div className="flex items-center gap-2 text-xs font-bold text-[#967BB6]">
+                    <Loader2 className="w-4 h-4 animate-spin text-[#967BB6]" />
+                    <span>Loading orders...</span>
+                  </div>
+                  {[1, 2].map((i) => (
+                    <div key={i} className="bg-white border border-[#EAE6DB] rounded-3xl p-6 animate-pulse space-y-4">
+                      <div className="flex justify-between">
+                        <div className="h-4 w-32 bg-[#FAF8F2] rounded" />
+                        <div className="h-6 w-24 bg-[#FAF8F2] rounded-full" />
+                      </div>
+                      <div className="h-2 w-full bg-[#FAF8F2] rounded" />
+                      <div className="h-10 w-full bg-[#FAF8F2] rounded" />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {!isLoadingOrders && userOrders.length === 0 && (
                 <div className="py-14 text-center text-brand-muted space-y-3 bg-white rounded-3xl border border-[#EAE6DB]">
                   <ShoppingBag className="w-10 h-10 mx-auto text-brand-muted-light" />
                   <p className="text-sm font-bold text-brand-charcoal">No orders found in your account.</p>
