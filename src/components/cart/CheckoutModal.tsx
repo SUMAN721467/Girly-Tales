@@ -21,7 +21,7 @@ import {
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../common/Button';
-import { DatabaseService } from '../../lib/databaseService';
+import { DatabaseService, RealCoupon } from '../../lib/databaseService';
 import { AddressService } from '../../lib/addressService';
 import { ShippingAddress } from '../../types/product';
 import { RazorpayService } from '../../lib/razorpayService';
@@ -162,19 +162,39 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
   };
 
+  const [availableCoupons, setAvailableCoupons] = useState<RealCoupon[]>([]);
+
+  const loadCoupons = async () => {
+    try {
+      const list = await DatabaseService.getCoupons();
+      setAvailableCoupons(list);
+    } catch (e) {
+      console.warn('Failed to load coupons in checkout:', e);
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
       setStep('details');
       setIsSubmitting(false);
       setCouponError('');
       loadSavedAddresses();
+      loadCoupons();
     }
   }, [isOpen, user]);
 
   useEffect(() => {
     window.addEventListener('gt_addresses_sync', loadSavedAddresses);
-    return () => window.removeEventListener('gt_addresses_sync', loadSavedAddresses);
+    const unsub = DatabaseService.subscribeToChanges('coupons', loadCoupons);
+    return () => {
+      window.removeEventListener('gt_addresses_sync', loadSavedAddresses);
+      unsub();
+    };
   }, []);
+
+  const suggestedCoupons = availableCoupons.filter(
+    (c) => c.showInList && c.status === 'Active' && (c.usageLimit == null || c.usedCount < c.usageLimit)
+  );
 
   // When user selects a saved address card
   const handleSelectSavedAddress = (addr: ShippingAddress) => {
@@ -855,24 +875,22 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       <p className="text-[11px] text-rose-500 font-medium mt-1">{couponError}</p>
                     )}
 
-                    {/* Quick suggestion chips */}
-                    <div className="flex items-center gap-2 pt-2 flex-wrap">
-                      <span className="text-[10px] text-brand-muted font-bold">Suggested:</span>
-                      <button
-                        type="button"
-                        onClick={() => handleQuickApply('GIRLY10')}
-                        className="px-2.5 py-1 bg-white hover:bg-[#fffeea] border border-[#EAE6DB] rounded-lg text-[10px] font-mono font-bold text-[#967BB6] transition-colors"
-                      >
-                        GIRLY10 (10% OFF)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleQuickApply('WELCOME15')}
-                        className="px-2.5 py-1 bg-white hover:bg-[#fffeea] border border-[#EAE6DB] rounded-lg text-[10px] font-mono font-bold text-[#967BB6] transition-colors"
-                      >
-                        WELCOME15 (15% OFF)
-                      </button>
-                    </div>
+                    {/* Quick suggestion chips (Only coupons enabled with Show in list by Admin) */}
+                    {suggestedCoupons.length > 0 && (
+                      <div className="flex items-center gap-2 pt-2 flex-wrap">
+                        <span className="text-[10px] text-brand-muted font-bold">Suggested:</span>
+                        {suggestedCoupons.map((cp) => (
+                          <button
+                            key={cp.id}
+                            type="button"
+                            onClick={() => handleQuickApply(cp.code)}
+                            className="px-2.5 py-1 bg-white hover:bg-[#fffeea] border border-[#EAE6DB] hover:border-[#967BB6] rounded-lg text-[10px] font-mono font-bold text-[#967BB6] transition-colors cursor-pointer shadow-2xs"
+                          >
+                            {cp.code} ({cp.discount.includes('Discount') || cp.discount.includes('OFF') ? cp.discount : `${cp.discount} OFF`})
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

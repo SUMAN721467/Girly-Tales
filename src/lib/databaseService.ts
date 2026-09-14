@@ -257,6 +257,8 @@ export interface RealCoupon {
   usedCount: number;
   status: 'Active' | 'Inactive';
   expires: string;
+  showInList?: boolean;
+  usageLimit?: number | null;
 }
 
 export interface CustomerPurchasedProduct {
@@ -1714,16 +1716,33 @@ export const DatabaseService = {
       }
 
       if (Array.isArray(rawData)) {
-        const mapped: RealCoupon[] = rawData.map((d: any) => ({
-          id: d.id,
-          code: d.code,
-          discount: d.discount,
-          description: d.description || '',
-          minSpend: Number(d.min_spend ?? d.minSpend ?? 0),
-          usedCount: Number(d.used_count ?? d.usedCount ?? 0),
-          status: d.status || 'Active',
-          expires: d.expires || '2026-12-31',
-        }));
+        const mapped: RealCoupon[] = rawData.map((d: any) => {
+          let showInList = false;
+          let usageLimit: number | null = null;
+          let cleanDesc = d.description || '';
+
+          if (cleanDesc && typeof cleanDesc === 'string' && cleanDesc.startsWith('{') && cleanDesc.endsWith('}')) {
+            try {
+              const meta = JSON.parse(cleanDesc);
+              showInList = Boolean(meta.showInList);
+              usageLimit = meta.usageLimit !== undefined ? meta.usageLimit : null;
+              cleanDesc = meta.desc || '';
+            } catch (e) {}
+          }
+
+          return {
+            id: d.id,
+            code: d.code,
+            discount: d.discount,
+            description: cleanDesc,
+            minSpend: Number(d.min_spend ?? d.minSpend ?? 0),
+            usedCount: Number(d.used_count ?? d.usedCount ?? 0),
+            status: d.status || 'Active',
+            expires: d.expires || '2026-12-31',
+            showInList,
+            usageLimit,
+          };
+        });
         inMemoryCoupons = mapped;
         return mapped;
       }
@@ -1737,11 +1756,18 @@ export const DatabaseService = {
 
   async addCoupon(coupon: RealCoupon): Promise<void> {
     const client = requireSupabase();
+
+    const serializedDesc = JSON.stringify({
+      desc: coupon.description || '',
+      showInList: Boolean(coupon.showInList),
+      usageLimit: coupon.usageLimit !== undefined ? coupon.usageLimit : null,
+    });
+
     const payload = {
       id: coupon.id,
       code: coupon.code.toUpperCase().trim(),
       discount: coupon.discount,
-      description: coupon.description,
+      description: serializedDesc,
       min_spend: coupon.minSpend,
       used_count: coupon.usedCount,
       status: coupon.status,
@@ -1766,6 +1792,61 @@ export const DatabaseService = {
     }
 
     inMemoryCoupons = [coupon, ...inMemoryCoupons.filter((c) => c.id !== coupon.id)];
+    notifyDatabaseChange('coupons');
+  },
+
+  async updateCoupon(id: string, updates: Partial<RealCoupon>): Promise<void> {
+    const existing = inMemoryCoupons.find((c) => c.id === id);
+    const updated: RealCoupon = {
+      ...(existing || {
+        id,
+        code: '',
+        discount: '10% OFF',
+        description: '',
+        minSpend: 0,
+        usedCount: 0,
+        status: 'Active',
+        expires: '2026-12-31',
+      }),
+      ...updates,
+    };
+
+    const serializedDesc = JSON.stringify({
+      desc: updated.description || '',
+      showInList: Boolean(updated.showInList),
+      usageLimit: updated.usageLimit !== undefined ? updated.usageLimit : null,
+    });
+
+    const payload: any = {
+      description: serializedDesc,
+    };
+    if (updates.code) payload.code = updates.code.toUpperCase().trim();
+    if (updates.discount) payload.discount = updates.discount;
+    if (updates.minSpend !== undefined) payload.min_spend = updates.minSpend;
+    if (updates.usedCount !== undefined) payload.used_count = updates.usedCount;
+    if (updates.status) payload.status = updates.status;
+    if (updates.expires) payload.expires = updates.expires;
+
+    if (isSupabaseConfigured) {
+      const client = requireSupabase();
+      let updateError: any = null;
+      try {
+        const { error } = await client.from('coupons').update(payload).eq('id', id);
+        updateError = error;
+      } catch (err) {
+        updateError = err;
+      }
+
+      if (updateError) {
+        const ok = await supabaseRestMutation('coupons', 'PATCH', `id=eq.${encodeURIComponent(id)}`, payload);
+        if (!ok) {
+          console.error('Supabase updateCoupon failed:', updateError);
+          throw new Error(`Failed to update coupon in database: ${formatQueryError(updateError)}`);
+        }
+      }
+    }
+
+    inMemoryCoupons = inMemoryCoupons.map((c) => (c.id === id ? updated : c));
     notifyDatabaseChange('coupons');
   },
 
@@ -1812,15 +1893,30 @@ export const DatabaseService = {
         const client = requireSupabase();
         const { data } = await client.from('coupons').select('*').ilike('code', cleanCode).maybeSingle();
         if (data) {
+          let showInList = false;
+          let usageLimit: number | null = null;
+          let cleanDesc = data.description || '';
+
+          if (cleanDesc && typeof cleanDesc === 'string' && cleanDesc.startsWith('{') && cleanDesc.endsWith('}')) {
+            try {
+              const meta = JSON.parse(cleanDesc);
+              showInList = Boolean(meta.showInList);
+              usageLimit = meta.usageLimit !== undefined ? meta.usageLimit : null;
+              cleanDesc = meta.desc || '';
+            } catch (e) {}
+          }
+
           coupon = {
             id: data.id,
             code: data.code,
             discount: data.discount,
-            description: data.description || '',
+            description: cleanDesc,
             minSpend: Number(data.min_spend ?? 0),
             usedCount: Number(data.used_count ?? 0),
             status: data.status || 'Active',
             expires: data.expires || '2026-12-31',
+            showInList,
+            usageLimit,
           };
         }
       } catch (e) {}
@@ -1832,6 +1928,14 @@ export const DatabaseService = {
 
     if (coupon.status !== 'Active') {
       return { valid: false, discountAmount: 0, message: `Coupon "${coupon.code}" is no longer active.` };
+    }
+
+    if (coupon.usageLimit !== undefined && coupon.usageLimit !== null && coupon.usedCount >= coupon.usageLimit) {
+      return {
+        valid: false,
+        discountAmount: 0,
+        message: `Coupon "${coupon.code}" has reached its maximum usage limit.`,
+      };
     }
 
     if (coupon.expires && coupon.expires !== 'Unlimited') {
@@ -2714,5 +2818,16 @@ export const DatabaseService = {
       storageBucket: storageStatus,
       tables: tableResults,
     };
+  },
+
+  subscribeToChanges(type: string, callback: () => void): () => void {
+    if (typeof window === 'undefined') return () => {};
+    const handler = (e: any) => {
+      if (!e.detail?.type || e.detail.type === type || e.detail.type === 'all') {
+        callback();
+      }
+    };
+    window.addEventListener('gt_db_sync', handler);
+    return () => window.removeEventListener('gt_db_sync', handler);
   },
 };
