@@ -3,6 +3,11 @@ import { Product } from '../types/product';
 import { MOCK_PRODUCTS } from '../data/products';
 import { CartService } from './cartService';
 import { EmailService } from './emailService';
+import banner1 from '../assets/banner1.png';
+import banner2 from '../assets/banner2.png';
+import banner3 from '../assets/banner3.png';
+import slide1 from '../assets/slide1.jpg';
+import slide2 from '../assets/slide2.jpg';
 
 export const formatQueryError = (err: any): string => {
   if (!err) return 'Empty error response';
@@ -146,7 +151,7 @@ if (typeof window !== 'undefined') {
 
 // Global live sync broadcaster for real-time reactivity across components
 export const notifyDatabaseChange = (
-  type: 'categories' | 'products' | 'orders' | 'reviews' | 'testimonials' | 'coupons' | 'cart' | 'wishlist' | 'settings' | 'promotions' | 'shipping' | 'faqs' | 'all'
+  type: 'categories' | 'products' | 'orders' | 'reviews' | 'testimonials' | 'coupons' | 'cart' | 'wishlist' | 'settings' | 'promotions' | 'shipping' | 'faqs' | 'homepage' | 'all'
 ) => {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('gt_db_sync', { detail: { type } }));
@@ -395,6 +400,245 @@ export interface StoreSettings {
   heroSubtext: string;
 }
 
+export interface HomeBanner {
+  id: string;
+  image: string;
+  alt: string;
+  category: string; // 'all' | 'nightwear' | 'jewellery' | or category slug
+  title?: string;
+  subtitle?: string;
+  active: boolean;
+  orderIndex: number;
+}
+
+export interface HomeCategoryCard {
+  id: string;
+  name: string;
+  tagline: string;
+  image: string;
+  category: string;
+  ctaText: string;
+  orderIndex: number;
+  active: boolean;
+}
+
+export interface HomeInfluencerReel {
+  id: string;
+  image: string;
+  tagText: string;
+  subTag: string;
+  views: string;
+  productId: string;
+  orderIndex: number;
+  active: boolean;
+}
+
+export interface HomeValueProp {
+  id: string;
+  icon: string;
+  title: string;
+  description: string;
+}
+
+export interface HomepageConfig {
+  // 1. Top Announcement Bar
+  announcementText: string;
+  announcementActive: boolean;
+
+  // 2. Hero Banners Carousel
+  heroBanners: HomeBanner[];
+  bannerAutoplaySeconds: number;
+
+  // 3. Continuous Marquee
+  marqueePhrases: string[];
+
+  // 4. Shop By Category
+  categorySectionTitle: string;
+  categoryCards: HomeCategoryCard[];
+
+  // 5. Trending Section
+  trendingTitle: string;
+  trendingCtaText: string;
+
+  // 6. Influencer-Approved Comfort Reels
+  influencerTitle: string;
+  influencerSubtitle: string;
+  influencerReels: HomeInfluencerReel[];
+
+  // 7. Value Propositions
+  valueProps: HomeValueProp[];
+}
+
+export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
+  announcementText: '✦ BUY 3 SETS FOR ₹2,999 ✦ FREE 18K GOLD POLISH GUARANTEE ✦ FREE SHIPPING ON ORDERS OVER ₹999 ✦',
+  announcementActive: true,
+  heroBanners: [
+    {
+      id: 'b1',
+      image: banner1,
+      alt: 'Girly Tales Launch Offer',
+      category: 'all',
+      title: 'Everyday Luxury',
+      subtitle: 'Pure Cotton & 18K Anti-Tarnish',
+      active: true,
+      orderIndex: 0,
+    },
+    {
+      id: 'b2',
+      image: banner2,
+      alt: 'Girly Tales Nightwear & Jewellery Collection',
+      category: 'nightwear',
+      title: 'Mulberry Silk & Cotton',
+      subtitle: 'Cloud-Soft Sleepwear Sets',
+      active: true,
+      orderIndex: 1,
+    },
+    {
+      id: 'b3',
+      image: banner3,
+      alt: 'Girly Tales 18K Anti-Tarnish Jewels',
+      category: 'jewellery',
+      title: '18K Anti-Tarnish Jewels',
+      subtitle: 'Waterproof & Shower-Safe',
+      active: true,
+      orderIndex: 2,
+    },
+  ],
+  bannerAutoplaySeconds: 2,
+  marqueePhrases: [
+    'SLEEP INTO COMFORT',
+    'SWEET DREAMS START HERE',
+    '100% PURE BREATHABLE COTTON',
+    '18K ANTI-TARNISH GOLD JEWELS',
+    'EXPRESS PAN-INDIA DISPATCH',
+  ],
+  categorySectionTitle: 'THE ESSENTIALS',
+  categoryCards: [
+    {
+      id: 'cat-jewellery',
+      name: 'JEWELLERY',
+      tagline: 'Waterproof, Shower-Safe & Hypoallergenic',
+      image: slide2,
+      category: 'jewellery',
+      ctaText: 'SHOP JEWELLERY',
+      orderIndex: 0,
+      active: true,
+    },
+    {
+      id: 'cat-nightwear',
+      name: 'NIGHTWEAR',
+      tagline: 'Cloud-Soft Luxury Living',
+      image: slide1,
+      category: 'nightwear',
+      ctaText: 'SHOP NIGHTWEAR',
+      orderIndex: 1,
+      active: true,
+    },
+    {
+      id: 'cat-hair-accessories',
+      name: 'HAIR ACCESSORIES',
+      tagline: 'Cloud-Soft Luxury Living',
+      image: slide2,
+      category: 'hair-accessories',
+      ctaText: 'SHOP HAIR ACCESSORIES',
+      orderIndex: 2,
+      active: true,
+    },
+    {
+      id: 'cat-daily',
+      name: 'DAILY ESSENTIALS',
+      tagline: 'Cloud-Soft Luxury Living',
+      image: slide1,
+      category: 'daily-essentials',
+      ctaText: 'SHOP ESSENTIALS',
+      orderIndex: 3,
+      active: true,
+    },
+    {
+      id: 'cat-anti-tarnish',
+      name: '100% ANTI-TARNISH',
+      tagline: 'Cloud-Soft Luxury Living',
+      image: slide1,
+      category: '100-anti-tarnish',
+      ctaText: 'SHOP ANTI-TARNISH',
+      orderIndex: 4,
+      active: true,
+    },
+  ],
+  trendingTitle: 'TRENDING THIS SEASON',
+  trendingCtaText: 'SHOP ALL TRENDING',
+  influencerTitle: 'Influencer-Approved Comfort',
+  influencerSubtitle: 'Discover how influencers style our nightwear & jewellery and shop their curated picks.',
+  influencerReels: [
+    {
+      id: 'inf-1',
+      image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=600&q=80',
+      tagText: 'Cute & comfy',
+      subTag: "PJ's ft. Girly Tales",
+      views: '8.4k',
+      productId: '',
+      orderIndex: 0,
+      active: true,
+    },
+    {
+      id: 'inf-2',
+      image: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=600&q=80',
+      tagText: 'Pinteresty',
+      subTag: '18K Jewels ✨',
+      views: '12.1k',
+      productId: '',
+      orderIndex: 1,
+      active: true,
+    },
+    {
+      id: 'inf-3',
+      image: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&w=600&q=80',
+      tagText: 'Cloud-soft',
+      subTag: 'Cotton Pyjamas',
+      views: '6.5k',
+      productId: '',
+      orderIndex: 2,
+      active: true,
+    },
+    {
+      id: 'inf-4',
+      image: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=600&q=80',
+      tagText: '100% Waterproof',
+      subTag: 'Never Green Skin 💧',
+      views: '15.2k',
+      productId: '',
+      orderIndex: 3,
+      active: true,
+    },
+  ],
+  valueProps: [
+    {
+      id: 'vp-1',
+      icon: '✨',
+      title: '100% Anti-Tarnish',
+      description: 'Real 18K Gold Vacuum Plating',
+    },
+    {
+      id: 'vp-2',
+      icon: '🌿',
+      title: 'Pure Breathable Cotton',
+      description: 'Soft, airy & gentle on skin',
+    },
+    {
+      id: 'vp-3',
+      icon: '📦',
+      title: 'Fast Pan-India Delivery',
+      description: 'Express 24h dispatch',
+    },
+    {
+      id: 'vp-4',
+      icon: '💕',
+      title: 'Designed For Her',
+      description: 'Effortless everyday fit',
+    },
+  ],
+};
+
 export const SEED_CATEGORIES: RealCategory[] = [
   { id: 'cat-1', name: 'Nightwear & Pyjamas', slug: 'nightwear', isActive: true, orderIndex: 0 },
   { id: 'cat-2', name: '18K Anti-Tarnish Jewels', slug: 'jewellery', isActive: true, orderIndex: 1 },
@@ -418,6 +662,7 @@ let inMemoryReviews: RealReview[] = [];
 let inMemoryTestimonials: RealTestimonial[] = [];
 let inMemoryCoupons: RealCoupon[] = [];
 let inMemoryStoreSettings: StoreSettings | null = null;
+let inMemoryHomepageConfig: HomepageConfig | null = null;
 let inMemoryPromotions: PromotionItem[] = [];
 let inMemoryShippingRules: ShippingRules | null = null;
 let inMemoryFaqs: FAQItem[] = [];
@@ -429,6 +674,7 @@ const ORDERS_CACHE_KEY = 'gt_cached_orders_v3';
 const COUPONS_CACHE_KEY = 'gt_cached_coupons_v3';
 const REVIEWS_CACHE_KEY = 'gt_cached_reviews_v3';
 const TESTIMONIALS_CACHE_KEY = 'gt_cached_testimonials_v2';
+const HOMEPAGE_CACHE_KEY = 'gt_cached_homepage_v2';
 
 export const DEFAULT_TESTIMONIALS: RealTestimonial[] = [
   {
@@ -604,6 +850,13 @@ try {
         if (Array.isArray(parsed)) inMemoryTestimonials = parsed;
       } catch {}
     }
+    const savedHomepage = localStorage.getItem(HOMEPAGE_CACHE_KEY);
+    if (savedHomepage) {
+      try {
+        const parsed = JSON.parse(savedHomepage);
+        if (parsed && typeof parsed === 'object') inMemoryHomepageConfig = parsed;
+      } catch {}
+    }
   }
 } catch (e) {}
 
@@ -612,11 +865,13 @@ let activeCategoriesPromise: Promise<RealCategory[]> | null = null;
 let activeOrdersPromise: Promise<RealOrder[]> | null = null;
 let activeCouponsPromise: Promise<RealCoupon[]> | null = null;
 let activeTestimonialsPromise: Promise<RealTestimonial[]> | null = null;
+let activeHomepagePromise: Promise<HomepageConfig> | null = null;
 let lastProductsFetchTime = 0;
 let lastCategoriesFetchTime = 0;
 let lastOrdersFetchTime = 0;
 let lastCouponsFetchTime = 0;
 let lastTestimonialsFetchTime = 0;
+let lastHomepageFetchTime = 0;
 
 export function mapRawOrder(d: any): RealOrder {
   const cleanId = String(d.id || d.order_id || '').trim();
@@ -3289,6 +3544,152 @@ export const DatabaseService = {
     inMemoryStoreSettings = settings;
     notifyDatabaseChange('settings');
     return settings;
+  },
+
+  getCachedHomepageConfig(): HomepageConfig {
+    if (inMemoryHomepageConfig) return inMemoryHomepageConfig;
+    try {
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem(HOMEPAGE_CACHE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === 'object') {
+            inMemoryHomepageConfig = { ...DEFAULT_HOMEPAGE_CONFIG, ...parsed };
+            return inMemoryHomepageConfig;
+          }
+        }
+      }
+    } catch {}
+    return DEFAULT_HOMEPAGE_CONFIG;
+  },
+
+  async getHomepageConfig(forceFresh = false): Promise<HomepageConfig> {
+    const defaultCfg = this.getCachedHomepageConfig();
+    if (!isSupabaseConfigured) return defaultCfg;
+
+    const now = Date.now();
+    if (inMemoryHomepageConfig && now - lastHomepageFetchTime < 30000 && !forceFresh) {
+      return inMemoryHomepageConfig;
+    }
+
+    if (activeHomepagePromise && !forceFresh) {
+      return activeHomepagePromise;
+    }
+
+    if (inMemoryHomepageConfig && !forceFresh) {
+      this.fetchFreshHomepageConfig().catch(() => {});
+      return inMemoryHomepageConfig;
+    }
+
+    return this.fetchFreshHomepageConfig();
+  },
+
+  async fetchFreshHomepageConfig(): Promise<HomepageConfig> {
+    if (activeHomepagePromise) return activeHomepagePromise;
+
+    activeHomepagePromise = (async () => {
+      try {
+        const client = requireSupabase();
+        let rawData: any = null;
+
+        try {
+          const { data, error } = await withTimeout(
+            client.from('store_settings').select('*').eq('key', 'homepage_config').maybeSingle(),
+            4000,
+            { data: null, error: null }
+          );
+          if (!error && data?.value) {
+            rawData = data.value;
+          }
+        } catch {}
+
+        if (!rawData) {
+          try {
+            const rest = await fetchSupabaseRestFallback<any[]>('store_settings?select=*&key=eq.homepage_config');
+            if (Array.isArray(rest) && rest.length > 0 && rest[0]?.value) {
+              rawData = rest[0].value;
+            }
+          } catch {}
+        }
+
+        if (rawData && typeof rawData === 'object') {
+          const merged: HomepageConfig = {
+            announcementText: rawData.announcementText ?? DEFAULT_HOMEPAGE_CONFIG.announcementText,
+            announcementActive: rawData.announcementActive ?? DEFAULT_HOMEPAGE_CONFIG.announcementActive,
+            heroBanners: Array.isArray(rawData.heroBanners) && rawData.heroBanners.length > 0 ? rawData.heroBanners : DEFAULT_HOMEPAGE_CONFIG.heroBanners,
+            bannerAutoplaySeconds: Number(rawData.bannerAutoplaySeconds) || DEFAULT_HOMEPAGE_CONFIG.bannerAutoplaySeconds,
+            marqueePhrases: Array.isArray(rawData.marqueePhrases) && rawData.marqueePhrases.length > 0 ? rawData.marqueePhrases : DEFAULT_HOMEPAGE_CONFIG.marqueePhrases,
+            categorySectionTitle: rawData.categorySectionTitle || DEFAULT_HOMEPAGE_CONFIG.categorySectionTitle,
+            categoryCards: Array.isArray(rawData.categoryCards) && rawData.categoryCards.length > 0 ? rawData.categoryCards : DEFAULT_HOMEPAGE_CONFIG.categoryCards,
+            trendingTitle: rawData.trendingTitle || DEFAULT_HOMEPAGE_CONFIG.trendingTitle,
+            trendingCtaText: rawData.trendingCtaText || DEFAULT_HOMEPAGE_CONFIG.trendingCtaText,
+            influencerTitle: rawData.influencerTitle || DEFAULT_HOMEPAGE_CONFIG.influencerTitle,
+            influencerSubtitle: rawData.influencerSubtitle || DEFAULT_HOMEPAGE_CONFIG.influencerSubtitle,
+            influencerReels: Array.isArray(rawData.influencerReels) && rawData.influencerReels.length > 0 ? rawData.influencerReels : DEFAULT_HOMEPAGE_CONFIG.influencerReels,
+            valueProps: Array.isArray(rawData.valueProps) && rawData.valueProps.length > 0 ? rawData.valueProps : DEFAULT_HOMEPAGE_CONFIG.valueProps,
+          };
+
+          inMemoryHomepageConfig = merged;
+          lastHomepageFetchTime = Date.now();
+          try {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(HOMEPAGE_CACHE_KEY, JSON.stringify(merged));
+            }
+          } catch {}
+          return merged;
+        }
+
+        return inMemoryHomepageConfig || DEFAULT_HOMEPAGE_CONFIG;
+      } catch (e) {
+        console.warn('fetchFreshHomepageConfig note:', e);
+        return inMemoryHomepageConfig || DEFAULT_HOMEPAGE_CONFIG;
+      } finally {
+        activeHomepagePromise = null;
+      }
+    })();
+
+    return activeHomepagePromise;
+  },
+
+  async updateHomepageConfig(config: HomepageConfig): Promise<HomepageConfig> {
+    const client = requireSupabase();
+    const payload = {
+      key: 'homepage_config',
+      value: config,
+      updated_at: new Date().toISOString(),
+    };
+
+    let saveError: any = null;
+    try {
+      const { error } = await client.from('store_settings').upsert(payload, { onConflict: 'key' });
+      saveError = error;
+    } catch (err) {
+      saveError = err;
+    }
+
+    if (saveError) {
+      const ok = await supabaseRestMutation('store_settings', 'POST', 'on_conflict=key', payload);
+      if (!ok) {
+        console.error('Supabase updateHomepageConfig failed:', saveError);
+        throw new Error(`Failed to save homepage settings in database: ${formatQueryError(saveError)}`);
+      }
+    }
+
+    inMemoryHomepageConfig = config;
+    lastHomepageFetchTime = Date.now();
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(HOMEPAGE_CACHE_KEY, JSON.stringify(config));
+      }
+    } catch {}
+
+    notifyDatabaseChange('homepage');
+    notifyDatabaseChange('settings');
+    return config;
+  },
+
+  async resetDefaultHomepageConfig(): Promise<HomepageConfig> {
+    return this.updateHomepageConfig(DEFAULT_HOMEPAGE_CONFIG);
   },
 
   // 7.2 Promotions

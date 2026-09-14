@@ -3,7 +3,7 @@ import {
   Package, ShoppingBag, Users, Layers,
   Search, CheckCircle2, Clock, Truck, 
   ArrowLeft, Eye, Plus, Trash2, Edit3,
-  RefreshCw, X, Check, ArrowUp, ArrowDown,
+  RefreshCw, X, Check, ArrowUp, ArrowDown, RotateCcw,
   Database, Copy, ExternalLink, ShieldCheck, AlertCircle, CheckCircle, Sparkles,
   UploadCloud, Image as ImageIcon, MoveLeft, MoveRight, Star, Loader2,
   MapPin, Send, Mail, Phone, Calendar, MessageSquare,
@@ -33,7 +33,13 @@ import {
   PromotionItem,
   ShippingRules,
   FAQItem,
-  StoreSettings
+  StoreSettings,
+  HomepageConfig,
+  HomeBanner,
+  HomeCategoryCard,
+  HomeInfluencerReel,
+  HomeValueProp,
+  DEFAULT_HOMEPAGE_CONFIG
 } from '../lib/databaseService';
 import { supabase, isSupabaseConfigured, testSupabaseConnection, SupabaseConnectivityStatus, normalizeStorageUrl } from '../lib/supabase';
 import { SUPABASE_SCHEMA_SQL } from '../lib/supabaseSchemaSql';
@@ -269,11 +275,56 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   });
   const [isAddingCoupon, setIsAddingCoupon] = useState(false);
 
-  // Homepage Settings State
+  // Homepage Settings State (Legacy & Rich HomepageConfig)
   const [announcementText, setAnnouncementText] = useState('✦ BUY 3 SETS FOR ₹2,999 ✦ FREE 18K GOLD POLISH GUARANTEE ✦ FREE SHIPPING ON ORDERS OVER ₹999 ✦');
   const [heroHeadline, setHeroHeadline] = useState('EVERYDAY LUXURY NIGHTWEAR & 18K JEWELS');
   const [heroSubtext, setHeroSubtext] = useState('Indulge in feather-soft Mulberry Silk & 18K Anti-Tarnish jewellery crafted for graceful everyday living.');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+  // Complete Homepage Visual Content Editor State
+  const [homepageConfig, setHomepageConfig] = useState<HomepageConfig>(() => DatabaseService.getCachedHomepageConfig());
+  const [activeHomeSubTab, setActiveHomeSubTab] = useState<'banners' | 'categories' | 'marquee' | 'reels' | 'features'>('banners');
+  const [isSavingHomepage, setIsSavingHomepage] = useState(false);
+  const [isUploadingBannerImg, setIsUploadingBannerImg] = useState(false);
+  const [isUploadingCatCardImg, setIsUploadingCatCardImg] = useState<string | null>(null);
+  const [isUploadingReelImg, setIsUploadingReelImg] = useState<string | null>(null);
+  const [newMarqueeInput, setNewMarqueeInput] = useState('');
+
+  // Banner Modal State
+  const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
+  const [editingBannerId, setEditingBannerId] = useState<string | null>(null);
+  const [bannerForm, setBannerForm] = useState<HomeBanner>({
+    id: '',
+    image: '',
+    alt: 'Girly Tales Exclusive',
+    category: 'all',
+    title: '',
+    subtitle: '',
+    active: true,
+    orderIndex: 0,
+  });
+
+  // Reel Modal State
+  const [isReelModalOpen, setIsReelModalOpen] = useState(false);
+  const [editingReelId, setEditingReelId] = useState<string | null>(null);
+  const [reelForm, setReelForm] = useState<HomeInfluencerReel>({
+    id: '',
+    image: '',
+    tagText: 'Cute & comfy',
+    subTag: "PJ's ft. Girly Tales",
+    views: '10.5k',
+    productId: '',
+    orderIndex: 0,
+    active: true,
+  });
+
+  const bannerFileInputRef = useRef<HTMLInputElement>(null);
+  const bannerModalFileInputRef = useRef<HTMLInputElement>(null);
+  const catCardFileInputRef = useRef<HTMLInputElement>(null);
+  const reelFileInputRef = useRef<HTMLInputElement>(null);
+  const [activeReplacingBannerId, setActiveReplacingBannerId] = useState<string | null>(null);
+  const [uploadingTargetCardId, setUploadingTargetCardId] = useState<string | null>(null);
+  const [uploadingTargetReelId, setUploadingTargetReelId] = useState<string | null>(null);
 
   // Promotions State
   const [promotions, setPromotions] = useState<PromotionItem[]>([
@@ -315,7 +366,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         settingsResult,
         promosResult,
         shippingResult,
-        faqsResult
+        faqsResult,
+        homepageResult,
       ] = await Promise.allSettled([
         DatabaseService.getOrders(),
         DatabaseService.getProducts(),
@@ -327,6 +379,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         DatabaseService.getPromotions(),
         DatabaseService.getShippingRules(),
         DatabaseService.getFaqs(),
+        DatabaseService.getHomepageConfig(true),
       ]);
 
       const failedTables: string[] = [];
@@ -379,6 +432,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         setAnnouncementText(settingsResult.value.announcementText);
         setHeroHeadline(settingsResult.value.heroHeadline);
         setHeroSubtext(settingsResult.value.heroSubtext);
+      }
+
+      if (homepageResult.status === 'fulfilled' && homepageResult.value) {
+        setHomepageConfig(homepageResult.value);
+        if (homepageResult.value.announcementText) {
+          setAnnouncementText(homepageResult.value.announcementText);
+        }
       }
 
       if (promosResult.status === 'fulfilled' && promosResult.value && promosResult.value.length > 0) {
@@ -871,6 +931,260 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   }, [selectedCustomerDetail]);
 
 
+
+  // ==================== HOMEPAGE VISUAL CONTENT EDITOR HANDLERS ====================
+  const handleSaveHomepageConfig = async () => {
+    setIsSavingHomepage(true);
+    try {
+      const saved = await DatabaseService.updateHomepageConfig(homepageConfig);
+      setHomepageConfig(saved);
+      triggerToast('Homepage Saved! ✨', 'All changes published live to store homepage.', undefined, 'success');
+    } catch (err: any) {
+      triggerToast('Save Failed', err?.message || 'Could not save homepage changes.', undefined, 'error');
+    } finally {
+      setIsSavingHomepage(false);
+    }
+  };
+
+  const handleResetHomepageConfig = () => {
+    setDeleteConfirmInput('');
+    setDeleteTarget({
+      type: 'Homepage Configuration',
+      name: 'All Homepage Content',
+      description: 'This will reset all banners, category slider cards, marquee phrases, and influencer reels back to the original store design.',
+      onConfirm: async () => {
+        setIsDeletingItem(true);
+        try {
+          const resetCfg = await DatabaseService.resetDefaultHomepageConfig();
+          setHomepageConfig(resetCfg);
+          triggerToast('Homepage Reset ✦', 'Restored default homepage content.', undefined, 'success');
+        } catch (err: any) {
+          triggerToast('Reset Failed', err?.message || 'Could not reset homepage.', undefined, 'error');
+        } finally {
+          setIsDeletingItem(false);
+        }
+      },
+    });
+  };
+
+  const handleUploadBannerImage = async (e: React.ChangeEvent<HTMLInputElement>, bannerId?: string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingBannerImg(true);
+    try {
+      const url = await DatabaseService.uploadProductImage(file);
+      if (url) {
+        if (bannerId) {
+          setHomepageConfig((prev) => ({
+            ...prev,
+            heroBanners: prev.heroBanners.map((b) => (b.id === bannerId ? { ...b, image: url } : b)),
+          }));
+          triggerToast('Banner Image Updated! 📸', 'Click "Save Homepage Changes" to publish.', undefined, 'success');
+        } else {
+          setBannerForm((prev) => ({ ...prev, image: url }));
+          triggerToast('Banner Uploaded! 📸', 'Ready to save.', undefined, 'success');
+        }
+      }
+    } catch (err: any) {
+      triggerToast('Upload Failed', err?.message || 'Could not upload banner.', undefined, 'error');
+    } finally {
+      setIsUploadingBannerImg(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleUploadCatCardImage = async (e: React.ChangeEvent<HTMLInputElement>, cardId: string) => {
+    const file = e.target.files?.[0];
+    if (!file || !cardId) return;
+
+    setIsUploadingCatCardImg(cardId);
+    try {
+      const url = await DatabaseService.uploadProductImage(file);
+      if (url) {
+        setHomepageConfig((prev) => ({
+          ...prev,
+          categoryCards: prev.categoryCards.map((c) => (c.id === cardId ? { ...c, image: url } : c)),
+        }));
+        triggerToast('Category Image Updated! 🖼️', 'Card image set. Remember to click "Save Homepage Changes".', undefined, 'success');
+      }
+    } catch (err: any) {
+      triggerToast('Upload Failed', err?.message || 'Could not upload image.', undefined, 'error');
+    } finally {
+      setIsUploadingCatCardImg(null);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleUploadReelImage = async (e: React.ChangeEvent<HTMLInputElement>, reelId?: string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (reelId) setIsUploadingReelImg(reelId);
+    try {
+      const url = await DatabaseService.uploadProductImage(file);
+      if (url) {
+        if (reelId) {
+          setHomepageConfig((prev) => ({
+            ...prev,
+            influencerReels: prev.influencerReels.map((r) => (r.id === reelId ? { ...r, image: url } : r)),
+          }));
+          triggerToast('Reel Poster Updated! 🎬', 'Image replaced.', undefined, 'success');
+        } else {
+          setReelForm((prev) => ({ ...prev, image: url }));
+          triggerToast('Reel Photo Uploaded! 🎬', 'Ready to save.', undefined, 'success');
+        }
+      }
+    } catch (err: any) {
+      triggerToast('Upload Failed', err?.message || 'Could not upload image.', undefined, 'error');
+    } finally {
+      setIsUploadingReelImg(null);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleMoveBanner = (index: number, direction: 'left' | 'right') => {
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= homepageConfig.heroBanners.length) return;
+
+    const list = [...homepageConfig.heroBanners];
+    const temp = list[index];
+    list[index] = list[targetIndex];
+    list[targetIndex] = temp;
+    list.forEach((b, i) => (b.orderIndex = i));
+    setHomepageConfig((prev) => ({ ...prev, heroBanners: list }));
+  };
+
+  const handleToggleBannerActive = (id: string) => {
+    setHomepageConfig((prev) => ({
+      ...prev,
+      heroBanners: prev.heroBanners.map((b) => (b.id === id ? { ...b, active: !b.active } : b)),
+    }));
+  };
+
+  const handleDeleteBanner = (id: string) => {
+    setHomepageConfig((prev) => ({
+      ...prev,
+      heroBanners: prev.heroBanners.filter((b) => b.id !== id),
+    }));
+    triggerToast('Banner Removed', 'Slide deleted from carousel.', undefined, 'info');
+  };
+
+  const handleOpenAddBanner = () => {
+    setEditingBannerId(null);
+    setBannerForm({
+      id: `b-${Date.now()}`,
+      image: '',
+      alt: 'Girly Tales Exclusive Offer',
+      category: 'all',
+      title: '',
+      subtitle: '',
+      active: true,
+      orderIndex: homepageConfig.heroBanners.length,
+    });
+    setIsBannerModalOpen(true);
+  };
+
+  const handleSaveBannerModal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bannerForm.image.trim()) {
+      triggerToast('Image Required', 'Please upload or paste an image URL for the banner.', undefined, 'error');
+      return;
+    }
+
+    if (editingBannerId) {
+      setHomepageConfig((prev) => ({
+        ...prev,
+        heroBanners: prev.heroBanners.map((b) => (b.id === editingBannerId ? { ...bannerForm } : b)),
+      }));
+      triggerToast('Banner Updated', 'Updated in carousel preview.', undefined, 'success');
+    } else {
+      const newBanner: HomeBanner = {
+        ...bannerForm,
+        id: bannerForm.id || `b-${Date.now()}`,
+        orderIndex: homepageConfig.heroBanners.length,
+      };
+      setHomepageConfig((prev) => ({
+        ...prev,
+        heroBanners: [...prev.heroBanners, newBanner],
+      }));
+      triggerToast('Banner Added', 'New slide added to carousel.', undefined, 'success');
+    }
+    setIsBannerModalOpen(false);
+  };
+
+  const handleAddMarqueePhrase = () => {
+    const trimmed = newMarqueeInput.trim().toUpperCase();
+    if (!trimmed) return;
+    if (homepageConfig.marqueePhrases.includes(trimmed)) {
+      triggerToast('Phrase Exists', 'This phrase is already in the ticker.', undefined, 'info');
+      return;
+    }
+    setHomepageConfig((prev) => ({
+      ...prev,
+      marqueePhrases: [...prev.marqueePhrases, trimmed],
+    }));
+    setNewMarqueeInput('');
+    triggerToast('Phrase Added', `"${trimmed}" added to marquee ticker.`, undefined, 'success');
+  };
+
+  const handleRemoveMarqueePhrase = (index: number) => {
+    setHomepageConfig((prev) => ({
+      ...prev,
+      marqueePhrases: prev.marqueePhrases.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleOpenAddReel = () => {
+    setEditingReelId(null);
+    setReelForm({
+      id: `reel-${Date.now()}`,
+      image: '',
+      tagText: 'Cute & comfy',
+      subTag: "PJ's ft. Girly Tales",
+      views: '10.5k',
+      productId: productsList[0]?.id || '',
+      orderIndex: homepageConfig.influencerReels.length,
+      active: true,
+    });
+    setIsReelModalOpen(true);
+  };
+
+  const handleSaveReelModal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reelForm.image.trim()) {
+      triggerToast('Image Required', 'Please upload or paste an image URL for the reel.', undefined, 'error');
+      return;
+    }
+
+    if (editingReelId) {
+      setHomepageConfig((prev) => ({
+        ...prev,
+        influencerReels: prev.influencerReels.map((r) => (r.id === editingReelId ? { ...reelForm } : r)),
+      }));
+      triggerToast('Reel Updated', 'Changes saved to reel card.', undefined, 'success');
+    } else {
+      const newReel: HomeInfluencerReel = {
+        ...reelForm,
+        id: reelForm.id || `reel-${Date.now()}`,
+        orderIndex: homepageConfig.influencerReels.length,
+      };
+      setHomepageConfig((prev) => ({
+        ...prev,
+        influencerReels: [...prev.influencerReels, newReel],
+      }));
+      triggerToast('Reel Added', 'Added new influencer reel card.', undefined, 'success');
+    }
+    setIsReelModalOpen(false);
+  };
+
+  const handleDeleteReel = (id: string) => {
+    setHomepageConfig((prev) => ({
+      ...prev,
+      influencerReels: prev.influencerReels.filter((r) => r.id !== id),
+    }));
+    triggerToast('Reel Deleted', 'Removed from homepage.', undefined, 'info');
+  };
 
   const handleSeedCatalog = async () => {
     setIsLoadingData(true);
@@ -5361,61 +5675,1194 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           </div>
         )}
 
-        {/* TAB 6: HOMEPAGE SETTINGS */}
+        {/* TAB 6: HOMEPAGE VISUAL CONTENT MANAGER */}
         {activeTab === 'homepage' && (
-          <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-6 animate-fade-in">
-            <div>
-              <h3 className="font-serif text-xl text-brand-charcoal font-medium">Homepage &amp; Header Banner Settings</h3>
-              <p className="text-xs text-brand-muted">Update live announcement text, headlines, and hero copy.</p>
+          <div className="space-y-6 animate-fade-in">
+            {/* Hidden File Inputs for Direct Local Media Upload to Supabase Storage */}
+            <input
+              ref={bannerFileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/jpg"
+              className="hidden"
+              onChange={(e) => {
+                if (activeReplacingBannerId) {
+                  handleUploadBannerImage(e, activeReplacingBannerId);
+                }
+              }}
+            />
+            <input
+              ref={bannerModalFileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/jpg"
+              className="hidden"
+              onChange={(e) => handleUploadBannerImage(e)}
+            />
+            <input
+              ref={catCardFileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/jpg"
+              className="hidden"
+              onChange={(e) => {
+                if (uploadingTargetCardId) {
+                  handleUploadCatCardImage(e, uploadingTargetCardId);
+                }
+              }}
+            />
+            <input
+              ref={reelFileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/jpg"
+              className="hidden"
+              onChange={(e) => {
+                if (uploadingTargetReelId) {
+                  handleUploadReelImage(e, uploadingTargetReelId);
+                } else {
+                  handleUploadReelImage(e);
+                }
+              }}
+            />
+
+            {/* Top Toolbar: Title & Save / Reset Actions */}
+            <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <h3 className="font-serif text-xl sm:text-2xl text-brand-charcoal font-bold">
+                    Homepage Visual Content Manager
+                  </h3>
+                </div>
+                <p className="text-xs text-brand-muted mt-1">
+                  Change banners, category photos, marquee phrases, headlines, and influencer reels live from here.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleResetHomepageConfig}
+                  className="px-4 py-2.5 bg-[#FAF8F2] hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 border border-[#EAE6DB] text-brand-charcoal text-xs font-bold rounded-2xl transition-all cursor-pointer flex items-center gap-1.5"
+                  title="Reset all sections to initial store design"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset Defaults</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isSavingHomepage}
+                  onClick={handleSaveHomepageConfig}
+                  className="px-6 py-2.5 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-black uppercase tracking-wider rounded-2xl transition-all shadow-sm hover:shadow-md disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                >
+                  {isSavingHomepage ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4" />
+                  )}
+                  <span>{isSavingHomepage ? 'Saving Live...' : 'Save Homepage Changes'}</span>
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-4 max-w-2xl">
-              <div>
-                <label className="block text-xs font-bold uppercase text-brand-charcoal mb-1">
-                  Top Announcement Ticker Bar
-                </label>
-                <input
-                  type="text"
-                  value={announcementText}
-                  onChange={(e) => setAnnouncementText(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs focus:outline-none focus:border-[#967BB6]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase text-brand-charcoal mb-1">
-                  Hero Banner Headline
-                </label>
-                <input
-                  type="text"
-                  value={heroHeadline}
-                  onChange={(e) => setHeroHeadline(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs focus:outline-none focus:border-[#967BB6]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase text-brand-charcoal mb-1">
-                  Hero Sub-headline
-                </label>
-                <textarea
-                  rows={3}
-                  value={heroSubtext}
-                  onChange={(e) => setHeroSubtext(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs focus:outline-none focus:border-[#967BB6]"
-                />
-              </div>
-
-              <button
-                type="button"
-                disabled={isSavingSettings}
-                onClick={handleSaveStoreSettings}
-                className="px-6 py-2.5 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-bold uppercase rounded-2xl transition-all shadow-xs disabled:opacity-50 flex items-center gap-2 cursor-pointer"
-              >
-                {isSavingSettings && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                <span>{isSavingSettings ? 'Saving...' : 'Save Settings'}</span>
-              </button>
+            {/* Sub-Tabs Navigation Bar */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+              {[
+                { id: 'banners', label: `Hero Banners (${homepageConfig.heroBanners.length})`, icon: ImageIcon },
+                { id: 'categories', label: `Category Cards (${homepageConfig.categoryCards.length})`, icon: Layers },
+                { id: 'marquee', label: 'Announcement & Marquee', icon: MessageSquare },
+                { id: 'reels', label: `Influencer Reels (${homepageConfig.influencerReels.length})`, icon: Eye },
+                { id: 'features', label: `Value Propositions (${homepageConfig.valueProps.length})`, icon: ShieldCheck },
+              ].map((sub) => {
+                const Icon = sub.icon;
+                const isActive = activeHomeSubTab === sub.id;
+                return (
+                  <button
+                    key={sub.id}
+                    onClick={() => setActiveHomeSubTab(sub.id as any)}
+                    className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer ${
+                      isActive
+                        ? 'bg-[#1A1821] text-white shadow-xs'
+                        : 'bg-white border border-[#EAE6DB] text-brand-muted hover:text-brand-charcoal hover:bg-[#FAF8F2]'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{sub.label}</span>
+                  </button>
+                );
+              })}
             </div>
+
+            {/* ================= SUB-TAB 1: HERO BANNERS ================= */}
+            {activeHomeSubTab === 'banners' && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h4 className="font-serif text-lg font-bold text-brand-charcoal">Top Hero Carousel Slides</h4>
+                    <p className="text-xs text-brand-muted">
+                      Displayed full-width at the top of the homepage. Reorder slides, upload images to Supabase, and assign target category links.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 bg-[#FAF8F2] px-3 py-1.5 rounded-2xl border border-[#EAE6DB]">
+                      <Clock className="w-3.5 h-3.5 text-brand-muted" />
+                      <span className="text-[11px] font-bold text-brand-charcoal">Autoplay:</span>
+                      <select
+                        value={homepageConfig.bannerAutoplaySeconds || 2}
+                        onChange={(e) =>
+                          setHomepageConfig((p) => ({ ...p, bannerAutoplaySeconds: Number(e.target.value) }))
+                        }
+                        className="bg-transparent text-xs font-bold text-[#967BB6] focus:outline-none cursor-pointer"
+                      >
+                        <option value={2}>2 seconds</option>
+                        <option value={3}>3 seconds</option>
+                        <option value={4}>4 seconds</option>
+                        <option value={5}>5 seconds</option>
+                      </select>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleOpenAddBanner}
+                      className="px-4 py-2 bg-[#1A1821] hover:bg-[#967BB6] text-white text-xs font-bold rounded-2xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add New Banner</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Banners Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {homepageConfig.heroBanners.map((banner, idx) => (
+                    <div
+                      key={banner.id || idx}
+                      className="bg-white rounded-3xl border border-[#EAE6DB] overflow-hidden shadow-xs flex flex-col justify-between hover:border-[#967BB6]/60 transition-all"
+                    >
+                      {/* Image Preview */}
+                      <div className="relative aspect-[16/9] bg-[#FAF8F2] overflow-hidden border-b border-[#EAE6DB]">
+                        {banner.image ? (
+                          <img
+                            src={banner.image}
+                            alt={banner.alt}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center text-brand-muted text-xs">
+                            <ImageIcon className="w-8 h-8 opacity-30 mb-1" />
+                            <span>No Image Set</span>
+                          </div>
+                        )}
+
+                        <span className="absolute top-3 left-3 bg-black/70 backdrop-blur-xs text-white text-[10px] font-black px-2.5 py-0.5 rounded-full">
+                          SLOT #{idx + 1}
+                        </span>
+
+                        <span
+                          className={`absolute top-3 right-3 text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
+                            banner.active !== false
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              : 'bg-gray-100 text-gray-500 border-gray-200'
+                          }`}
+                        >
+                          {banner.active !== false ? '● Live' : '○ Hidden'}
+                        </span>
+                      </div>
+
+                      {/* Controls Body */}
+                      <div className="p-4 sm:p-5 space-y-3.5">
+                        {/* Quick Replace Image */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-brand-charcoal mb-1">
+                            Banner Image URL or Upload
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={banner.image}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setHomepageConfig((prev) => ({
+                                  ...prev,
+                                  heroBanners: prev.heroBanners.map((b) => (b.id === banner.id ? { ...b, image: val } : b)),
+                                }));
+                              }}
+                              placeholder="https://... or click Upload"
+                              className="flex-1 px-3 py-1.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                            />
+                            <button
+                              type="button"
+                              disabled={isUploadingBannerImg}
+                              onClick={() => {
+                                setActiveReplacingBannerId(banner.id);
+                                if (bannerFileInputRef.current) bannerFileInputRef.current.click();
+                              }}
+                              className="px-3 py-1.5 bg-[#FAF8F2] hover:bg-[#F3EEF9] hover:text-[#967BB6] border border-[#EAE6DB] rounded-xl text-xs font-bold text-brand-charcoal transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+                              title="Upload file directly from computer to Supabase"
+                            >
+                              <UploadCloud className="w-3.5 h-3.5 text-[#967BB6]" />
+                              <span>Upload</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Alt Text & Link */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">
+                              Alt Description
+                            </label>
+                            <input
+                              type="text"
+                              value={banner.alt || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setHomepageConfig((prev) => ({
+                                  ...prev,
+                                  heroBanners: prev.heroBanners.map((b) => (b.id === banner.id ? { ...b, alt: val } : b)),
+                                }));
+                              }}
+                              placeholder="Launch Offer"
+                              className="w-full px-3 py-1.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">
+                              Click Destination
+                            </label>
+                            <select
+                              value={banner.category || 'all'}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setHomepageConfig((prev) => ({
+                                  ...prev,
+                                  heroBanners: prev.heroBanners.map((b) => (b.id === banner.id ? { ...b, category: val } : b)),
+                                }));
+                              }}
+                              className="w-full px-3 py-1.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs focus:bg-white focus:outline-none focus:border-[#967BB6] cursor-pointer"
+                            >
+                              <option value="all">Shop All ('all')</option>
+                              <option value="nightwear">Nightwear ('nightwear')</option>
+                              <option value="jewellery">Jewellery ('jewellery')</option>
+                              {categoriesList
+                                .filter((c) => c.slug !== 'nightwear' && c.slug !== 'jewellery')
+                                .map((c) => (
+                                  <option key={c.id} value={c.slug}>
+                                    {c.name} ('{c.slug}')
+                                  </option>
+                                ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Footer Card Actions */}
+                        <div className="flex items-center justify-between pt-2 border-t border-[#EAE6DB]/70">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={banner.active !== false}
+                              onChange={() => handleToggleBannerActive(banner.id)}
+                              className="rounded text-[#967BB6] focus:ring-[#967BB6] cursor-pointer"
+                            />
+                            <span className="text-xs font-bold text-brand-charcoal">Live on Site</span>
+                          </label>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => handleMoveBanner(idx, 'left')}
+                              className="p-1.5 rounded-lg border border-[#EAE6DB] text-brand-charcoal hover:bg-[#FAF8F2] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                              title="Move Left"
+                            >
+                              <MoveLeft className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === homepageConfig.heroBanners.length - 1}
+                              onClick={() => handleMoveBanner(idx, 'right')}
+                              className="p-1.5 rounded-lg border border-[#EAE6DB] text-brand-charcoal hover:bg-[#FAF8F2] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                              title="Move Right"
+                            >
+                              <MoveRight className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteBanner(banner.id)}
+                              className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Delete Banner"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ================= SUB-TAB 2: CATEGORY CARDS ================= */}
+            {activeHomeSubTab === 'categories' && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h4 className="font-serif text-lg font-bold text-brand-charcoal">"The Essentials - Shop by Category" Cards</h4>
+                    <p className="text-xs text-brand-muted">
+                      Custom images, taglines, and CTA buttons for the 5 interactive category cards right beneath the hero banner.
+                    </p>
+                  </div>
+
+                  <div className="w-full sm:w-72">
+                    <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">
+                      Section Sub-Headline
+                    </label>
+                    <input
+                      type="text"
+                      value={homepageConfig.categorySectionTitle || 'THE ESSENTIALS'}
+                      onChange={(e) => setHomepageConfig((p) => ({ ...p, categorySectionTitle: e.target.value.toUpperCase() }))}
+                      placeholder="THE ESSENTIALS"
+                      className="w-full px-3.5 py-2 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs font-bold text-[#967BB6] focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                    />
+                  </div>
+                </div>
+
+                {/* Category Cards Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {homepageConfig.categoryCards.map((card, idx) => (
+                    <div
+                      key={card.id || idx}
+                      className="bg-white rounded-3xl border border-[#EAE6DB] overflow-hidden shadow-xs flex flex-col justify-between hover:border-[#967BB6]/60 transition-all"
+                    >
+                      {/* Image Preview Box */}
+                      <div className="relative aspect-[4/3] bg-[#FAF8F2] overflow-hidden border-b border-[#EAE6DB] group">
+                        {card.image ? (
+                          <img
+                            src={card.image}
+                            alt={card.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center text-brand-muted text-xs">
+                            <ImageIcon className="w-8 h-8 opacity-30 mb-1" />
+                            <span>No Photo</span>
+                          </div>
+                        )}
+
+                        <span className="absolute top-3 left-3 bg-white/90 backdrop-blur-xs text-[#1A1821] text-[10px] font-black px-2.5 py-0.5 rounded-full border border-gray-200">
+                          CARD #{idx + 1}
+                        </span>
+
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            disabled={isUploadingCatCardImg === card.id}
+                            onClick={() => {
+                              setUploadingTargetCardId(card.id);
+                              if (catCardFileInputRef.current) catCardFileInputRef.current.click();
+                            }}
+                            className="px-3 py-1.5 bg-white text-[#1A1821] hover:bg-[#F3EEF9] hover:text-[#967BB6] rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1 cursor-pointer"
+                          >
+                            <UploadCloud className="w-3.5 h-3.5" />
+                            <span>Upload New Photo</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Fields */}
+                      <div className="p-4 sm:p-5 space-y-3">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">
+                            Card Title (e.g. JEWELLERY)
+                          </label>
+                          <input
+                            type="text"
+                            value={card.name}
+                            onChange={(e) => {
+                              const val = e.target.value.toUpperCase();
+                              setHomepageConfig((prev) => ({
+                                ...prev,
+                                categoryCards: prev.categoryCards.map((c) => (c.id === card.id ? { ...c, name: val } : c)),
+                              }));
+                            }}
+                            className="w-full px-3 py-2 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs font-bold text-brand-charcoal focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">
+                            Tagline Description
+                          </label>
+                          <input
+                            type="text"
+                            value={card.tagline}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setHomepageConfig((prev) => ({
+                                ...prev,
+                                categoryCards: prev.categoryCards.map((c) => (c.id === card.id ? { ...c, tagline: val } : c)),
+                              }));
+                            }}
+                            placeholder="Waterproof, Shower-Safe & Hypoallergenic"
+                            className="w-full px-3 py-2 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs text-brand-charcoal focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">
+                              CTA Button Text
+                            </label>
+                            <input
+                              type="text"
+                              value={card.ctaText}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setHomepageConfig((prev) => ({
+                                  ...prev,
+                                  categoryCards: prev.categoryCards.map((c) => (c.id === card.id ? { ...c, ctaText: val } : c)),
+                                }));
+                              }}
+                              className="w-full px-2.5 py-1.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs font-bold text-brand-charcoal focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">
+                              Link Target
+                            </label>
+                            <select
+                              value={card.category}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setHomepageConfig((prev) => ({
+                                  ...prev,
+                                  categoryCards: prev.categoryCards.map((c) => (c.id === card.id ? { ...c, category: val } : c)),
+                                }));
+                              }}
+                              className="w-full px-2.5 py-1.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs focus:bg-white focus:outline-none focus:border-[#967BB6] cursor-pointer"
+                            >
+                              <option value="jewellery">jewellery</option>
+                              <option value="nightwear">nightwear</option>
+                              <option value="hair-accessories">hair-accessories</option>
+                              <option value="daily-essentials">daily-essentials</option>
+                              <option value="100-anti-tarnish">100-anti-tarnish</option>
+                              {categoriesList.map((c) => (
+                                <option key={c.id} value={c.slug}>
+                                  {c.slug}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Image URL fallback */}
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">
+                            Photo URL (or upload above)
+                          </label>
+                          <input
+                            type="text"
+                            value={card.image}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setHomepageConfig((prev) => ({
+                                ...prev,
+                                categoryCards: prev.categoryCards.map((c) => (c.id === card.id ? { ...c, image: val } : c)),
+                              }));
+                            }}
+                            className="w-full px-3 py-1.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs focus:bg-white focus:outline-none focus:border-[#967BB6] font-mono text-[11px]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ================= SUB-TAB 3: ANNOUNCEMENT & MARQUEE ================= */}
+            {activeHomeSubTab === 'marquee' && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                {/* 1. Header Top Announcement Bar */}
+                <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <h4 className="font-serif text-lg font-bold text-brand-charcoal">Top Announcement Ticker Bar</h4>
+                      <p className="text-xs text-brand-muted">Visible at the very top of all store pages above the header.</p>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer bg-[#FAF8F2] px-3 py-1.5 rounded-xl border border-[#EAE6DB]">
+                      <input
+                        type="checkbox"
+                        checked={homepageConfig.announcementActive !== false}
+                        onChange={(e) => setHomepageConfig((p) => ({ ...p, announcementActive: e.target.checked }))}
+                        className="rounded text-[#967BB6] focus:ring-[#967BB6] cursor-pointer"
+                      />
+                      <span className="text-xs font-bold text-brand-charcoal">Visible</span>
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-brand-charcoal mb-1.5">
+                      Announcement Text Content
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={homepageConfig.announcementText}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setHomepageConfig((p) => ({ ...p, announcementText: val }));
+                        setAnnouncementText(val);
+                      }}
+                      placeholder="✦ BUY 3 SETS FOR ₹2,999 ✦ FREE 18K GOLD POLISH GUARANTEE..."
+                      className="w-full px-4 py-3 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs font-medium focus:bg-white focus:outline-none focus:border-[#967BB6] leading-relaxed"
+                    />
+                  </div>
+
+                  {/* Live Mini Preview */}
+                  <div className="p-3 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl space-y-1">
+                    <span className="text-[10px] font-bold uppercase text-brand-muted block">Preview:</span>
+                    <div className="bg-[#1A1821] text-white text-[11px] py-1.5 px-3 rounded-lg text-center font-bold tracking-wider truncate">
+                      {homepageConfig.announcementText}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Continuous Scrolling Marquee Ribbon */}
+                <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-4">
+                  <div>
+                    <h4 className="font-serif text-lg font-bold text-brand-charcoal">Continuous Marquee Ribbon (Purple Strip)</h4>
+                    <p className="text-xs text-brand-muted">
+                      Infinite animated scrolling ribbon right below the hero banners. Add or remove phrases.
+                    </p>
+                  </div>
+
+                  {/* Add New Phrase */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newMarqueeInput}
+                      onChange={(e) => setNewMarqueeInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddMarqueePhrase();
+                        }
+                      }}
+                      placeholder="Add phrase: e.g. 100% PURE BREATHABLE COTTON"
+                      className="flex-1 px-4 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs uppercase focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddMarqueePhrase}
+                      className="px-4 py-2.5 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-bold rounded-2xl transition-all cursor-pointer flex items-center gap-1 shrink-0 shadow-xs"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Add</span>
+                    </button>
+                  </div>
+
+                  {/* List of Current Phrases */}
+                  <div className="space-y-2 pt-2">
+                    <label className="block text-[11px] font-bold uppercase text-brand-muted">
+                      Current Scrolling Phrases ({homepageConfig.marqueePhrases.length})
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {homepageConfig.marqueePhrases.map((phrase, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-2 bg-[#F3EEF9] border border-[#967BB6]/30 text-[#967BB6] px-3 py-1.5 rounded-full text-xs font-bold"
+                        >
+                          <span>{phrase}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMarqueePhrase(idx)}
+                            className="text-[#967BB6] hover:text-rose-600 rounded-full cursor-pointer p-0.5"
+                            title="Remove phrase"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Live Marquee Strip Preview */}
+                  <div className="pt-2">
+                    <span className="text-[10px] font-bold uppercase text-brand-muted block mb-1">Live Ribbon Preview:</span>
+                    <div className="w-full bg-[#967BB6] text-white py-2 rounded-xl overflow-hidden px-3 flex items-center gap-4 text-xs font-bold tracking-widest uppercase">
+                      {homepageConfig.marqueePhrases.slice(0, 3).map((p, i) => (
+                        <span key={i} className="flex items-center gap-2 shrink-0">
+                          <span>{p}</span>
+                          <span>✦</span>
+                        </span>
+                      ))}
+                      <span>...</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ================= SUB-TAB 4: INFLUENCER REELS & TRENDING ================= */}
+            {activeHomeSubTab === 'reels' && (
+              <div className="space-y-6">
+                {/* 1. Trending Section Header Config */}
+                <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h4 className="font-serif text-lg font-bold text-brand-charcoal">Trending Section Headlines</h4>
+                    <p className="text-xs text-brand-muted">Customize section title and button for the Trending This Season section.</p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">
+                        Section Headline
+                      </label>
+                      <input
+                        type="text"
+                        value={homepageConfig.trendingTitle || 'TRENDING THIS SEASON'}
+                        onChange={(e) => setHomepageConfig((p) => ({ ...p, trendingTitle: e.target.value }))}
+                        className="px-3.5 py-2 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs font-bold text-brand-charcoal focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">
+                        Button Label
+                      </label>
+                      <input
+                        type="text"
+                        value={homepageConfig.trendingCtaText || 'SHOP ALL TRENDING'}
+                        onChange={(e) => setHomepageConfig((p) => ({ ...p, trendingCtaText: e.target.value }))}
+                        className="px-3.5 py-2 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs font-bold text-brand-charcoal focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Influencer Reels Manager */}
+                <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h4 className="font-serif text-lg font-bold text-brand-charcoal">Influencer-Approved Comfort Reels</h4>
+                      <p className="text-xs text-brand-muted">
+                        Vertical reel cards with stickers, view counters, and direct product buy buttons.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleOpenAddReel}
+                      className="px-4 py-2 bg-[#1A1821] hover:bg-[#967BB6] text-white text-xs font-bold rounded-2xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add New Reel</span>
+                    </button>
+                  </div>
+
+                  {/* Section Title / Subtitle Inputs */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">
+                        Reels Section Title
+                      </label>
+                      <input
+                        type="text"
+                        value={homepageConfig.influencerTitle || 'Influencer-Approved Comfort'}
+                        onChange={(e) => setHomepageConfig((p) => ({ ...p, influencerTitle: e.target.value }))}
+                        className="w-full px-3.5 py-2 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs font-bold text-brand-charcoal focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">
+                        Reels Section Subtitle
+                      </label>
+                      <input
+                        type="text"
+                        value={homepageConfig.influencerSubtitle || ''}
+                        onChange={(e) => setHomepageConfig((p) => ({ ...p, influencerSubtitle: e.target.value }))}
+                        className="w-full px-3.5 py-2 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs text-brand-charcoal focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Reels Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-3">
+                    {homepageConfig.influencerReels.map((reel, idx) => (
+                      <div
+                        key={reel.id || idx}
+                        className="bg-[#FAF8F2] rounded-2xl border border-[#EAE6DB] overflow-hidden flex flex-col justify-between"
+                      >
+                        {/* Reel Aspect Ratio Preview */}
+                        <div className="relative aspect-[9/14] bg-black overflow-hidden group">
+                          {reel.image ? (
+                            <img src={reel.image} alt={reel.tagText} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-white/40 text-xs">
+                              No Poster Photo
+                            </div>
+                          )}
+
+                          {/* Overlay Sticker */}
+                          <div className="absolute top-3 left-3 text-white drop-shadow">
+                            <span className="font-handwritten text-lg text-[#fffeea] block font-bold leading-tight">
+                              {reel.tagText}
+                            </span>
+                            <span className="text-[10px] font-bold text-white uppercase tracking-wide">
+                              {reel.subTag}
+                            </span>
+                          </div>
+
+                          <div className="absolute top-3 right-3 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                            👁️ {reel.views}
+                          </div>
+
+                          {/* Hover Overlay to Replace Photo */}
+                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setUploadingTargetReelId(reel.id);
+                                if (reelFileInputRef.current) reelFileInputRef.current.click();
+                              }}
+                              className="px-3 py-1.5 bg-white text-brand-charcoal hover:bg-[#F3EEF9] rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1 cursor-pointer"
+                            >
+                              <UploadCloud className="w-3.5 h-3.5 text-[#967BB6]" />
+                              <span>Upload Photo</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Controls */}
+                        <div className="p-3 bg-white space-y-2 border-t border-[#EAE6DB]">
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-brand-muted">
+                              Handwritten Tag Sticker
+                            </label>
+                            <input
+                              type="text"
+                              value={reel.tagText}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setHomepageConfig((prev) => ({
+                                  ...prev,
+                                  influencerReels: prev.influencerReels.map((r) => (r.id === reel.id ? { ...r, tagText: val } : r)),
+                                }));
+                              }}
+                              className="w-full px-2 py-1 bg-[#FAF8F2] border border-[#EAE6DB] rounded-lg text-xs font-bold focus:outline-none focus:border-[#967BB6]"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-brand-muted">
+                              Sub-Tag Line
+                            </label>
+                            <input
+                              type="text"
+                              value={reel.subTag}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setHomepageConfig((prev) => ({
+                                  ...prev,
+                                  influencerReels: prev.influencerReels.map((r) => (r.id === reel.id ? { ...r, subTag: val } : r)),
+                                }));
+                              }}
+                              className="w-full px-2 py-1 bg-[#FAF8F2] border border-[#EAE6DB] rounded-lg text-xs focus:outline-none focus:border-[#967BB6]"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-brand-muted">
+                              Views Badge (e.g. 8.4k)
+                            </label>
+                            <input
+                              type="text"
+                              value={reel.views}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setHomepageConfig((prev) => ({
+                                  ...prev,
+                                  influencerReels: prev.influencerReels.map((r) => (r.id === reel.id ? { ...r, views: val } : r)),
+                                }));
+                              }}
+                              className="w-full px-2 py-1 bg-[#FAF8F2] border border-[#EAE6DB] rounded-lg text-xs focus:outline-none focus:border-[#967BB6]"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-brand-muted">
+                              Linked Catalog Product
+                            </label>
+                            <select
+                              value={reel.productId || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setHomepageConfig((prev) => ({
+                                  ...prev,
+                                  influencerReels: prev.influencerReels.map((r) => (r.id === reel.id ? { ...r, productId: val } : r)),
+                                }));
+                              }}
+                              className="w-full px-2 py-1 bg-[#FAF8F2] border border-[#EAE6DB] rounded-lg text-xs focus:outline-none focus:border-[#967BB6] cursor-pointer"
+                            >
+                              <option value="">Auto-cycle Product</option>
+                              {productsList.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} (₹{p.price})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1 border-t border-[#EAE6DB]">
+                            <label className="flex items-center gap-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={reel.active !== false}
+                                onChange={() => {
+                                  setHomepageConfig((prev) => ({
+                                    ...prev,
+                                    influencerReels: prev.influencerReels.map((r) => (r.id === reel.id ? { ...r, active: !r.active } : r)),
+                                  }));
+                                }}
+                                className="rounded text-[#967BB6] focus:ring-[#967BB6] cursor-pointer"
+                              />
+                              <span className="text-[11px] font-bold text-brand-charcoal">Active</span>
+                            </label>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteReel(reel.id)}
+                              className="text-rose-500 hover:text-rose-700 text-[11px] font-bold cursor-pointer"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ================= SUB-TAB 5: BRAND FEATURES ================= */}
+            {activeHomeSubTab === 'features' && (
+              <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-6">
+                <div>
+                  <h4 className="font-serif text-lg font-bold text-brand-charcoal">Brand Value Proposition Feature Boxes</h4>
+                  <p className="text-xs text-brand-muted">
+                    The 4 trust badges and guarantee boxes displayed at the bottom of the homepage above the footer.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {homepageConfig.valueProps.map((vp, idx) => (
+                    <div
+                      key={vp.id || idx}
+                      className="p-5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl space-y-3"
+                    >
+                      <span className="text-[10px] font-black uppercase text-[#967BB6] block">
+                        BOX #{idx + 1}
+                      </span>
+
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">
+                          Icon / Emoji
+                        </label>
+                        <input
+                          type="text"
+                          value={vp.icon}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setHomepageConfig((prev) => ({
+                              ...prev,
+                              valueProps: prev.valueProps.map((v, i) => (i === idx ? { ...v, icon: val } : v)),
+                            }));
+                          }}
+                          className="w-full px-3 py-1.5 bg-white border border-[#EAE6DB] rounded-xl text-center text-lg focus:outline-none focus:border-[#967BB6]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">
+                          Headline
+                        </label>
+                        <input
+                          type="text"
+                          value={vp.title}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setHomepageConfig((prev) => ({
+                              ...prev,
+                              valueProps: prev.valueProps.map((v, i) => (i === idx ? { ...v, title: val } : v)),
+                            }));
+                          }}
+                          className="w-full px-3 py-1.5 bg-white border border-[#EAE6DB] rounded-xl text-xs font-bold text-brand-charcoal focus:outline-none focus:border-[#967BB6]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">
+                          Description
+                        </label>
+                        <input
+                          type="text"
+                          value={vp.description}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setHomepageConfig((prev) => ({
+                              ...prev,
+                              valueProps: prev.valueProps.map((v, i) => (i === idx ? { ...v, description: val } : v)),
+                            }));
+                          }}
+                          className="w-full px-3 py-1.5 bg-white border border-[#EAE6DB] rounded-xl text-xs text-brand-muted focus:outline-none focus:border-[#967BB6]"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ================= MODAL: ADD HERO BANNER ================= */}
+            {isBannerModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+                <div className="bg-white rounded-3xl border border-[#EAE6DB] max-w-lg w-full p-6 sm:p-8 space-y-5 shadow-2xl relative">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-serif text-xl font-bold text-brand-charcoal">Add New Banner Slide</h3>
+                    <button
+                      type="button"
+                      onClick={() => setIsBannerModalOpen(false)}
+                      className="p-1 rounded-full text-brand-muted hover:text-brand-charcoal hover:bg-gray-100 cursor-pointer"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSaveBannerModal} className="space-y-4">
+                    {/* Image URL & Upload Button */}
+                    <div>
+                      <label className="block text-xs font-bold text-brand-charcoal mb-1">
+                        Banner Image (Upload or URL) *
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          required
+                          value={bannerForm.image}
+                          onChange={(e) => setBannerForm({ ...bannerForm, image: e.target.value })}
+                          placeholder="https://... or click Upload"
+                          className="flex-1 px-3.5 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (bannerModalFileInputRef.current) bannerModalFileInputRef.current.click();
+                          }}
+                          className="px-4 py-2.5 bg-[#F3EEF9] hover:bg-[#967BB6] text-[#967BB6] hover:text-white border border-[#967BB6]/30 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                        >
+                          <UploadCloud className="w-4 h-4" />
+                          <span>Upload File</span>
+                        </button>
+                      </div>
+                      <span className="text-[11px] text-brand-muted block mt-1">
+                        Recommended size: 1920x600 px or aspect ratio ~16:5.
+                      </span>
+                    </div>
+
+                    {/* Preview */}
+                    {bannerForm.image && (
+                      <div className="aspect-[16/6] bg-[#FAF8F2] rounded-xl overflow-hidden border border-[#EAE6DB]">
+                        <img src={bannerForm.image} alt="Preview" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+
+                    {/* Alt description */}
+                    <div>
+                      <label className="block text-xs font-bold text-brand-charcoal mb-1">
+                        Alt Text Description
+                      </label>
+                      <input
+                        type="text"
+                        value={bannerForm.alt}
+                        onChange={(e) => setBannerForm({ ...bannerForm, alt: e.target.value })}
+                        placeholder="Girly Tales Launch Offer"
+                        className="w-full px-3.5 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                      />
+                    </div>
+
+                    {/* Destination Category */}
+                    <div>
+                      <label className="block text-xs font-bold text-brand-charcoal mb-1">
+                        Destination Page / Category
+                      </label>
+                      <select
+                        value={bannerForm.category}
+                        onChange={(e) => setBannerForm({ ...bannerForm, category: e.target.value })}
+                        className="w-full px-3.5 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs focus:bg-white focus:outline-none focus:border-[#967BB6] cursor-pointer"
+                      >
+                        <option value="all">Shop All Products ('all')</option>
+                        <option value="nightwear">Nightwear ('nightwear')</option>
+                        <option value="jewellery">Jewellery ('jewellery')</option>
+                        {categoriesList
+                          .filter((c) => c.slug !== 'nightwear' && c.slug !== 'jewellery')
+                          .map((c) => (
+                            <option key={c.id} value={c.slug}>
+                              {c.name} ('{c.slug}')
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#EAE6DB]">
+                      <button
+                        type="button"
+                        onClick={() => setIsBannerModalOpen(false)}
+                        className="px-4 py-2 text-xs font-bold text-brand-muted hover:text-brand-charcoal cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-6 py-2.5 bg-[#1A1821] hover:bg-[#967BB6] text-white text-xs font-bold uppercase rounded-xl transition-all shadow-xs cursor-pointer"
+                      >
+                        Add to Carousel
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* ================= MODAL: ADD INFLUENCER REEL ================= */}
+            {isReelModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+                <div className="bg-white rounded-3xl border border-[#EAE6DB] max-w-lg w-full p-6 sm:p-8 space-y-5 shadow-2xl relative">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-serif text-xl font-bold text-brand-charcoal">Add Influencer Reel Card</h3>
+                    <button
+                      type="button"
+                      onClick={() => setIsReelModalOpen(false)}
+                      className="p-1 rounded-full text-brand-muted hover:text-brand-charcoal hover:bg-gray-100 cursor-pointer"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSaveReelModal} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-brand-charcoal mb-1">
+                        Reel Photo (Upload or URL) *
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          required
+                          value={reelForm.image}
+                          onChange={(e) => setReelForm({ ...reelForm, image: e.target.value })}
+                          placeholder="https://... or click Upload"
+                          className="flex-1 px-3.5 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUploadingTargetReelId(null);
+                            if (reelFileInputRef.current) reelFileInputRef.current.click();
+                          }}
+                          className="px-4 py-2.5 bg-[#F3EEF9] hover:bg-[#967BB6] text-[#967BB6] hover:text-white border border-[#967BB6]/30 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                        >
+                          <UploadCloud className="w-4 h-4" />
+                          <span>Upload File</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-brand-charcoal mb-1">
+                          Handwritten Tag Text
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={reelForm.tagText}
+                          onChange={(e) => setReelForm({ ...reelForm, tagText: e.target.value })}
+                          placeholder="Cute & comfy"
+                          className="w-full px-3 py-2 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-brand-charcoal mb-1">
+                          Sub-Tag Line
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={reelForm.subTag}
+                          onChange={(e) => setReelForm({ ...reelForm, subTag: e.target.value })}
+                          placeholder="PJ's ft. Girly Tales"
+                          className="w-full px-3 py-2 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-brand-charcoal mb-1">
+                          Views Count (e.g. 10.5k)
+                        </label>
+                        <input
+                          type="text"
+                          value={reelForm.views}
+                          onChange={(e) => setReelForm({ ...reelForm, views: e.target.value })}
+                          placeholder="10.5k"
+                          className="w-full px-3 py-2 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-brand-charcoal mb-1">
+                          Linked Product
+                        </label>
+                        <select
+                          value={reelForm.productId}
+                          onChange={(e) => setReelForm({ ...reelForm, productId: e.target.value })}
+                          className="w-full px-3 py-2 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs focus:bg-white focus:outline-none focus:border-[#967BB6] cursor-pointer"
+                        >
+                          <option value="">Auto-select Product</option>
+                          {productsList.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name} (₹{p.price})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#EAE6DB]">
+                      <button
+                        type="button"
+                        onClick={() => setIsReelModalOpen(false)}
+                        className="px-4 py-2 text-xs font-bold text-brand-muted hover:text-brand-charcoal cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-6 py-2.5 bg-[#1A1821] hover:bg-[#967BB6] text-white text-xs font-bold uppercase rounded-xl transition-all shadow-xs cursor-pointer"
+                      >
+                        Add Reel Card
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

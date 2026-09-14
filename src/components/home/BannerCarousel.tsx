@@ -1,57 +1,79 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { HomeBanner } from '../../lib/databaseService';
 
 import banner1 from '../../assets/banner1.png';
 import banner2 from '../../assets/banner2.png';
 import banner3 from '../../assets/banner3.png';
 
 interface BannerCarouselProps {
+  banners?: HomeBanner[];
+  autoplaySeconds?: number;
   onNavigate: (page: string, category?: string) => void;
 }
 
-const BANNERS = [
+const DEFAULT_BANNERS: HomeBanner[] = [
   {
     id: 'b1',
     image: banner1,
     alt: 'Girly Tales Launch Offer',
     category: 'all',
+    active: true,
+    orderIndex: 0,
   },
   {
     id: 'b2',
     image: banner2,
     alt: 'Girly Tales Nightwear & Jewellery Collection',
     category: 'nightwear',
+    active: true,
+    orderIndex: 1,
   },
   {
     id: 'b3',
     image: banner3,
     alt: 'Girly Tales 18K Anti-Tarnish Jewels',
     category: 'jewellery',
+    active: true,
+    orderIndex: 2,
   },
 ];
 
-export const BannerCarousel: React.FC<BannerCarouselProps> = ({ onNavigate }) => {
+export const BannerCarousel: React.FC<BannerCarouselProps> = ({
+  banners,
+  autoplaySeconds = 2,
+  onNavigate,
+}) => {
+  const activeBanners = React.useMemo(() => {
+    if (Array.isArray(banners) && banners.length > 0) {
+      const filtered = banners.filter((b) => b.active !== false && b.image);
+      if (filtered.length > 0) return filtered;
+    }
+    return DEFAULT_BANNERS;
+  }, [banners]);
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const touchStartX = useRef<number | null>(null);
 
-  // Auto-slide every 2 seconds
+  // Auto-slide
   useEffect(() => {
-    if (isPaused) return;
+    if (isPaused || activeBanners.length <= 1) return;
+    const ms = Math.max(1000, (autoplaySeconds || 2) * 1000);
     const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % BANNERS.length);
-    }, 2000);
+      setCurrentIndex((prev) => (prev + 1) % activeBanners.length);
+    }, ms);
     return () => clearInterval(interval);
-  }, [isPaused]);
+  }, [isPaused, activeBanners.length, autoplaySeconds]);
 
   const handlePrev = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    setCurrentIndex((prev) => (prev === 0 ? BANNERS.length - 1 : prev - 1));
+    setCurrentIndex((prev) => (prev === 0 ? activeBanners.length - 1 : prev - 1));
   };
 
   const handleNext = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    setCurrentIndex((prev) => (prev + 1) % BANNERS.length);
+    setCurrentIndex((prev) => (prev + 1) % activeBanners.length);
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -70,7 +92,7 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ onNavigate }) =>
     touchStartX.current = null;
   };
 
-  const currentBanner = BANNERS[currentIndex];
+  const currentBanner = activeBanners[currentIndex] || activeBanners[0];
 
   return (
     <div
@@ -82,20 +104,27 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({ onNavigate }) =>
     >
       {/* Full-width responsive banner wrapper */}
       <div
-        onClick={() => onNavigate('shop', currentBanner.category)}
+        onClick={() => {
+          if (!currentBanner) return;
+          if (currentBanner.category?.startsWith('http')) {
+            window.open(currentBanner.category, '_blank');
+          } else {
+            onNavigate('shop', currentBanner.category === 'all' ? undefined : currentBanner.category);
+          }
+        }}
         className="relative w-full h-[180px] sm:h-[300px] md:h-[420px] lg:h-[500px] xl:h-[560px] cursor-pointer"
       >
         {/* Banner Images with smooth fade transition */}
-        {BANNERS.map((banner, index) => (
+        {activeBanners.map((banner, index) => (
           <div
-            key={banner.id}
+            key={banner.id || index}
             className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
               index === currentIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'
             }`}
           >
             <img
               src={banner.image}
-              alt={banner.alt}
+              alt={banner.alt || 'Girly Tales'}
               className="w-full h-full object-cover object-center"
               loading={index === 0 ? 'eager' : 'lazy'}
             />

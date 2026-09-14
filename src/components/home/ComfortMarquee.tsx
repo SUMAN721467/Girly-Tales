@@ -1,13 +1,23 @@
 import React from 'react';
 
-export const ComfortMarquee: React.FC = () => {
-  const phrasePair = [
-    'SLEEP INTO COMFORT',
-    'SWEET DREAMS START HERE',
-  ];
+interface ComfortMarqueeProps {
+  phrases?: string[];
+}
+
+const DEFAULT_PHRASES = [
+  'SLEEP INTO COMFORT',
+  'SWEET DREAMS START HERE',
+  '100% PURE BREATHABLE COTTON',
+  '18K ANTI-TARNISH GOLD JEWELS',
+  'EXPRESS PAN-INDIA DISPATCH',
+];
+
+export const ComfortMarquee: React.FC<ComfortMarqueeProps> = ({ phrases }) => {
+  const activePhrases = Array.isArray(phrases) && phrases.length > 0 ? phrases : DEFAULT_PHRASES;
 
   // Repeat the sequence to ensure continuous infinite loop
-  const repeatedItems = Array(10).fill(phrasePair).flat();
+  const repeatCount = Math.max(4, Math.ceil(20 / activePhrases.length));
+  const repeatedItems = Array(repeatCount).fill(activePhrases).flat();
 
   return (
     <div className="w-full bg-[#967BB6] text-white py-1 sm:py-1.5 overflow-hidden select-none border-y border-[#7F62A1]/30">

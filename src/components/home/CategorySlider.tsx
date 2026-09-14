@@ -14,6 +14,7 @@ export interface CategoryItem {
 
 interface CategorySliderProps {
   categories?: CategoryItem[];
+  sectionTitle?: string;
   onNavigate: (page: string, category?: string) => void;
 }
 
@@ -62,6 +63,7 @@ const DEFAULT_CATEGORIES: CategoryItem[] = [
 
 export const CategorySlider: React.FC<CategorySliderProps> = ({
   categories = DEFAULT_CATEGORIES,
+  sectionTitle = 'THE ESSENTIALS',
   onNavigate,
 }) => {
   const displayCategories = React.useMemo(() => {
@@ -148,7 +150,7 @@ export const CategorySlider: React.FC<CategorySliderProps> = ({
       {/* Section Header */}
       <div className="text-center mb-2 sm:mb-3 space-y-0.5 px-4">
         <span className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.25em] text-[#967BB6]">
-          THE ESSENTIALS
+          {sectionTitle}
         </span>
         <h2 className="font-sans font-black text-xl sm:text-2xl md:text-3xl text-brand-charcoal uppercase tracking-tight">
           SHOP BY CATEGORY
