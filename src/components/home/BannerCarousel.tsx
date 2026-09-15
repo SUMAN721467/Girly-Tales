@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { HomeBanner } from '../../lib/databaseService';
 
 import banner1 from '../../assets/banner1.png';
@@ -41,7 +41,7 @@ const DEFAULT_BANNERS: HomeBanner[] = [
 
 export const BannerCarousel: React.FC<BannerCarouselProps> = ({
   banners,
-  autoplaySeconds = 2,
+  autoplaySeconds = 3,
   onNavigate,
 }) => {
   const activeBanners = React.useMemo(() => {
@@ -59,7 +59,7 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({
   // Auto-slide
   useEffect(() => {
     if (isPaused || activeBanners.length <= 1) return;
-    const ms = Math.max(1000, (autoplaySeconds || 2) * 1000);
+    const ms = Math.max(1000, (autoplaySeconds || 3) * 1000);
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % activeBanners.length);
     }, ms);
@@ -93,18 +93,19 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({
   };
 
   const currentBanner = activeBanners[currentIndex] || activeBanners[0];
-
-  const hasAnyMobileImage = activeBanners.some((b) => !!b.mobileImage);
+  const currentDefaultFallback = DEFAULT_BANNERS[currentIndex % DEFAULT_BANNERS.length]?.image || banner1;
+  const currentDesktopImg = currentBanner.image || currentDefaultFallback;
+  const currentMobileImg = currentBanner.mobileImage || currentBanner.image || currentDefaultFallback;
 
   return (
     <div
-      className="relative w-full overflow-hidden bg-[#FEFDEB] select-none group"
+      className="relative w-full overflow-hidden select-none group bg-[#FEFDEB]"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Full-width responsive banner wrapper */}
+      {/* Clickable banner container with explicit 1600*650 for laptop and 414*650 for mobile */}
       <div
         onClick={() => {
           if (!currentBanner) return;
@@ -114,51 +115,85 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({
             onNavigate('shop', currentBanner.category === 'all' ? undefined : currentBanner.category);
           }
         }}
-        className={`relative w-full cursor-pointer transition-all duration-300 ${
-          hasAnyMobileImage
-            ? 'h-[440px] sm:h-[300px] md:h-[420px] lg:h-[500px] xl:h-[560px]'
-            : 'h-[180px] sm:h-[300px] md:h-[420px] lg:h-[500px] xl:h-[560px]'
-        }`}
+        className="relative w-full cursor-pointer select-none aspect-[414/650] md:aspect-[1600/650] overflow-hidden"
       >
-        {/* Banner Images with smooth fade transition */}
-        {activeBanners.map((banner, index) => (
-          <div
-            key={banner.id || index}
-            className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
-              index === currentIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'
-            }`}
-          >
-            <picture className="w-full h-full block">
-              {banner.mobileImage ? (
-                <source media="(max-width: 639px)" srcSet={banner.mobileImage} />
-              ) : null}
-              <img
-                src={banner.image || banner.mobileImage}
-                alt={banner.alt || 'Girly Tales'}
-                className="w-full h-full object-cover object-center"
-                loading={index === 0 ? 'eager' : 'lazy'}
-              />
-            </picture>
-          </div>
-        ))}
+        {/* Carousel Slides */}
+        {activeBanners.map((banner, index) => {
+          const defaultFallback = DEFAULT_BANNERS[index % DEFAULT_BANNERS.length]?.image || banner1;
+          const laptopImg = banner.image || defaultFallback;
+          const mobileImg = banner.mobileImage || banner.image || defaultFallback;
 
-        {/* Previous Arrow (Hover only on desktop) */}
+          return (
+            <div
+              key={banner.id || index}
+              className={`absolute inset-0 transition-opacity duration-700 ease-in-out overflow-hidden ${
+                index === currentIndex ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+              }`}
+            >
+              {/* 1. MOBILE VIEW (< 768px): Dedicated Mobile Portrait Image */}
+              <div className="block md:hidden w-full h-full overflow-hidden">
+                <img
+                  src={mobileImg}
+                  alt={banner.alt || 'Girly Tales Mobile'}
+                  className="w-full h-full object-cover object-center"
+                  loading={index === 0 ? 'eager' : 'lazy'}
+                />
+              </div>
+
+              {/* 2. LAPTOP / DESKTOP VIEW (>= 768px): Dedicated Laptop Landscape Image */}
+              <div className="hidden md:block w-full h-full overflow-hidden">
+                <img
+                  src={laptopImg}
+                  alt={banner.alt || 'Girly Tales Laptop'}
+                  className="w-full h-full object-cover object-center"
+                  loading={index === 0 ? 'eager' : 'lazy'}
+                />
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Previous Arrow (Matching reference screenshot: circular with thin arrow) */}
         <button
+          type="button"
           onClick={handlePrev}
-          className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-11 sm:h-11 rounded-full bg-white/80 hover:bg-white text-brand-charcoal flex items-center justify-center shadow-md transition-all active:scale-95 opacity-0 group-hover:opacity-100"
-          aria-label="Previous Banner"
+          className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-11 sm:h-11 rounded-full bg-white/70 hover:bg-white text-brand-charcoal flex items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer backdrop-blur-xs"
+          aria-label="Previous Slide"
         >
-          <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
+          <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 stroke-[1.5]" />
         </button>
 
-        {/* Next Arrow (Hover only on desktop) */}
+        {/* Next Arrow (Matching reference screenshot: circular with thin arrow) */}
         <button
+          type="button"
           onClick={handleNext}
-          className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-11 sm:h-11 rounded-full bg-white/80 hover:bg-white text-brand-charcoal flex items-center justify-center shadow-md transition-all active:scale-95 opacity-0 group-hover:opacity-100"
-          aria-label="Next Banner"
+          className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-11 sm:h-11 rounded-full bg-white/70 hover:bg-white text-brand-charcoal flex items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer backdrop-blur-xs"
+          aria-label="Next Slide"
         >
-          <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6" />
+          <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 stroke-[1.5]" />
         </button>
+
+        {/* Slide Indicators / Dots (Matching reference screenshot: elongated active pill + small dots) */}
+        {activeBanners.length > 1 && (
+          <div className="absolute bottom-3.5 sm:bottom-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5">
+            {activeBanners.map((_, dotIdx) => (
+              <button
+                key={dotIdx}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentIndex(dotIdx);
+                }}
+                className={`transition-all duration-300 rounded-full cursor-pointer ${
+                  dotIdx === currentIndex
+                    ? 'w-6 sm:w-7 h-1.5 bg-[#4F5E4E]' // active elongated pill matching screenshot
+                    : 'w-1.5 h-1.5 bg-black/25 hover:bg-black/40'
+                }`}
+                aria-label={`Go to slide ${dotIdx + 1}`}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

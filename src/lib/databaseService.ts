@@ -11,7 +11,15 @@ import slide2 from '../assets/slide2.jpg';
 
 export const formatQueryError = (err: any): string => {
   if (!err) return 'Empty error response';
-  if (typeof err === 'string') return err;
+  if (typeof err === 'string') {
+    try {
+      const parsed = JSON.parse(err);
+      if (parsed && typeof parsed === 'object') {
+        return parsed.message || parsed.error_description || parsed.details || err;
+      }
+    } catch {}
+    return err;
+  }
   if (err.message && typeof err.message === 'string' && err.message.trim()) return err.message;
   if (err.error_description) return err.error_description;
   if (err.details) return err.details;
@@ -38,21 +46,24 @@ export async function fetchSupabaseRestFallback<T>(path: string): Promise<T | nu
   for (const base of uniqueBases) {
     try {
       const cleanBase = base.replace(/\/+$/, '');
-      const res = await fetch(`${cleanBase}/rest/v1/${path}`, {
-        method: 'GET',
+      const cleanPath = path.replace(/^\/+/, '');
+      const url = `${cleanBase}/rest/v1/${cleanPath}`;
+      const res = await fetch(url, {
         headers: {
           apikey: apiKey,
           Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
         },
       });
 
       if (res.ok) {
         return (await res.json()) as T;
       }
-    } catch {
+    } catch (err) {
       // Continue to next candidate
     }
   }
+
   return null;
 }
 
@@ -73,6 +84,10 @@ export async function supabaseRestMutation(
   const apiKey = getSupabaseAnonKey();
   if (!apiKey) return false;
 
+  const defaultPrefer = queryParam.includes('on_conflict=')
+    ? 'resolution=merge-duplicates,return=minimal'
+    : 'return=minimal';
+
   for (const base of uniqueBases) {
     try {
       const cleanBase = base.replace(/\/+$/, '');
@@ -81,7 +96,7 @@ export async function supabaseRestMutation(
         apikey: apiKey,
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        Prefer: prefer || 'return=minimal',
+        Prefer: prefer || defaultPrefer,
       };
 
       const res = await fetch(url, {
@@ -404,6 +419,8 @@ export interface HomeBanner {
   id: string;
   image: string; // Laptop screen (Landscape - e.g. 1600 x 650)
   mobileImage?: string; // Mobile screen (Portrait - e.g. 414 x 650)
+  imageFit?: 'contain' | 'cover'; // 'contain' fits entire image without crop; 'cover' fills box
+  objectPosition?: 'center' | 'top' | 'bottom'; // vertical focus position
   alt: string;
   category: string; // 'all' | 'nightwear' | 'jewellery' | or category slug
   title?: string;
@@ -478,6 +495,8 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
       id: 'b1',
       image: banner1,
       mobileImage: '',
+      imageFit: 'contain',
+      objectPosition: 'center',
       alt: 'Girly Tales Launch Offer',
       category: 'all',
       title: 'Everyday Luxury',
@@ -489,6 +508,8 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
       id: 'b2',
       image: banner2,
       mobileImage: '',
+      imageFit: 'contain',
+      objectPosition: 'center',
       alt: 'Girly Tales Nightwear & Jewellery Collection',
       category: 'nightwear',
       title: 'Mulberry Silk & Cotton',
@@ -500,6 +521,8 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
       id: 'b3',
       image: banner3,
       mobileImage: '',
+      imageFit: 'contain',
+      objectPosition: 'center',
       alt: 'Girly Tales 18K Anti-Tarnish Jewels',
       category: 'jewellery',
       title: '18K Anti-Tarnish Jewels',
@@ -1868,8 +1891,8 @@ export const DatabaseService = {
   },
 
   async uploadBannerImage(file: File, isMobile = false): Promise<string> {
-    const maxWidth = isMobile ? 1080 : 2560;
-    const optimizedBlob = await this.optimizeImageFile(file, maxWidth, 0.90);
+    const maxWidth = isMobile ? 828 : 1600;
+    const optimizedBlob = await this.optimizeImageFile(file, maxWidth, 0.92);
     const cleanExt = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
     const prefix = isMobile ? 'mobile' : 'laptop';
     const fileName = `banner_${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${cleanExt}`;
@@ -3651,24 +3674,59 @@ export const DatabaseService = {
       updated_at: new Date().toISOString(),
     };
 
+    let saveSuccess = false;
     let saveError: any = null;
+
+    // Strategy 1: Direct PATCH on existing row
     try {
-      const { error } = await client.from('store_settings').upsert(payload, { onConflict: 'key' });
-      saveError = error;
-    } catch (err) {
-      saveError = err;
+      const patchOk = await supabaseRestMutation(
+        'store_settings',
+        'PATCH',
+        'key=eq.homepage',
+        { value: settings, updated_at: payload.updated_at },
+        'return=minimal'
+      );
+      if (patchOk) {
+        saveSuccess = true;
+      }
+    } catch (err) {}
+
+    // Strategy 2: Upsert via Supabase client
+    if (!saveSuccess) {
+      try {
+        const { error } = await client.from('store_settings').upsert(payload, { onConflict: 'key' });
+        if (!error) {
+          saveSuccess = true;
+        } else {
+          saveError = error;
+        }
+      } catch (err) {
+        saveError = err;
+      }
     }
 
-    if (saveError) {
-      const ok = await supabaseRestMutation('store_settings', 'POST', 'on_conflict=key', payload);
-      if (!ok) {
-        console.error('Supabase updateStoreSettings failed:', saveError);
-        throw new Error(`Failed to save store settings in database: ${formatQueryError(saveError)}`);
+    // Strategy 3: Upsert via REST with merge-duplicates resolution
+    if (!saveSuccess) {
+      const ok = await supabaseRestMutation(
+        'store_settings',
+        'POST',
+        'on_conflict=key',
+        payload,
+        'resolution=merge-duplicates,return=minimal'
+      );
+      if (ok) {
+        saveSuccess = true;
       }
     }
 
     inMemoryStoreSettings = settings;
     notifyDatabaseChange('settings');
+
+    if (!saveSuccess && saveError) {
+      console.error('Supabase updateStoreSettings failed:', saveError);
+      throw new Error(`Failed to save store settings in database: ${formatQueryError(saveError)}`);
+    }
+
     return settings;
   },
 
@@ -3744,6 +3802,8 @@ export const DatabaseService = {
                 ...b,
                 image: normalizeStorageUrl(b.image || ''),
                 mobileImage: b.mobileImage ? normalizeStorageUrl(b.mobileImage) : '',
+                imageFit: b.imageFit || 'contain',
+                objectPosition: b.objectPosition || 'center',
               }))
             : DEFAULT_HOMEPAGE_CONFIG.heroBanners;
 
@@ -3791,6 +3851,8 @@ export const DatabaseService = {
       ...b,
       image: normalizeStorageUrl(b.image || ''),
       mobileImage: b.mobileImage ? normalizeStorageUrl(b.mobileImage) : '',
+      imageFit: b.imageFit || 'contain',
+      objectPosition: b.objectPosition || 'center',
     }));
     const cleanConfig: HomepageConfig = {
       ...config,
@@ -3802,19 +3864,48 @@ export const DatabaseService = {
       updated_at: new Date().toISOString(),
     };
 
+    let saveSuccess = false;
     let saveError: any = null;
+
+    // Strategy 1: Fast direct PATCH on existing row
     try {
-      const { error } = await client.from('store_settings').upsert(payload, { onConflict: 'key' });
-      saveError = error;
-    } catch (err) {
-      saveError = err;
+      const patchOk = await supabaseRestMutation(
+        'store_settings',
+        'PATCH',
+        'key=eq.homepage_config',
+        { value: cleanConfig, updated_at: payload.updated_at },
+        'return=minimal'
+      );
+      if (patchOk) {
+        saveSuccess = true;
+      }
+    } catch (err) {}
+
+    // Strategy 2: Upsert via Supabase client
+    if (!saveSuccess) {
+      try {
+        const { error } = await client.from('store_settings').upsert(payload, { onConflict: 'key' });
+        if (!error) {
+          saveSuccess = true;
+        } else {
+          saveError = error;
+        }
+      } catch (err) {
+        saveError = err;
+      }
     }
 
-    if (saveError) {
-      const ok = await supabaseRestMutation('store_settings', 'POST', 'on_conflict=key', payload);
-      if (!ok) {
-        console.error('Supabase updateHomepageConfig failed:', saveError);
-        throw new Error(`Failed to save homepage settings in database: ${formatQueryError(saveError)}`);
+    // Strategy 3: Upsert via REST with merge-duplicates resolution
+    if (!saveSuccess) {
+      const ok = await supabaseRestMutation(
+        'store_settings',
+        'POST',
+        'on_conflict=key',
+        payload,
+        'resolution=merge-duplicates,return=minimal'
+      );
+      if (ok) {
+        saveSuccess = true;
       }
     }
 
@@ -3828,6 +3919,12 @@ export const DatabaseService = {
 
     notifyDatabaseChange('homepage');
     notifyDatabaseChange('settings');
+
+    if (!saveSuccess && saveError) {
+      console.error('Supabase updateHomepageConfig failed:', saveError);
+      throw new Error(`Failed to save homepage settings in database: ${formatQueryError(saveError)}`);
+    }
+
     return cleanConfig;
   },
 
@@ -3897,7 +3994,7 @@ export const DatabaseService = {
     }
 
     if (saveError) {
-      const ok = await supabaseRestMutation('promotions', 'POST', 'on_conflict=id', payload);
+      const ok = await supabaseRestMutation('promotions', 'POST', 'on_conflict=id', payload, 'resolution=merge-duplicates,return=minimal');
       if (!ok) {
         console.error('Supabase savePromotion failed:', saveError);
         throw new Error(`Failed to save promotion in database: ${formatQueryError(saveError)}`);
@@ -4007,7 +4104,7 @@ export const DatabaseService = {
     }
 
     if (saveError) {
-      const ok = await supabaseRestMutation('shipping_rules', 'POST', 'on_conflict=id', payload);
+      const ok = await supabaseRestMutation('shipping_rules', 'POST', 'on_conflict=id', payload, 'resolution=merge-duplicates,return=minimal');
       if (!ok) {
         console.error('Supabase updateShippingRules failed:', saveError);
         throw new Error(`Failed to save shipping rules in database: ${formatQueryError(saveError)}`);

@@ -1037,6 +1037,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       id: `b-${Date.now()}`,
       image: '',
       mobileImage: '',
+      imageFit: 'contain',
+      objectPosition: 'center',
       alt: 'Girly Tales Launch Offer',
       category: 'all',
       title: '',
@@ -5892,20 +5894,25 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           {/* 2-Column Responsive Layout: Laptop vs Mobile */}
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6 pt-1">
                             {/* Left Column: LAPTOP IMAGE */}
-                            <div className="space-y-2">
-                              <label className="block text-xs font-black uppercase text-brand-charcoal tracking-wide">
-                                LAPTOP IMAGE (LANDSCAPE - E.G. 1600 X 650)
-                              </label>
+                            <div className="space-y-2 p-4 bg-[#FAF8F2] rounded-2xl border border-[#EAE6DB]">
+                              <div className="flex items-center justify-between gap-2">
+                                <label className="block text-xs font-black uppercase text-brand-charcoal tracking-wide">
+                                  LAPTOP IMAGE (LANDSCAPE - E.G. 1600 X 650)
+                                </label>
+                                <span className="text-[10px] font-bold text-[#967BB6] bg-[#F5EEFA] px-2 py-0.5 rounded-full border border-[#967BB6]/30">
+                                  Desktop / Laptop
+                                </span>
+                              </div>
 
                               <div className="flex items-center gap-3 sm:gap-4">
                                 {/* Landscape Thumbnail with Red circular X */}
-                                <div className="relative w-28 h-20 sm:w-36 sm:h-24 rounded-2xl bg-[#FAF8F2] border border-[#EAE6DB] shrink-0 overflow-hidden shadow-xs flex items-center justify-center">
+                                <div className="relative w-28 h-20 sm:w-36 sm:h-24 rounded-2xl bg-white border border-[#EAE6DB] shrink-0 overflow-hidden shadow-xs flex items-center justify-center">
                                   {banner.image ? (
                                     <>
                                       <img
                                         src={banner.image}
                                         alt={banner.alt || 'Laptop Banner'}
-                                        className="w-full h-full object-cover"
+                                        className="w-full h-full object-cover object-center"
                                       />
                                       <button
                                         type="button"
@@ -5933,7 +5940,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                                 {/* URL Input & Upload Action */}
                                 <div className="flex-1 space-y-1.5 min-w-0">
                                   <span className="block text-[11px] font-medium text-brand-muted">
-                                    Upload banner file or paste a URL below:
+                                    Upload landscape banner or paste URL:
                                   </span>
                                   <div className="flex items-center gap-2">
                                     <input
@@ -5941,7 +5948,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                                       value={banner.image || ''}
                                       onChange={(e) => handleUpdateBannerImageText(banner.id, false, e.target.value)}
                                       placeholder="https://... or click Upload"
-                                      className="flex-1 min-w-0 px-3 py-2 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs text-brand-charcoal focus:bg-white focus:outline-none focus:border-[#967BB6] transition-colors"
+                                      className="flex-1 min-w-0 px-3 py-2 bg-white border border-[#EAE6DB] rounded-xl text-xs text-brand-charcoal focus:outline-none focus:border-[#967BB6] transition-colors"
                                     />
                                     <button
                                       type="button"
@@ -5962,20 +5969,25 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                             </div>
 
                             {/* Right Column: MOBILE IMAGE */}
-                            <div className="space-y-2">
-                              <label className="block text-xs font-black uppercase text-brand-charcoal tracking-wide">
-                                MOBILE IMAGE (PORTRAIT - E.G. 414 X 650)
-                              </label>
+                            <div className="space-y-2 p-4 bg-[#FAF8F2] rounded-2xl border border-[#EAE6DB]">
+                              <div className="flex items-center justify-between gap-2">
+                                <label className="block text-xs font-black uppercase text-brand-charcoal tracking-wide">
+                                  MOBILE IMAGE (PORTRAIT - E.G. 414 X 650)
+                                </label>
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                  Mobile Phones
+                                </span>
+                              </div>
 
                               <div className="flex items-center gap-3 sm:gap-4">
                                 {/* Portrait Thumbnail with Red circular X */}
-                                <div className="relative w-20 h-24 sm:w-24 sm:h-28 rounded-2xl bg-[#FAF8F2] border border-[#EAE6DB] shrink-0 overflow-hidden shadow-xs flex items-center justify-center">
+                                <div className="relative w-20 h-24 sm:w-24 sm:h-28 rounded-2xl bg-white border border-[#EAE6DB] shrink-0 overflow-hidden shadow-xs flex items-center justify-center">
                                   {banner.mobileImage ? (
                                     <>
                                       <img
                                         src={banner.mobileImage}
                                         alt={banner.alt || 'Mobile Banner'}
-                                        className="w-full h-full object-cover"
+                                        className="w-full h-full object-cover object-center"
                                       />
                                       <button
                                         type="button"
@@ -6003,7 +6015,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                                 {/* Mobile URL Input & Upload Action */}
                                 <div className="flex-1 space-y-1.5 min-w-0">
                                   <span className="block text-[11px] font-medium text-brand-muted">
-                                    Upload mobile banner or paste a URL below:
+                                    Upload mobile portrait banner or paste URL:
                                   </span>
                                   <div className="flex items-center gap-2">
                                     <input
@@ -6011,7 +6023,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                                       value={banner.mobileImage || ''}
                                       onChange={(e) => handleUpdateBannerImageText(banner.id, true, e.target.value)}
                                       placeholder="https://... or click Upload"
-                                      className="flex-1 min-w-0 px-3 py-2 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs text-brand-charcoal focus:bg-white focus:outline-none focus:border-[#967BB6] transition-colors"
+                                      className="flex-1 min-w-0 px-3 py-2 bg-white border border-[#EAE6DB] rounded-xl text-xs text-brand-charcoal focus:outline-none focus:border-[#967BB6] transition-colors"
                                     />
                                     <button
                                       type="button"
