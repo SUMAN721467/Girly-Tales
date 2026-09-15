@@ -374,7 +374,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         homepageResult,
       ] = await Promise.allSettled([
         DatabaseService.getOrders(),
-        DatabaseService.getProducts(),
+        DatabaseService.getProducts(true),
         DatabaseService.getReviews(),
         DatabaseService.getTestimonials(true),
         DatabaseService.getCoupons(),
@@ -1512,6 +1512,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const handleDeleteProduct = async (id: string) => {
     try {
       await DatabaseService.deleteProduct(id);
+      setProductsList((prev) => prev.filter((p) => p.id !== id));
       triggerToast('Product & Photos Deleted', 'Product and all associated photos removed from database and storage.', undefined, 'info');
       await loadDatabaseData(false);
     } catch (err: any) {

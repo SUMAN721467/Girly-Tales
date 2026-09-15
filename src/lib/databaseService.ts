@@ -1552,20 +1552,20 @@ export const DatabaseService = {
             return data;
           });
 
-        let rawData: any[] = [];
+        let rawData: any[] | null = null;
         try {
           // Whichever returns first with data wins (typically 200-350ms)
           rawData = await Promise.race([
             clientPromise,
             restPromise.then((d) => {
-              if (Array.isArray(d) && d.length > 0) return d;
-              throw new Error('rest empty');
+              if (Array.isArray(d)) return d;
+              throw new Error('rest failed');
             }),
           ]);
         } catch {
           // Fast fallback with 2.5s maximum timeout
           const fb = await withTimeout(restPromise, 2500, null);
-          if (Array.isArray(fb) && fb.length > 0) {
+          if (Array.isArray(fb)) {
             rawData = fb;
           } else {
             const cl = await withTimeout(clientPromise, 2500, null);
@@ -1573,7 +1573,7 @@ export const DatabaseService = {
           }
         }
 
-        if (Array.isArray(rawData) && rawData.length > 0) {
+        if (Array.isArray(rawData)) {
           const mapped: Product[] = rawData.map((d: any) => ({
             id: String(d.id),
             name: d.name || 'Girly Tales Item',
@@ -1928,9 +1928,12 @@ export const DatabaseService = {
 
     const client = requireSupabase();
 
-    // 1. Identify product and collect all its image URLs before deleting
+    // 1. Identify product, exact IDs, slugs, and associated storage images
     let candidateImages: string[] = [];
     const targetProduct = inMemoryProducts.find((p) => p.id === cleanId || p.slug === cleanId);
+    const targetId = targetProduct?.id || cleanId;
+    const targetSlug = targetProduct?.slug || cleanId;
+
     if (targetProduct && Array.isArray(targetProduct.images)) {
       candidateImages = [...targetProduct.images];
     }
@@ -1939,8 +1942,8 @@ export const DatabaseService = {
       try {
         const { data: dbProd } = await client
           .from('products')
-          .select('images')
-          .or(`id.eq.${cleanId},slug.eq.${cleanId}`)
+          .select('id, slug, images')
+          .or(`id.eq.${targetId},slug.eq.${targetSlug}`)
           .maybeSingle();
         if (dbProd?.images) {
           if (Array.isArray(dbProd.images)) {
@@ -1957,33 +1960,87 @@ export const DatabaseService = {
     }
 
     // Filter out images that are still referenced by other products (safety check)
-    const otherProducts = inMemoryProducts.filter((p) => p.id !== cleanId && p.slug !== cleanId);
+    const otherProducts = inMemoryProducts.filter((p) => p.id !== targetId && p.slug !== targetSlug && p.id !== cleanId);
     const otherImagesSet = new Set(
       otherProducts.flatMap((p) => (Array.isArray(p.images) ? p.images : []))
     );
     const imagesToDelete = candidateImages.filter((img) => !otherImagesSet.has(img));
 
-    // 2. Delete product record from Supabase table
-    let delError: any = null;
+    // 2. Clean up associated foreign rows in dependent tables FIRST (prevents foreign key / trigger failures)
     try {
-      const { error } = await client
+      await client.from('cart_items').delete().or(`product_id.eq.${targetId},product_id.eq.${cleanId}`);
+    } catch (cartErr) {}
+    try {
+      await client.from('wishlist').delete().or(`product_id.eq.${targetId},product_id.eq.${cleanId}`);
+    } catch (wishErr) {}
+    try {
+      await client.from('reviews').delete().or(`product_id.eq.${targetId},product_id.eq.${cleanId}`);
+    } catch (revErr) {}
+
+    // 3. Delete product record from Supabase table with robust multi-strategy execution
+    let delError: any = null;
+    let deletedCount = 0;
+
+    // Strategy A: Direct primary key deletion via Supabase JS client
+    try {
+      const { error: err1, count: count1 } = await client
         .from('products')
-        .delete()
-        .or(`id.eq.${cleanId},slug.eq.${cleanId}`);
-      delError = error;
+        .delete({ count: 'exact' })
+        .eq('id', targetId);
+      if (err1) {
+        delError = err1;
+      } else if (typeof count1 === 'number' && count1 > 0) {
+        deletedCount += count1;
+      }
     } catch (err) {
       delError = err;
     }
 
-    if (delError) {
-      const ok = await supabaseRestMutation('products', 'DELETE', `or=(id.eq.${encodeURIComponent(cleanId)},slug.eq.${encodeURIComponent(cleanId)})`);
-      if (!ok) {
-        console.error('Supabase deleteProduct failed:', delError);
-        throw new Error(`Failed to delete product from database: ${formatQueryError(delError)}`);
+    // Strategy B: If not deleted or targetSlug exists, delete by slug / cleanId / or filter
+    if (deletedCount === 0) {
+      try {
+        const { error: err2, count: count2 } = await client
+          .from('products')
+          .delete({ count: 'exact' })
+          .or(`id.eq.${targetId},slug.eq.${targetSlug},id.eq.${cleanId}`);
+        if (!err2 && typeof count2 === 'number' && count2 > 0) {
+          deletedCount += count2;
+          delError = null;
+        }
+      } catch (err) {}
+    }
+
+    // Strategy C: Direct PostgREST HTTP REST DELETE calls (bypasses any client filter edge cases)
+    try {
+      await supabaseRestMutation('products', 'DELETE', `id=eq.${encodeURIComponent(targetId)}`);
+      if (targetSlug && targetSlug !== targetId) {
+        await supabaseRestMutation('products', 'DELETE', `slug=eq.${encodeURIComponent(targetSlug)}`);
+      }
+      if (cleanId !== targetId) {
+        await supabaseRestMutation('products', 'DELETE', `id=eq.${encodeURIComponent(cleanId)}`);
+      }
+    } catch (restErr) {}
+
+    // Verify deletion if an error occurred during client deletion
+    if (delError && deletedCount === 0) {
+      try {
+        const { data: checkProd } = await client
+          .from('products')
+          .select('id')
+          .or(`id.eq.${targetId},slug.eq.${targetSlug}`)
+          .maybeSingle();
+        if (checkProd) {
+          console.error('Supabase deleteProduct failed:', delError);
+          throw new Error(`Failed to delete product from database: ${formatQueryError(delError)}`);
+        }
+      } catch (e: any) {
+        if (e.message && e.message.includes('Failed to delete product from database')) {
+          throw e;
+        }
       }
     }
 
-    // 3. Delete product images from Supabase Storage bucket
+    // 4. Delete product images from Supabase Storage bucket
     if (imagesToDelete.length > 0) {
       try {
         await this.deleteStorageFiles(imagesToDelete, 'product-images');
@@ -1992,19 +2049,17 @@ export const DatabaseService = {
       }
     }
 
-    // 4. Clean up associated cart_items & wishlist rows in Supabase
-    try {
-      await client.from('cart_items').delete().eq('product_id', cleanId);
-      await client.from('wishlist').delete().eq('product_id', cleanId);
-    } catch (subErr) {}
+    // 5. Update and invalidate runtime in-memory and persistent cache
+    inMemoryProducts = inMemoryProducts.filter((p) => p.id !== targetId && p.slug !== targetSlug && p.id !== cleanId);
+    lastProductsFetchTime = 0; // Force subsequent queries to fetch fresh database state
+    activeProductsPromise = null;
 
-    // 5. Update in-memory state ONLY on DB success
-    inMemoryProducts = inMemoryProducts.filter((p) => p.id !== cleanId && p.slug !== cleanId);
     try {
       if (typeof window !== 'undefined') {
         localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(inMemoryProducts));
       }
     } catch {}
+
     notifyDatabaseChange('products');
     notifyDatabaseChange('cart');
     notifyDatabaseChange('wishlist');
