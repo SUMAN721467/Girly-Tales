@@ -34,8 +34,8 @@ export const formatQueryError = (err: any): string => {
 
 export async function fetchSupabaseRestFallback<T>(path: string): Promise<T | null> {
   const candidateBases = [
-    getEffectiveSupabaseUrl(),
     getRawSupabaseUrl(),
+    getEffectiveSupabaseUrl(),
     typeof window !== 'undefined' && window.location?.origin ? `${window.location.origin}/supabase-proxy` : '',
   ].filter(Boolean);
 
@@ -43,18 +43,24 @@ export async function fetchSupabaseRestFallback<T>(path: string): Promise<T | nu
   const apiKey = getSupabaseAnonKey();
   if (!apiKey) return null;
 
+  const cleanPath = path.replace(/^\/+/, '');
+
   for (const base of uniqueBases) {
     try {
       const cleanBase = base.replace(/\/+$/, '');
-      const cleanPath = path.replace(/^\/+/, '');
       const url = `${cleanBase}/rest/v1/${cleanPath}`;
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 3500);
+
       const res = await fetch(url, {
         headers: {
           apikey: apiKey,
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
+        signal: ctrl.signal,
       });
+      clearTimeout(timer);
 
       if (res.ok) {
         return (await res.json()) as T;
@@ -75,8 +81,8 @@ export async function supabaseRestMutation(
   prefer?: string
 ): Promise<boolean> {
   const candidateBases = [
-    getEffectiveSupabaseUrl(),
     getRawSupabaseUrl(),
+    getEffectiveSupabaseUrl(),
     typeof window !== 'undefined' && window.location?.origin ? `${window.location.origin}/supabase-proxy` : '',
   ].filter(Boolean);
 
@@ -99,11 +105,16 @@ export async function supabaseRestMutation(
         Prefer: prefer || defaultPrefer,
       };
 
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 4000);
+
       const res = await fetch(url, {
         method,
         headers,
         body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal: ctrl.signal,
       });
+      clearTimeout(timer);
 
       if (res.ok) {
         return true;
@@ -1071,8 +1082,8 @@ export const DatabaseService = {
         try {
           rawData = await Promise.race([
             clientPromise.then((d) => {
-              if (Array.isArray(d) && d.length > 0) return d;
-              throw new Error('client empty or timed out');
+              if (Array.isArray(d)) return d;
+              throw new Error('client error');
             }),
             restPromise.then((d) => {
               if (Array.isArray(d)) return d;
@@ -1179,8 +1190,8 @@ export const DatabaseService = {
       try {
         rawData = await Promise.race([
           clientPromise.then((d) => {
-            if (Array.isArray(d) && d.length > 0) return d;
-            throw new Error('client empty or timed out');
+            if (Array.isArray(d)) return d;
+            throw new Error('client error');
           }),
           restPromise.then((d) => {
             if (Array.isArray(d)) return d;
@@ -3253,8 +3264,8 @@ export const DatabaseService = {
         try {
           rawData = await Promise.race([
             clientPromise.then((d) => {
-              if (Array.isArray(d) && d.length > 0) return d;
-              throw new Error('client empty or timed out');
+              if (Array.isArray(d)) return d;
+              throw new Error('client error');
             }),
             restPromise.then((d) => {
               if (Array.isArray(d)) return d;
@@ -3268,7 +3279,7 @@ export const DatabaseService = {
           } catch {}
         }
 
-        if (Array.isArray(rawData) && rawData.length > 0) {
+        if (Array.isArray(rawData)) {
           const mapped: RealCoupon[] = rawData.map((d: any) => {
             let showInList = false;
             let usageLimit: number | null = null;
@@ -3621,13 +3632,13 @@ export const DatabaseService = {
           rawCategories = await Promise.race([
             clientPromise,
             restPromise.then((d) => {
-              if (Array.isArray(d) && d.length > 0) return d;
-              throw new Error('rest empty');
+              if (Array.isArray(d)) return d;
+              throw new Error('rest failed');
             }),
           ]);
         } catch {
           const fb = await withTimeout(restPromise, 2500, null);
-          if (Array.isArray(fb) && fb.length > 0) {
+          if (Array.isArray(fb)) {
             rawCategories = fb;
           } else {
             const cl = await withTimeout(clientPromise, 2500, null);
@@ -3635,7 +3646,7 @@ export const DatabaseService = {
           }
         }
 
-        if (Array.isArray(rawCategories) && rawCategories.length > 0) {
+        if (Array.isArray(rawCategories)) {
           const mapped: RealCategory[] = rawCategories.map((d: any, idx: number) => ({
             id: d.id,
             name: d.name,

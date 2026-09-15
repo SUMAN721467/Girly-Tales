@@ -8,7 +8,7 @@ import {
 
 async function fetchWishlistRowsRest(cleanEmail?: string, cleanId?: string): Promise<any[] | null> {
   const anonKey = getSupabaseAnonKey();
-  const candidateUrls = [getEffectiveSupabaseUrl(), getRawSupabaseUrl()].filter(Boolean);
+  const candidateUrls = [getRawSupabaseUrl(), getEffectiveSupabaseUrl()].filter(Boolean);
 
   let filterQuery = '';
   if (cleanId && cleanEmail && cleanId !== cleanEmail) {
@@ -46,7 +46,7 @@ async function fetchWishlistRowsRest(cleanEmail?: string, cleanId?: string): Pro
 
 async function insertWishlistRowRest(userId: string, productId: string): Promise<boolean> {
   const anonKey = getSupabaseAnonKey();
-  const candidateUrls = [getEffectiveSupabaseUrl(), getRawSupabaseUrl()].filter(Boolean);
+  const candidateUrls = [getRawSupabaseUrl(), getEffectiveSupabaseUrl()].filter(Boolean);
 
   for (const base of candidateUrls) {
     try {
@@ -76,7 +76,7 @@ async function insertWishlistRowRest(userId: string, productId: string): Promise
 
 async function deleteWishlistRowRest(cleanEmail?: string, cleanId?: string, productId?: string): Promise<boolean> {
   const anonKey = getSupabaseAnonKey();
-  const candidateUrls = [getEffectiveSupabaseUrl(), getRawSupabaseUrl()].filter(Boolean);
+  const candidateUrls = [getRawSupabaseUrl(), getEffectiveSupabaseUrl()].filter(Boolean);
 
   let filterQuery = '';
   if (productId) {

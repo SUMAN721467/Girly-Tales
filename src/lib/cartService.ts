@@ -12,7 +12,7 @@ import { MOCK_PRODUCTS } from '../data/products';
 // Helper for fast REST cart fetch with candidate URL fallback
 async function fetchCartRowsRest(cleanEmail?: string, cleanId?: string): Promise<any[] | null> {
   const anonKey = getSupabaseAnonKey();
-  const candidateUrls = [getEffectiveSupabaseUrl(), getRawSupabaseUrl()].filter(Boolean);
+  const candidateUrls = [getRawSupabaseUrl(), getEffectiveSupabaseUrl()].filter(Boolean);
 
   let filterQuery = '';
   if (cleanId && cleanEmail && cleanId !== cleanEmail) {
@@ -53,7 +53,7 @@ async function fetchCartRowsRest(cleanEmail?: string, cleanId?: string): Promise
 // Helper for fast REST cart rows deletion
 async function deleteCartRowsRest(cleanEmail?: string, cleanId?: string): Promise<boolean> {
   const anonKey = getSupabaseAnonKey();
-  const candidateUrls = [getEffectiveSupabaseUrl(), getRawSupabaseUrl()].filter(Boolean);
+  const candidateUrls = [getRawSupabaseUrl(), getEffectiveSupabaseUrl()].filter(Boolean);
 
   let filterQuery = '';
   if (cleanId && cleanEmail && cleanId !== cleanEmail) {
@@ -91,7 +91,7 @@ async function deleteCartRowsRest(cleanEmail?: string, cleanId?: string): Promis
 async function insertCartRowsRest(rows: any[]): Promise<boolean> {
   if (!rows || rows.length === 0) return true;
   const anonKey = getSupabaseAnonKey();
-  const candidateUrls = [getEffectiveSupabaseUrl(), getRawSupabaseUrl()].filter(Boolean);
+  const candidateUrls = [getRawSupabaseUrl(), getEffectiveSupabaseUrl()].filter(Boolean);
 
   for (const base of candidateUrls) {
     try {

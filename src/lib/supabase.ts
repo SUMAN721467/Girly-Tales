@@ -31,9 +31,18 @@ export const isSupabaseConfigured: boolean =
 // 2. CORS preflight errors and mixed content blocks
 // 3. Regional ISP / DNS lookup issues on *.supabase.co
 export const getEffectiveSupabaseUrl = (): string => {
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    return `${window.location.origin}/supabase-proxy`;
+  if (typeof window !== 'undefined') {
+    // On local development, Vite dev server handles /supabase-proxy locally with zero latency
+    const isLocalhost =
+      window.location?.hostname === 'localhost' ||
+      window.location?.hostname === '127.0.0.1' ||
+      window.location?.hostname === '[::1]';
+    if (isLocalhost) {
+      return `${window.location.origin}/supabase-proxy`;
+    }
   }
+  // In production (live website), connect directly to Supabase's high-speed global Anycast CDN.
+  // This eliminates Vercel serverless proxy hops, queuing, and cold start delays!
   return rawUrl;
 };
 
