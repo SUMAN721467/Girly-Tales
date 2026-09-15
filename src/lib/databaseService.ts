@@ -666,6 +666,7 @@ let inMemoryHomepageConfig: HomepageConfig | null = null;
 let inMemoryPromotions: PromotionItem[] = [];
 let inMemoryShippingRules: ShippingRules | null = null;
 let inMemoryFaqs: FAQItem[] = [];
+let inMemoryCustomers: RealCustomer[] = [];
 const deletedOrderIds = new Set<string>();
 
 const PRODUCTS_CACHE_KEY = 'gt_cached_products_v3';
@@ -675,6 +676,7 @@ const COUPONS_CACHE_KEY = 'gt_cached_coupons_v3';
 const REVIEWS_CACHE_KEY = 'gt_cached_reviews_v3';
 const TESTIMONIALS_CACHE_KEY = 'gt_cached_testimonials_v2';
 const HOMEPAGE_CACHE_KEY = 'gt_cached_homepage_v2';
+const CUSTOMERS_CACHE_KEY = 'gt_cached_customers_v3';
 
 export const DEFAULT_TESTIMONIALS: RealTestimonial[] = [
   {
@@ -857,6 +859,13 @@ try {
         if (parsed && typeof parsed === 'object') inMemoryHomepageConfig = parsed;
       } catch {}
     }
+    const savedCusts = localStorage.getItem(CUSTOMERS_CACHE_KEY);
+    if (savedCusts) {
+      try {
+        const parsed = JSON.parse(savedCusts);
+        if (Array.isArray(parsed) && parsed.length > 0) inMemoryCustomers = parsed;
+      } catch {}
+    }
   }
 } catch (e) {}
 
@@ -930,6 +939,14 @@ export function mapRawOrder(d: any): RealOrder {
 }
 
 export const DatabaseService = {
+  getCachedOrders(): RealOrder[] {
+    return inMemoryOrders;
+  },
+
+  getCachedCustomers(): RealCustomer[] {
+    return inMemoryCustomers;
+  },
+
   // ==================== 1. ORDERS ====================
   async getOrders(forceFresh = false): Promise<RealOrder[]> {
     if (!isSupabaseConfigured) {
@@ -1619,6 +1636,11 @@ export const DatabaseService = {
 
     // 2. Update local state ONLY on DB success
     inMemoryProducts = [product, ...inMemoryProducts.filter((p) => p.id !== product.id)];
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(inMemoryProducts));
+      }
+    } catch {}
     notifyDatabaseChange('products');
 
     return product;
@@ -1679,6 +1701,11 @@ export const DatabaseService = {
 
     // 2. Update in-memory state ONLY on DB success
     inMemoryProducts = inMemoryProducts.map((p) => (p.id === id ? { ...p, ...updates } : p));
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(inMemoryProducts));
+      }
+    } catch {}
     notifyDatabaseChange('products');
 
     const updated = inMemoryProducts.find((p) => p.id === id);
@@ -1713,6 +1740,11 @@ export const DatabaseService = {
     }
 
     inMemoryProducts = inMemoryProducts.map((p) => (p.id === productId ? { ...p, inStock } : p));
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(inMemoryProducts));
+      }
+    } catch {}
     notifyDatabaseChange('products');
   },
 
@@ -1748,6 +1780,11 @@ export const DatabaseService = {
 
     // 2. Update in-memory state ONLY on DB success
     inMemoryProducts = inMemoryProducts.filter((p) => p.id !== cleanId && p.slug !== cleanId);
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(inMemoryProducts));
+      }
+    } catch {}
     notifyDatabaseChange('products');
     notifyDatabaseChange('cart');
     notifyDatabaseChange('wishlist');
@@ -1889,36 +1926,20 @@ export const DatabaseService = {
           remoteAddresses = addrRes.data;
         }
 
-        // Direct REST fallback for profiles (fetches all registered customer profiles using clean Anon API key)
-        const fallbackProfiles = await fetchSupabaseRestFallback<any[]>('profiles?select=*');
-        if (Array.isArray(fallbackProfiles) && fallbackProfiles.length > 0) {
-          const profMap = new Map<string, any>();
-          remoteProfiles.forEach((p) => {
-            const k = (p.email || p.id || '').toLowerCase().trim();
-            if (k) profMap.set(k, p);
-          });
-          fallbackProfiles.forEach((p) => {
-            const k = (p.email || p.id || '').toLowerCase().trim();
-            if (k && !profMap.has(k)) {
-              profMap.set(k, p);
-            }
-          });
-          remoteProfiles = Array.from(profMap.values());
+        // Direct REST fallback for profiles (only if client query returned no data)
+        if (remoteProfiles.length === 0) {
+          const fallbackProfiles = await fetchSupabaseRestFallback<any[]>('profiles?select=*');
+          if (Array.isArray(fallbackProfiles) && fallbackProfiles.length > 0) {
+            remoteProfiles = fallbackProfiles;
+          }
         }
 
-        // Direct REST fallback for shipping_addresses
-        const fallbackAddresses = await fetchSupabaseRestFallback<any[]>('shipping_addresses?select=*');
-        if (Array.isArray(fallbackAddresses) && fallbackAddresses.length > 0) {
-          const addrMap = new Map<string, any>();
-          remoteAddresses.forEach((a) => {
-            if (a.id) addrMap.set(a.id, a);
-          });
-          fallbackAddresses.forEach((a) => {
-            if (a.id && !addrMap.has(a.id)) {
-              addrMap.set(a.id, a);
-            }
-          });
-          remoteAddresses = Array.from(addrMap.values());
+        // Direct REST fallback for shipping_addresses (only if client query returned no data)
+        if (remoteAddresses.length === 0) {
+          const fallbackAddresses = await fetchSupabaseRestFallback<any[]>('shipping_addresses?select=*');
+          if (Array.isArray(fallbackAddresses) && fallbackAddresses.length > 0) {
+            remoteAddresses = fallbackAddresses;
+          }
         }
 
         const authUser = authUserRes.data?.user;
@@ -2096,8 +2117,16 @@ export const DatabaseService = {
         });
       }
     });
-
-    return Array.from(customerMap.values());
+    const derived = Array.from(customerMap.values());
+    if (derived.length > 0) {
+      inMemoryCustomers = derived;
+      try {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(CUSTOMERS_CACHE_KEY, JSON.stringify(inMemoryCustomers));
+        }
+      } catch {}
+    }
+    return derived;
   },
 
   async getCustomerActivity(
@@ -3355,6 +3384,11 @@ export const DatabaseService = {
     }
 
     inMemoryCategories = [...current.filter((c) => c.id !== newCategory.id), newCategory];
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(CATEGORIES_CACHE_KEY, JSON.stringify(inMemoryCategories));
+      }
+    } catch {}
     notifyDatabaseChange('categories');
     return newCategory;
   },
@@ -3399,6 +3433,11 @@ export const DatabaseService = {
       return c;
     });
 
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(CATEGORIES_CACHE_KEY, JSON.stringify(inMemoryCategories));
+      }
+    } catch {}
     notifyDatabaseChange('categories');
     if (!updatedCat) throw new Error('Category not found after update');
     return updatedCat;
@@ -3423,6 +3462,11 @@ export const DatabaseService = {
     }
 
     inMemoryCategories = inMemoryCategories.filter((c) => c.id !== id);
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(CATEGORIES_CACHE_KEY, JSON.stringify(inMemoryCategories));
+      }
+    } catch {}
     notifyDatabaseChange('categories');
   },
 
@@ -3451,6 +3495,11 @@ export const DatabaseService = {
     }
 
     inMemoryCategories = indexed;
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(CATEGORIES_CACHE_KEY, JSON.stringify(inMemoryCategories));
+      }
+    } catch {}
     notifyDatabaseChange('categories');
   },
 

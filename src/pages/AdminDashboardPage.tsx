@@ -83,18 +83,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const { items: currentCartItems, triggerToast } = useCart();
   const { wishlistProducts: currentWishlistProducts } = useWishlist();
   const [activeTab, setActiveTab] = useState<AdminTab>('products');
-  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [isLoadingData, setIsLoadingData] = useState(false);
 
   // View state for Products tab: 'list' | 'create'
   const [isCreatingProduct, setIsCreatingProduct] = useState(false);
 
-  // Real Database States
-  const [productsList, setProductsList] = useState<Product[]>([]);
-  const [orders, setOrders] = useState<RealOrder[]>([]);
-  const [customers, setCustomers] = useState<RealCustomer[]>([]);
-  const [reviews, setReviews] = useState<RealReview[]>([]);
-  const [coupons, setCoupons] = useState<RealCoupon[]>([]);
-  const [categoriesList, setCategoriesList] = useState<RealCategory[]>([]);
+  // Real Database States initialized immediately from local persistent cache (0ms instant boot)
+  const [productsList, setProductsList] = useState<Product[]>(() => DatabaseService.getCachedProducts());
+  const [orders, setOrders] = useState<RealOrder[]>(() => DatabaseService.getCachedOrders());
+  const [customers, setCustomers] = useState<RealCustomer[]>(() => DatabaseService.getCachedCustomers());
+  const [reviews, setReviews] = useState<RealReview[]>(() => DatabaseService.getCachedReviews());
+  const [coupons, setCoupons] = useState<RealCoupon[]>(() => DatabaseService.getCachedCoupons());
+  const [categoriesList, setCategoriesList] = useState<RealCategory[]>(() => DatabaseService.getCachedCategories());
   const [dbStatus, setDbStatus] = useState<{
     isConfigured: boolean;
     url: string;
@@ -918,17 +918,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     }
   }, [currentCartItems, currentWishlistProducts, selectedCustomerDetail, user]);
 
-  // Global listener to refresh customer detail view when cart or wishlist changes
-  useEffect(() => {
-    const handleSync = (e: any) => {
-      const type = e.detail?.type;
-      if ((type === 'wishlist' || type === 'cart' || type === 'all') && selectedCustomerDetail) {
-        handleViewCustomerDetails(selectedCustomerDetail);
-      }
-    };
-    window.addEventListener('gt_db_sync', handleSync);
-    return () => window.removeEventListener('gt_db_sync', handleSync);
-  }, [selectedCustomerDetail]);
+
 
 
 
@@ -1239,65 +1229,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   };
 
   useEffect(() => {
-    loadDatabaseData();
-
-    // Debounced loadDatabaseData for realtime events
-    let debounceTimer: any = null;
-    const debouncedLoad = () => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        loadDatabaseData(false);
-      }, 350);
-    };
-
-    // 1. Listen for global cross-component database sync events
-    window.addEventListener('gt_db_sync', debouncedLoad);
-
-    // 2. Real-time Supabase Database Listener
-    let channel: any = null;
-    if (isSupabaseConfigured) {
-      try {
-        channel = supabase
-          .channel('admin-realtime-sync')
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'categories' },
-            () => debouncedLoad()
-          )
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'products' },
-            () => debouncedLoad()
-          )
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'orders' },
-            () => debouncedLoad()
-          )
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'testimonials' },
-            () => debouncedLoad()
-          )
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'profiles' },
-            () => debouncedLoad()
-          )
-          .subscribe();
-      } catch (err) {
-        console.warn('Supabase realtime admin subscription note:', err);
-      }
-    }
-
-    return () => {
-      clearTimeout(debounceTimer);
-      window.removeEventListener('gt_db_sync', debouncedLoad);
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
-    };
-  }, [user]);
+    // Initial fetch to sync any new remote database updates without blocking UI
+    loadDatabaseData(false);
+  }, []);
 
   // Compute Real Metrics
   const totalRealRevenue = orders
@@ -2015,7 +1949,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
               )}
             </div>
             <p className="text-xs sm:text-sm text-brand-muted font-normal">
-              Manage your catalog, fulfill orders, and view live database synchronization.
+              Manage your catalog, fulfill orders, and view customer summaries.
             </p>
           </div>
 
@@ -2030,9 +1964,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             <button
               onClick={() => loadDatabaseData(true)}
               className="px-4 py-2.5 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-bold rounded-2xl shadow-xs transition-all flex items-center gap-2 cursor-pointer"
+              title="Refresh to sync"
             >
               <RefreshCw className={`w-4 h-4 ${isLoadingData ? 'animate-spin' : ''}`} />
-              <span>Sync Database</span>
+              <span>Refresh</span>
             </button>
           </div>
         </div>
