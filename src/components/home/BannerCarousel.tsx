@@ -46,7 +46,7 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({
 }) => {
   const activeBanners = React.useMemo(() => {
     if (Array.isArray(banners) && banners.length > 0) {
-      const filtered = banners.filter((b) => b.active !== false && b.image);
+      const filtered = banners.filter((b) => b.active !== false && (b.image || b.mobileImage));
       if (filtered.length > 0) return filtered;
     }
     return DEFAULT_BANNERS;
@@ -94,6 +94,8 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({
 
   const currentBanner = activeBanners[currentIndex] || activeBanners[0];
 
+  const hasAnyMobileImage = activeBanners.some((b) => !!b.mobileImage);
+
   return (
     <div
       className="relative w-full overflow-hidden bg-[#FEFDEB] select-none group"
@@ -112,7 +114,11 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({
             onNavigate('shop', currentBanner.category === 'all' ? undefined : currentBanner.category);
           }
         }}
-        className="relative w-full h-[180px] sm:h-[300px] md:h-[420px] lg:h-[500px] xl:h-[560px] cursor-pointer"
+        className={`relative w-full cursor-pointer transition-all duration-300 ${
+          hasAnyMobileImage
+            ? 'h-[440px] sm:h-[300px] md:h-[420px] lg:h-[500px] xl:h-[560px]'
+            : 'h-[180px] sm:h-[300px] md:h-[420px] lg:h-[500px] xl:h-[560px]'
+        }`}
       >
         {/* Banner Images with smooth fade transition */}
         {activeBanners.map((banner, index) => (
@@ -122,12 +128,17 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({
               index === currentIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'
             }`}
           >
-            <img
-              src={banner.image}
-              alt={banner.alt || 'Girly Tales'}
-              className="w-full h-full object-cover object-center"
-              loading={index === 0 ? 'eager' : 'lazy'}
-            />
+            <picture className="w-full h-full block">
+              {banner.mobileImage ? (
+                <source media="(max-width: 639px)" srcSet={banner.mobileImage} />
+              ) : null}
+              <img
+                src={banner.image || banner.mobileImage}
+                alt={banner.alt || 'Girly Tales'}
+                className="w-full h-full object-cover object-center"
+                loading={index === 0 ? 'eager' : 'lazy'}
+              />
+            </picture>
           </div>
         ))}
 

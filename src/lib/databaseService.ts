@@ -402,7 +402,8 @@ export interface StoreSettings {
 
 export interface HomeBanner {
   id: string;
-  image: string;
+  image: string; // Laptop screen (Landscape - e.g. 1600 x 650)
+  mobileImage?: string; // Mobile screen (Portrait - e.g. 414 x 650)
   alt: string;
   category: string; // 'all' | 'nightwear' | 'jewellery' | or category slug
   title?: string;
@@ -476,6 +477,7 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
     {
       id: 'b1',
       image: banner1,
+      mobileImage: '',
       alt: 'Girly Tales Launch Offer',
       category: 'all',
       title: 'Everyday Luxury',
@@ -486,6 +488,7 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
     {
       id: 'b2',
       image: banner2,
+      mobileImage: '',
       alt: 'Girly Tales Nightwear & Jewellery Collection',
       category: 'nightwear',
       title: 'Mulberry Silk & Cotton',
@@ -496,6 +499,7 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
     {
       id: 'b3',
       image: banner3,
+      mobileImage: '',
       alt: 'Girly Tales 18K Anti-Tarnish Jewels',
       category: 'jewellery',
       title: '18K Anti-Tarnish Jewels',
@@ -1854,6 +1858,79 @@ export const DatabaseService = {
     if (uploadError) {
       console.error('Supabase storage upload error:', uploadError);
       throw new Error(`Product image upload failed: ${uploadError.message}. Please verify the 'product-images' storage bucket exists in Supabase.`);
+    }
+
+    const { data: publicData } = client.storage
+      .from('product-images')
+      .getPublicUrl(filePath);
+
+    return normalizeStorageUrl(publicData?.publicUrl) || `${cdnBase}/storage/v1/object/public/product-images/${filePath}`;
+  },
+
+  async uploadBannerImage(file: File, isMobile = false): Promise<string> {
+    const maxWidth = isMobile ? 1080 : 2560;
+    const optimizedBlob = await this.optimizeImageFile(file, maxWidth, 0.90);
+    const cleanExt = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+    const prefix = isMobile ? 'mobile' : 'laptop';
+    const fileName = `banner_${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${cleanExt}`;
+    const filePath = `banners/${fileName}`;
+
+    const baseUrl = getEffectiveSupabaseUrl().replace(/\/+$/, '');
+    const apiKey = getSupabaseAnonKey();
+    const cdnBase = (getRawSupabaseUrl() || baseUrl).replace(/\/+$/, '');
+
+    // 1. Direct REST storage upload to 'product-images' bucket
+    try {
+      const uploadUrl = `${baseUrl}/storage/v1/object/product-images/${filePath}`;
+      const uploadRes = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          apikey: apiKey,
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': file.type || 'image/jpeg',
+          'cache-control': 'max-age=3600',
+          'x-upsert': 'true',
+        },
+        body: optimizedBlob,
+      });
+
+      if (uploadRes.ok) {
+        return `${cdnBase}/storage/v1/object/public/product-images/${filePath}`;
+      }
+
+      const errText = await uploadRes.text().catch(() => '');
+      console.warn('[Direct REST Banner Upload Failed, falling back to client]', uploadRes.status, errText);
+    } catch (restErr) {
+      console.warn('[Direct REST Banner Upload Network Error, falling back to client]', restErr);
+    }
+
+    // 2. Fallback to Supabase JS client
+    const client = requireSupabase();
+    let { error: uploadError } = await client.storage
+      .from('product-images')
+      .upload(filePath, optimizedBlob, {
+        contentType: file.type || 'image/jpeg',
+        cacheControl: '3600',
+        upsert: true,
+      });
+
+    if (uploadError && (uploadError.message?.toLowerCase().includes('not found') || uploadError.message?.toLowerCase().includes('bucket'))) {
+      try {
+        await client.storage.createBucket('product-images', { public: true });
+        const retry = await client.storage
+          .from('product-images')
+          .upload(filePath, optimizedBlob, {
+            contentType: file.type || 'image/jpeg',
+            cacheControl: '3600',
+            upsert: true,
+          });
+        uploadError = retry.error;
+      } catch (createErr) {}
+    }
+
+    if (uploadError) {
+      console.error('Supabase storage banner upload error:', uploadError);
+      throw new Error(`Banner image upload failed: ${uploadError.message}. Please verify the 'product-images' storage bucket exists in Supabase.`);
     }
 
     const { data: publicData } = client.storage
@@ -3662,10 +3739,18 @@ export const DatabaseService = {
         }
 
         if (rawData && typeof rawData === 'object') {
+          const rawBanners = Array.isArray(rawData.heroBanners) && rawData.heroBanners.length > 0
+            ? rawData.heroBanners.map((b: any) => ({
+                ...b,
+                image: normalizeStorageUrl(b.image || ''),
+                mobileImage: b.mobileImage ? normalizeStorageUrl(b.mobileImage) : '',
+              }))
+            : DEFAULT_HOMEPAGE_CONFIG.heroBanners;
+
           const merged: HomepageConfig = {
             announcementText: rawData.announcementText ?? DEFAULT_HOMEPAGE_CONFIG.announcementText,
             announcementActive: rawData.announcementActive ?? DEFAULT_HOMEPAGE_CONFIG.announcementActive,
-            heroBanners: Array.isArray(rawData.heroBanners) && rawData.heroBanners.length > 0 ? rawData.heroBanners : DEFAULT_HOMEPAGE_CONFIG.heroBanners,
+            heroBanners: rawBanners,
             bannerAutoplaySeconds: Number(rawData.bannerAutoplaySeconds) || DEFAULT_HOMEPAGE_CONFIG.bannerAutoplaySeconds,
             marqueePhrases: Array.isArray(rawData.marqueePhrases) && rawData.marqueePhrases.length > 0 ? rawData.marqueePhrases : DEFAULT_HOMEPAGE_CONFIG.marqueePhrases,
             categorySectionTitle: rawData.categorySectionTitle || DEFAULT_HOMEPAGE_CONFIG.categorySectionTitle,
@@ -3702,9 +3787,18 @@ export const DatabaseService = {
 
   async updateHomepageConfig(config: HomepageConfig): Promise<HomepageConfig> {
     const client = requireSupabase();
+    const cleanBanners = (config.heroBanners || []).map((b) => ({
+      ...b,
+      image: normalizeStorageUrl(b.image || ''),
+      mobileImage: b.mobileImage ? normalizeStorageUrl(b.mobileImage) : '',
+    }));
+    const cleanConfig: HomepageConfig = {
+      ...config,
+      heroBanners: cleanBanners,
+    };
     const payload = {
       key: 'homepage_config',
-      value: config,
+      value: cleanConfig,
       updated_at: new Date().toISOString(),
     };
 
@@ -3724,17 +3818,17 @@ export const DatabaseService = {
       }
     }
 
-    inMemoryHomepageConfig = config;
+    inMemoryHomepageConfig = cleanConfig;
     lastHomepageFetchTime = Date.now();
     try {
       if (typeof window !== 'undefined') {
-        localStorage.setItem(HOMEPAGE_CACHE_KEY, JSON.stringify(config));
+        localStorage.setItem(HOMEPAGE_CACHE_KEY, JSON.stringify(cleanConfig));
       }
     } catch {}
 
     notifyDatabaseChange('homepage');
     notifyDatabaseChange('settings');
-    return config;
+    return cleanConfig;
   },
 
   async resetDefaultHomepageConfig(): Promise<HomepageConfig> {

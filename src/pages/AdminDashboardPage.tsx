@@ -7,7 +7,8 @@ import {
   Database, Copy, ExternalLink, ShieldCheck, AlertCircle, CheckCircle, Sparkles,
   UploadCloud, Image as ImageIcon, MoveLeft, MoveRight, Star, Loader2,
   MapPin, Send, Mail, Phone, Calendar, MessageSquare,
-  Heart, ShoppingCart, User, Ticket, Quote
+  Heart, ShoppingCart, User, Ticket, Quote,
+  ChevronDown, ChevronUp, Smartphone
 } from 'lucide-react';
 import { Product } from '../types/product';
 import { useCart } from '../context/CartContext';
@@ -296,6 +297,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const [bannerForm, setBannerForm] = useState<HomeBanner>({
     id: '',
     image: '',
+    mobileImage: '',
     alt: 'Girly Tales Exclusive',
     category: 'all',
     title: '',
@@ -323,6 +325,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const catCardFileInputRef = useRef<HTMLInputElement>(null);
   const reelFileInputRef = useRef<HTMLInputElement>(null);
   const [activeReplacingBannerId, setActiveReplacingBannerId] = useState<string | null>(null);
+  const [activeUploadTarget, setActiveUploadTarget] = useState<{ id: string; isMobile: boolean } | null>(null);
+  const [isHeroSectionOpen, setIsHeroSectionOpen] = useState(true);
   const [uploadingTargetCardId, setUploadingTargetCardId] = useState<string | null>(null);
   const [uploadingTargetReelId, setUploadingTargetReelId] = useState<string | null>(null);
 
@@ -957,31 +961,94 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     });
   };
 
-  const handleUploadBannerImage = async (e: React.ChangeEvent<HTMLInputElement>, bannerId?: string) => {
+  const handleUploadBannerImage = async (e: React.ChangeEvent<HTMLInputElement>, bannerId?: string, isMobile = false) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const targetId = bannerId || activeUploadTarget?.id;
+    const targetIsMobile = isMobile || activeUploadTarget?.isMobile || false;
+
     setIsUploadingBannerImg(true);
     try {
-      const url = await DatabaseService.uploadProductImage(file);
+      const url = await DatabaseService.uploadBannerImage(file, targetIsMobile);
       if (url) {
-        if (bannerId) {
+        if (targetId) {
           setHomepageConfig((prev) => ({
             ...prev,
-            heroBanners: prev.heroBanners.map((b) => (b.id === bannerId ? { ...b, image: url } : b)),
+            heroBanners: prev.heroBanners.map((b) =>
+              b.id === targetId
+                ? targetIsMobile
+                  ? { ...b, mobileImage: url }
+                  : { ...b, image: url }
+                : b
+            ),
           }));
-          triggerToast('Banner Image Updated! 📸', 'Click "Save Homepage Changes" to publish.', undefined, 'success');
+          triggerToast(
+            targetIsMobile ? 'Mobile Banner Uploaded! 📱' : 'Laptop Banner Uploaded! 💻',
+            'Image stored in database bucket. Click "Save Hero Carousel Changes" to publish.',
+            undefined,
+            'success'
+          );
         } else {
-          setBannerForm((prev) => ({ ...prev, image: url }));
-          triggerToast('Banner Uploaded! 📸', 'Ready to save.', undefined, 'success');
+          setBannerForm((prev) =>
+            targetIsMobile ? { ...prev, mobileImage: url } : { ...prev, image: url }
+          );
+          triggerToast('Banner Image Set! 📸', 'Stored in database bucket. Ready to save.', undefined, 'success');
         }
       }
     } catch (err: any) {
       triggerToast('Upload Failed', err?.message || 'Could not upload banner.', undefined, 'error');
     } finally {
       setIsUploadingBannerImg(false);
+      setActiveUploadTarget(null);
       if (e.target) e.target.value = '';
     }
+  };
+
+  const handleClearBannerImage = (bannerId: string, isMobile: boolean) => {
+    setHomepageConfig((prev) => ({
+      ...prev,
+      heroBanners: prev.heroBanners.map((b) =>
+        b.id === bannerId
+          ? isMobile
+            ? { ...b, mobileImage: '' }
+            : { ...b, image: '' }
+          : b
+      ),
+    }));
+    triggerToast('Image Cleared', 'Remember to click Save Hero Carousel Changes.', undefined, 'info');
+  };
+
+  const handleUpdateBannerImageText = (bannerId: string, isMobile: boolean, val: string) => {
+    setHomepageConfig((prev) => ({
+      ...prev,
+      heroBanners: prev.heroBanners.map((b) =>
+        b.id === bannerId
+          ? isMobile
+            ? { ...b, mobileImage: val }
+            : { ...b, image: val }
+          : b
+      ),
+    }));
+  };
+
+  const handleAddNewSlide = () => {
+    const newSlide: HomeBanner = {
+      id: `b-${Date.now()}`,
+      image: '',
+      mobileImage: '',
+      alt: 'Girly Tales Launch Offer',
+      category: 'all',
+      title: '',
+      subtitle: '',
+      active: true,
+      orderIndex: homepageConfig.heroBanners.length,
+    };
+    setHomepageConfig((prev) => ({
+      ...prev,
+      heroBanners: [...prev.heroBanners, newSlide],
+    }));
+    triggerToast('Slide Added', `Added Slide #${homepageConfig.heroBanners.length + 1}`, undefined, 'info');
   };
 
   const handleUploadCatCardImage = async (e: React.ChangeEvent<HTMLInputElement>, cardId: string) => {
@@ -5620,8 +5687,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
               accept="image/png,image/jpeg,image/webp,image/jpg"
               className="hidden"
               onChange={(e) => {
-                if (activeReplacingBannerId) {
-                  handleUploadBannerImage(e, activeReplacingBannerId);
+                if (activeUploadTarget) {
+                  handleUploadBannerImage(e, activeUploadTarget.id, activeUploadTarget.isMobile);
+                } else if (activeReplacingBannerId) {
+                  handleUploadBannerImage(e, activeReplacingBannerId, false);
                 }
               }}
             />
@@ -5729,211 +5798,323 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             {/* ================= SUB-TAB 1: HERO BANNERS ================= */}
             {activeHomeSubTab === 'banners' && (
               <div className="space-y-6">
-                <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <h4 className="font-serif text-lg font-bold text-brand-charcoal">Top Hero Carousel Slides</h4>
-                    <p className="text-xs text-brand-muted">
-                      Displayed full-width at the top of the homepage. Reorder slides, upload images to Supabase, and assign target category links.
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 bg-[#FAF8F2] px-3 py-1.5 rounded-2xl border border-[#EAE6DB]">
-                      <Clock className="w-3.5 h-3.5 text-brand-muted" />
-                      <span className="text-[11px] font-bold text-brand-charcoal">Autoplay:</span>
-                      <select
-                        value={homepageConfig.bannerAutoplaySeconds || 2}
-                        onChange={(e) =>
-                          setHomepageConfig((p) => ({ ...p, bannerAutoplaySeconds: Number(e.target.value) }))
-                        }
-                        className="bg-transparent text-xs font-bold text-[#967BB6] focus:outline-none cursor-pointer"
-                      >
-                        <option value={2}>2 seconds</option>
-                        <option value={3}>3 seconds</option>
-                        <option value={4}>4 seconds</option>
-                        <option value={5}>5 seconds</option>
-                      </select>
+                {/* 1. Hero Section Container */}
+                <div className="bg-[#FAF8F2] rounded-3xl border border-[#EAE6DB] p-4 sm:p-7 shadow-xs space-y-6">
+                  {/* Collapsible Accordion Header */}
+                  <div
+                    onClick={() => setIsHeroSectionOpen((prev) => !prev)}
+                    className="flex items-center justify-between cursor-pointer select-none pb-2 border-b border-[#EAE6DB]/60"
+                  >
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-serif text-xl sm:text-2xl font-normal text-brand-charcoal">
+                        1. Hero Section
+                      </h3>
                     </div>
-
                     <button
                       type="button"
-                      onClick={handleOpenAddBanner}
-                      className="px-4 py-2 bg-[#1A1821] hover:bg-[#967BB6] text-white text-xs font-bold rounded-2xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                      className="p-1.5 rounded-full text-brand-charcoal hover:bg-[#EAE6DB]/60 transition-colors"
+                      aria-label="Toggle Hero Section"
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Add New Banner</span>
+                      {isHeroSectionOpen ? (
+                        <ChevronUp className="w-5 h-5" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5" />
+                      )}
                     </button>
                   </div>
-                </div>
 
-                {/* Banners Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {homepageConfig.heroBanners.map((banner, idx) => (
-                    <div
-                      key={banner.id || idx}
-                      className="bg-white rounded-3xl border border-[#EAE6DB] overflow-hidden shadow-xs flex flex-col justify-between hover:border-[#967BB6]/60 transition-all"
-                    >
-                      {/* Image Preview */}
-                      <div className="relative aspect-[16/9] bg-[#FAF8F2] overflow-hidden border-b border-[#EAE6DB]">
-                        {banner.image ? (
-                          <img
-                            src={banner.image}
-                            alt={banner.alt}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center text-brand-muted text-xs">
-                            <ImageIcon className="w-8 h-8 opacity-30 mb-1" />
-                            <span>No Image Set</span>
-                          </div>
-                        )}
-
-                        <span className="absolute top-3 left-3 bg-black/70 backdrop-blur-xs text-white text-[10px] font-black px-2.5 py-0.5 rounded-full">
-                          SLOT #{idx + 1}
-                        </span>
-
-                        <span
-                          className={`absolute top-3 right-3 text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
-                            banner.active !== false
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                              : 'bg-gray-100 text-gray-500 border-gray-200'
-                          }`}
+                  {isHeroSectionOpen && (
+                    <div className="space-y-5 animate-fade-in">
+                      {homepageConfig.heroBanners.map((banner, idx) => (
+                        <div
+                          key={banner.id || idx}
+                          className="bg-white rounded-2xl border border-[#EAE6DB] p-5 sm:p-6 shadow-xs space-y-4 hover:border-[#967BB6]/60 transition-all"
                         >
-                          {banner.active !== false ? '● Live' : '○ Hidden'}
-                        </span>
+                          {/* Card Header Row */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#EAE6DB]/70 gap-2">
+                            <div className="flex items-center gap-2.5">
+                              <span className="font-sans font-black text-sm tracking-wider text-brand-charcoal uppercase">
+                                BANNER SLIDE <span className="text-[#967BB6]">{idx + 1}</span>
+                              </span>
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                  banner.active !== false
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                    : 'bg-gray-100 text-gray-500 border-gray-200'
+                                }`}
+                              >
+                                {banner.active !== false ? 'Live' : 'Hidden'}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-brand-muted font-normal">
+                                  Clickable banner leading to
+                                </span>
+                                <select
+                                  value={banner.category || 'all'}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setHomepageConfig((prev) => ({
+                                      ...prev,
+                                      heroBanners: prev.heroBanners.map((b) =>
+                                        b.id === banner.id ? { ...b, category: val } : b
+                                      ),
+                                    }));
+                                  }}
+                                  className="px-2.5 py-1 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs font-bold text-[#967BB6] focus:outline-none focus:border-[#967BB6] cursor-pointer"
+                                >
+                                  <option value="all">/shop (All)</option>
+                                  <option value="nightwear">/shop (Nightwear)</option>
+                                  <option value="jewellery">/shop (Jewellery)</option>
+                                  {categoriesList
+                                    .filter((c) => c.slug !== 'nightwear' && c.slug !== 'jewellery')
+                                    .map((c) => (
+                                      <option key={c.id} value={c.slug}>
+                                        /shop ({c.name})
+                                      </option>
+                                    ))}
+                                </select>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteBanner(banner.id)}
+                                className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="Delete Slide"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* 2-Column Responsive Layout: Laptop vs Mobile */}
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6 pt-1">
+                            {/* Left Column: LAPTOP IMAGE */}
+                            <div className="space-y-2">
+                              <label className="block text-xs font-black uppercase text-brand-charcoal tracking-wide">
+                                LAPTOP IMAGE (LANDSCAPE - E.G. 1600 X 650)
+                              </label>
+
+                              <div className="flex items-center gap-3 sm:gap-4">
+                                {/* Landscape Thumbnail with Red circular X */}
+                                <div className="relative w-28 h-20 sm:w-36 sm:h-24 rounded-2xl bg-[#FAF8F2] border border-[#EAE6DB] shrink-0 overflow-hidden shadow-xs flex items-center justify-center">
+                                  {banner.image ? (
+                                    <>
+                                      <img
+                                        src={banner.image}
+                                        alt={banner.alt || 'Laptop Banner'}
+                                        className="w-full h-full object-cover"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => handleClearBannerImage(banner.id, false)}
+                                        className="absolute top-1.5 right-1.5 w-5 h-5 bg-[#D93025] hover:bg-[#B3261E] text-white rounded-full flex items-center justify-center shadow-xs cursor-pointer z-10 transition-transform active:scale-90"
+                                        title="Remove laptop image"
+                                      >
+                                        <X className="w-3 h-3 stroke-[3]" />
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <div
+                                      onClick={() => {
+                                        setActiveUploadTarget({ id: banner.id, isMobile: false });
+                                        bannerFileInputRef.current?.click();
+                                      }}
+                                      className="w-full h-full flex flex-col items-center justify-center text-brand-muted hover:text-[#967BB6] cursor-pointer transition-colors p-2 text-center"
+                                    >
+                                      <ImageIcon className="w-6 h-6 opacity-40 mb-1" />
+                                      <span className="text-[10px] font-bold">No Image</span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* URL Input & Upload Action */}
+                                <div className="flex-1 space-y-1.5 min-w-0">
+                                  <span className="block text-[11px] font-medium text-brand-muted">
+                                    Upload banner file or paste a URL below:
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="text"
+                                      value={banner.image || ''}
+                                      onChange={(e) => handleUpdateBannerImageText(banner.id, false, e.target.value)}
+                                      placeholder="https://... or click Upload"
+                                      className="flex-1 min-w-0 px-3 py-2 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs text-brand-charcoal focus:bg-white focus:outline-none focus:border-[#967BB6] transition-colors"
+                                    />
+                                    <button
+                                      type="button"
+                                      disabled={isUploadingBannerImg}
+                                      onClick={() => {
+                                        setActiveUploadTarget({ id: banner.id, isMobile: false });
+                                        bannerFileInputRef.current?.click();
+                                      }}
+                                      className="px-3.5 py-2 bg-[#F5EEFA] hover:bg-[#967BB6] hover:text-white text-[#967BB6] border border-[#967BB6]/30 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                                      title="Upload landscape banner file from computer"
+                                    >
+                                      <UploadCloud className="w-3.5 h-3.5" />
+                                      <span className="hidden sm:inline">Upload</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Right Column: MOBILE IMAGE */}
+                            <div className="space-y-2">
+                              <label className="block text-xs font-black uppercase text-brand-charcoal tracking-wide">
+                                MOBILE IMAGE (PORTRAIT - E.G. 414 X 650)
+                              </label>
+
+                              <div className="flex items-center gap-3 sm:gap-4">
+                                {/* Portrait Thumbnail with Red circular X */}
+                                <div className="relative w-20 h-24 sm:w-24 sm:h-28 rounded-2xl bg-[#FAF8F2] border border-[#EAE6DB] shrink-0 overflow-hidden shadow-xs flex items-center justify-center">
+                                  {banner.mobileImage ? (
+                                    <>
+                                      <img
+                                        src={banner.mobileImage}
+                                        alt={banner.alt || 'Mobile Banner'}
+                                        className="w-full h-full object-cover"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => handleClearBannerImage(banner.id, true)}
+                                        className="absolute top-1.5 right-1.5 w-5 h-5 bg-[#D93025] hover:bg-[#B3261E] text-white rounded-full flex items-center justify-center shadow-xs cursor-pointer z-10 transition-transform active:scale-90"
+                                        title="Remove mobile image"
+                                      >
+                                        <X className="w-3 h-3 stroke-[3]" />
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <div
+                                      onClick={() => {
+                                        setActiveUploadTarget({ id: banner.id, isMobile: true });
+                                        bannerFileInputRef.current?.click();
+                                      }}
+                                      className="w-full h-full flex flex-col items-center justify-center text-brand-muted hover:text-[#967BB6] cursor-pointer transition-colors p-2 text-center"
+                                    >
+                                      <Smartphone className="w-6 h-6 opacity-40 mb-1" />
+                                      <span className="text-[10px] font-bold">No Mobile</span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Mobile URL Input & Upload Action */}
+                                <div className="flex-1 space-y-1.5 min-w-0">
+                                  <span className="block text-[11px] font-medium text-brand-muted">
+                                    Upload mobile banner or paste a URL below:
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="text"
+                                      value={banner.mobileImage || ''}
+                                      onChange={(e) => handleUpdateBannerImageText(banner.id, true, e.target.value)}
+                                      placeholder="https://... or click Upload"
+                                      className="flex-1 min-w-0 px-3 py-2 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs text-brand-charcoal focus:bg-white focus:outline-none focus:border-[#967BB6] transition-colors"
+                                    />
+                                    <button
+                                      type="button"
+                                      disabled={isUploadingBannerImg}
+                                      onClick={() => {
+                                        setActiveUploadTarget({ id: banner.id, isMobile: true });
+                                        bannerFileInputRef.current?.click();
+                                      }}
+                                      className="px-3.5 py-2 bg-[#F5EEFA] hover:bg-[#967BB6] hover:text-white text-[#967BB6] border border-[#967BB6]/30 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                                      title="Upload portrait mobile banner file from computer"
+                                    >
+                                      <UploadCloud className="w-3.5 h-3.5" />
+                                      <span className="hidden sm:inline">Upload</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Card Sub-actions: Move & Live Toggle */}
+                          <div className="flex items-center justify-between pt-2 border-t border-[#EAE6DB]/50 text-xs text-brand-muted">
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={banner.active !== false}
+                                onChange={() => handleToggleBannerActive(banner.id)}
+                                className="rounded text-[#967BB6] focus:ring-[#967BB6] cursor-pointer"
+                              />
+                              <span className="font-semibold text-brand-charcoal">Show in carousel</span>
+                            </label>
+
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={() => handleMoveBanner(idx, 'left')}
+                                className="p-1.5 rounded-lg border border-[#EAE6DB] text-brand-charcoal hover:bg-[#FAF8F2] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                                title="Move Up"
+                              >
+                                <MoveLeft className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={idx === homepageConfig.heroBanners.length - 1}
+                                onClick={() => handleMoveBanner(idx, 'right')}
+                                className="p-1.5 rounded-lg border border-[#EAE6DB] text-brand-charcoal hover:bg-[#FAF8F2] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                                title="Move Down"
+                              >
+                                <MoveRight className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Add Slide & Autoplay Controls */}
+                      <div className="flex items-center justify-between pt-2">
+                        <button
+                          type="button"
+                          onClick={handleAddNewSlide}
+                          className="px-4 py-2.5 bg-white hover:bg-[#F5EEFA] hover:text-[#967BB6] border border-[#EAE6DB] hover:border-[#967BB6]/40 text-brand-charcoal text-xs font-bold rounded-2xl transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4 text-[#967BB6]" />
+                          <span>Add Banner Slide</span>
+                        </button>
+
+                        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-2xl border border-[#EAE6DB]">
+                          <Clock className="w-3.5 h-3.5 text-brand-muted" />
+                          <span className="text-[11px] font-bold text-brand-charcoal">Autoplay:</span>
+                          <select
+                            value={homepageConfig.bannerAutoplaySeconds || 2}
+                            onChange={(e) =>
+                              setHomepageConfig((p) => ({ ...p, bannerAutoplaySeconds: Number(e.target.value) }))
+                            }
+                            className="bg-transparent text-xs font-bold text-[#967BB6] focus:outline-none cursor-pointer"
+                          >
+                            <option value={2}>2 seconds</option>
+                            <option value={3}>3 seconds</option>
+                            <option value={4}>4 seconds</option>
+                            <option value={5}>5 seconds</option>
+                          </select>
+                        </div>
                       </div>
 
-                      {/* Controls Body */}
-                      <div className="p-4 sm:p-5 space-y-3.5">
-                        {/* Quick Replace Image */}
-                        <div>
-                          <label className="block text-[11px] font-bold text-brand-charcoal mb-1">
-                            Banner Image URL or Upload
-                          </label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              value={banner.image}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setHomepageConfig((prev) => ({
-                                  ...prev,
-                                  heroBanners: prev.heroBanners.map((b) => (b.id === banner.id ? { ...b, image: val } : b)),
-                                }));
-                              }}
-                              placeholder="https://... or click Upload"
-                              className="flex-1 px-3 py-1.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs focus:bg-white focus:outline-none focus:border-[#967BB6]"
-                            />
-                            <button
-                              type="button"
-                              disabled={isUploadingBannerImg}
-                              onClick={() => {
-                                setActiveReplacingBannerId(banner.id);
-                                if (bannerFileInputRef.current) bannerFileInputRef.current.click();
-                              }}
-                              className="px-3 py-1.5 bg-[#FAF8F2] hover:bg-[#F3EEF9] hover:text-[#967BB6] border border-[#EAE6DB] rounded-xl text-xs font-bold text-brand-charcoal transition-colors cursor-pointer flex items-center gap-1 shrink-0"
-                              title="Upload file directly from computer to Supabase"
-                            >
-                              <UploadCloud className="w-3.5 h-3.5 text-[#967BB6]" />
-                              <span>Upload</span>
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Alt Text & Link */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">
-                              Alt Description
-                            </label>
-                            <input
-                              type="text"
-                              value={banner.alt || ''}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setHomepageConfig((prev) => ({
-                                  ...prev,
-                                  heroBanners: prev.heroBanners.map((b) => (b.id === banner.id ? { ...b, alt: val } : b)),
-                                }));
-                              }}
-                              placeholder="Launch Offer"
-                              className="w-full px-3 py-1.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs focus:bg-white focus:outline-none focus:border-[#967BB6]"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">
-                              Click Destination
-                            </label>
-                            <select
-                              value={banner.category || 'all'}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setHomepageConfig((prev) => ({
-                                  ...prev,
-                                  heroBanners: prev.heroBanners.map((b) => (b.id === banner.id ? { ...b, category: val } : b)),
-                                }));
-                              }}
-                              className="w-full px-3 py-1.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs focus:bg-white focus:outline-none focus:border-[#967BB6] cursor-pointer"
-                            >
-                              <option value="all">Shop All ('all')</option>
-                              <option value="nightwear">Nightwear ('nightwear')</option>
-                              <option value="jewellery">Jewellery ('jewellery')</option>
-                              {categoriesList
-                                .filter((c) => c.slug !== 'nightwear' && c.slug !== 'jewellery')
-                                .map((c) => (
-                                  <option key={c.id} value={c.slug}>
-                                    {c.name} ('{c.slug}')
-                                  </option>
-                                ))}
-                            </select>
-                          </div>
-                        </div>
-
-                        {/* Footer Card Actions */}
-                        <div className="flex items-center justify-between pt-2 border-t border-[#EAE6DB]/70">
-                          <label className="flex items-center gap-1.5 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={banner.active !== false}
-                              onChange={() => handleToggleBannerActive(banner.id)}
-                              className="rounded text-[#967BB6] focus:ring-[#967BB6] cursor-pointer"
-                            />
-                            <span className="text-xs font-bold text-brand-charcoal">Live on Site</span>
-                          </label>
-
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              disabled={idx === 0}
-                              onClick={() => handleMoveBanner(idx, 'left')}
-                              className="p-1.5 rounded-lg border border-[#EAE6DB] text-brand-charcoal hover:bg-[#FAF8F2] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                              title="Move Left"
-                            >
-                              <MoveLeft className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              disabled={idx === homepageConfig.heroBanners.length - 1}
-                              onClick={() => handleMoveBanner(idx, 'right')}
-                              className="p-1.5 rounded-lg border border-[#EAE6DB] text-brand-charcoal hover:bg-[#FAF8F2] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                              title="Move Right"
-                            >
-                              <MoveRight className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteBanner(banner.id)}
-                              className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
-                              title="Delete Banner"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
+                      {/* Save Hero Carousel Changes Button matching website colour theme */}
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={handleSaveHomepageConfig}
+                          disabled={isSavingHomepage}
+                          className="w-full py-3.5 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-sm sm:text-base font-bold rounded-2xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                        >
+                          {isSavingHomepage ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-4 h-4" />
+                          )}
+                          <span>Save Hero Carousel Changes</span>
+                        </button>
                       </div>
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             )}
@@ -6798,6 +6979,40 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                 </div>
               </div>
             )}
+
+            {/* Hidden File Inputs for Homepage Uploads */}
+            <input
+              type="file"
+              ref={bannerFileInputRef}
+              onChange={(e) => handleUploadBannerImage(e)}
+              accept="image/png,image/jpeg,image/webp,image/jpg"
+              className="hidden"
+            />
+            <input
+              type="file"
+              ref={bannerModalFileInputRef}
+              onChange={(e) => handleUploadBannerImage(e)}
+              accept="image/png,image/jpeg,image/webp,image/jpg"
+              className="hidden"
+            />
+            <input
+              type="file"
+              ref={catCardFileInputRef}
+              onChange={(e) => {
+                if (uploadingTargetCardId) {
+                  handleUploadCatCardImage(e, uploadingTargetCardId);
+                }
+              }}
+              accept="image/png,image/jpeg,image/webp,image/jpg"
+              className="hidden"
+            />
+            <input
+              type="file"
+              ref={reelFileInputRef}
+              onChange={(e) => handleUploadReelImage(e, uploadingTargetReelId || undefined)}
+              accept="image/png,image/jpeg,image/webp,image/jpg"
+              className="hidden"
+            />
           </div>
         )}
 
