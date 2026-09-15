@@ -666,6 +666,49 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
   ],
 };
 
+export const ensureFiveCategoryCards = (cards?: any[]): HomeCategoryCard[] => {
+  const defaults = DEFAULT_HOMEPAGE_CONFIG.categoryCards;
+  if (!cards || !Array.isArray(cards) || cards.length === 0) {
+    return defaults.map((d, i) => ({ ...d, orderIndex: i }));
+  }
+
+  const result: HomeCategoryCard[] = cards.map((c, i) => ({
+    id: c.id || defaults[i % defaults.length]?.id || `cat-${i + 1}`,
+    name: c.name || defaults[i % defaults.length]?.name || `CATEGORY ${i + 1}`,
+    tagline: c.tagline !== undefined ? c.tagline : (defaults[i % defaults.length]?.tagline || ''),
+    image: normalizeStorageUrl(c.image || ''),
+    category: c.category || defaults[i % defaults.length]?.category || 'all',
+    ctaText: c.ctaText || defaults[i % defaults.length]?.ctaText || 'SHOP NOW',
+    orderIndex: typeof c.orderIndex === 'number' ? c.orderIndex : i,
+    active: c.active !== false,
+  }));
+
+  if (result.length < 5) {
+    const existingIds = new Set(result.map((r) => r.id));
+    const existingCategories = new Set(result.map((r) => r.category));
+    for (const def of defaults) {
+      if (result.length >= 5) break;
+      if (!existingIds.has(def.id) && !existingCategories.has(def.category)) {
+        result.push({ ...def, orderIndex: result.length });
+        existingIds.add(def.id);
+        existingCategories.add(def.category);
+      }
+    }
+    let idx = 0;
+    while (result.length < 5 && idx < defaults.length) {
+      const def = defaults[idx];
+      result.push({
+        ...def,
+        id: `${def.id}-${idx + 1}`,
+        orderIndex: result.length,
+      });
+      idx++;
+    }
+  }
+
+  return result;
+};
+
 export const SEED_CATEGORIES: RealCategory[] = [
   { id: 'cat-1', name: 'Nightwear & Pyjamas', slug: 'nightwear', isActive: true, orderIndex: 0 },
   { id: 'cat-2', name: '18K Anti-Tarnish Jewels', slug: 'jewellery', isActive: true, orderIndex: 1 },
@@ -1687,8 +1730,25 @@ export const DatabaseService = {
     if (updates.reviewCount !== undefined) payload.review_count = updates.reviewCount;
     if (updates.antiTarnishGuarantee !== undefined) payload.anti_tarnish_guarantee = updates.antiTarnishGuarantee;
     if (updates.isNewArrival !== undefined) payload.is_new_arrival = updates.isNewArrival;
-    if (updates.isBestSeller !== undefined) payload.is_best_seller = updates.isBestSeller;
-    if (updates.images !== undefined && Array.isArray(updates.images)) payload.images = updates.images.map(normalizeStorageUrl);
+    if (updates.images !== undefined && Array.isArray(updates.images)) {
+      const normalizedNewImages = updates.images.map(normalizeStorageUrl);
+      payload.images = normalizedNewImages;
+
+      // Clean up removed images from storage if any were removed
+      const oldProd = inMemoryProducts.find((p) => p.id === id);
+      if (oldProd && Array.isArray(oldProd.images)) {
+        const newSet = new Set(normalizedNewImages);
+        const removedImages = oldProd.images.filter((img) => !newSet.has(img));
+        if (removedImages.length > 0) {
+          const otherProducts = inMemoryProducts.filter((p) => p.id !== id);
+          const otherImagesSet = new Set(otherProducts.flatMap((p) => (Array.isArray(p.images) ? p.images : [])));
+          const imagesToDelete = removedImages.filter((img) => !otherImagesSet.has(img));
+          if (imagesToDelete.length > 0) {
+            this.deleteStorageFiles(imagesToDelete, 'product-images').catch(() => {});
+          }
+        }
+      }
+    }
 
     delete payload.subCategory;
     delete payload.originalPrice;
@@ -1775,11 +1835,135 @@ export const DatabaseService = {
     notifyDatabaseChange('products');
   },
 
+  extractStoragePath(url: string, bucket = 'product-images'): string | null {
+    if (!url || typeof url !== 'string') return null;
+    const cleanUrl = url.split('?')[0].trim();
+    const pattern = new RegExp(`(?:/storage/v1/object/(?:public/)?${bucket}/|${bucket}/)(.+)`);
+    const match = cleanUrl.match(pattern);
+    if (match && match[1]) {
+      return decodeURIComponent(match[1]);
+    }
+    if (cleanUrl.startsWith('products/') || cleanUrl.startsWith('banners/') || cleanUrl.startsWith('reels/')) {
+      return cleanUrl;
+    }
+    return null;
+  },
+
+  async deleteStorageFiles(filePathsOrUrls: string[], bucket = 'product-images'): Promise<boolean> {
+    const cleanPaths = Array.from(
+      new Set(
+        filePathsOrUrls
+          .map((p) => this.extractStoragePath(p, bucket) || p)
+          .filter((p) => p && !p.startsWith('http://') && !p.startsWith('https://') && !p.startsWith('data:'))
+      )
+    );
+
+    if (cleanPaths.length === 0) return true;
+
+    console.log(`[Storage Delete] Deleting ${cleanPaths.length} file(s) from bucket '${bucket}':`, cleanPaths);
+    const baseUrl = getEffectiveSupabaseUrl().replace(/\/+$/, '');
+    const apiKey = getSupabaseAnonKey();
+
+    let success = false;
+
+    // Strategy 1: Direct batch REST DELETE /storage/v1/object/${bucket}
+    try {
+      const batchRes = await fetch(`${baseUrl}/storage/v1/object/${bucket}`, {
+        method: 'DELETE',
+        headers: {
+          apikey: apiKey,
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prefixes: cleanPaths }),
+      });
+      if (batchRes.ok) {
+        success = true;
+      }
+    } catch (restErr) {
+      console.warn('[Storage Delete] REST batch delete error:', restErr);
+    }
+
+    // Strategy 2: Supabase JS storage client .remove()
+    if (!success) {
+      try {
+        const client = requireSupabase();
+        const { error } = await client.storage.from(bucket).remove(cleanPaths);
+        if (!error) {
+          success = true;
+        } else {
+          console.warn('[Storage Delete] Supabase client remove error:', error);
+        }
+      } catch (clientErr) {
+        console.warn('[Storage Delete] Supabase client error:', clientErr);
+      }
+    }
+
+    // Strategy 3: Individual REST DELETE fallback
+    if (!success) {
+      for (const path of cleanPaths) {
+        try {
+          const singleUrl = `${baseUrl}/storage/v1/object/${bucket}/${encodeURIComponent(path).replace(/%2F/g, '/')}`;
+          await fetch(singleUrl, {
+            method: 'DELETE',
+            headers: {
+              apikey: apiKey,
+              Authorization: `Bearer ${apiKey}`,
+            },
+          });
+        } catch {}
+      }
+    }
+
+    return true;
+  },
+
+  async deleteStorageFile(filePathOrUrl: string, bucket = 'product-images'): Promise<boolean> {
+    return this.deleteStorageFiles([filePathOrUrl], bucket);
+  },
+
   async deleteProduct(productId: string): Promise<void> {
     const cleanId = String(productId).trim();
     if (!cleanId) throw new Error('Product ID is required');
 
     const client = requireSupabase();
+
+    // 1. Identify product and collect all its image URLs before deleting
+    let candidateImages: string[] = [];
+    const targetProduct = inMemoryProducts.find((p) => p.id === cleanId || p.slug === cleanId);
+    if (targetProduct && Array.isArray(targetProduct.images)) {
+      candidateImages = [...targetProduct.images];
+    }
+
+    if (candidateImages.length === 0) {
+      try {
+        const { data: dbProd } = await client
+          .from('products')
+          .select('images')
+          .or(`id.eq.${cleanId},slug.eq.${cleanId}`)
+          .maybeSingle();
+        if (dbProd?.images) {
+          if (Array.isArray(dbProd.images)) {
+            candidateImages = dbProd.images;
+          } else if (typeof dbProd.images === 'string') {
+            try {
+              candidateImages = JSON.parse(dbProd.images);
+            } catch {
+              candidateImages = [dbProd.images];
+            }
+          }
+        }
+      } catch (err) {}
+    }
+
+    // Filter out images that are still referenced by other products (safety check)
+    const otherProducts = inMemoryProducts.filter((p) => p.id !== cleanId && p.slug !== cleanId);
+    const otherImagesSet = new Set(
+      otherProducts.flatMap((p) => (Array.isArray(p.images) ? p.images : []))
+    );
+    const imagesToDelete = candidateImages.filter((img) => !otherImagesSet.has(img));
+
+    // 2. Delete product record from Supabase table
     let delError: any = null;
     try {
       const { error } = await client
@@ -1799,13 +1983,22 @@ export const DatabaseService = {
       }
     }
 
-    // Clean up associated cart_items & wishlist rows in Supabase
+    // 3. Delete product images from Supabase Storage bucket
+    if (imagesToDelete.length > 0) {
+      try {
+        await this.deleteStorageFiles(imagesToDelete, 'product-images');
+      } catch (storageErr) {
+        console.warn('[deleteProduct] Storage image deletion error:', storageErr);
+      }
+    }
+
+    // 4. Clean up associated cart_items & wishlist rows in Supabase
     try {
       await client.from('cart_items').delete().eq('product_id', cleanId);
       await client.from('wishlist').delete().eq('product_id', cleanId);
     } catch (subErr) {}
 
-    // 2. Update in-memory state ONLY on DB success
+    // 5. Update in-memory state ONLY on DB success
     inMemoryProducts = inMemoryProducts.filter((p) => p.id !== cleanId && p.slug !== cleanId);
     try {
       if (typeof window !== 'undefined') {
@@ -3738,7 +3931,8 @@ export const DatabaseService = {
         if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed && typeof parsed === 'object') {
-            inMemoryHomepageConfig = { ...DEFAULT_HOMEPAGE_CONFIG, ...parsed };
+            const cleanCards = ensureFiveCategoryCards(parsed.categoryCards);
+            inMemoryHomepageConfig = { ...DEFAULT_HOMEPAGE_CONFIG, ...parsed, categoryCards: cleanCards };
             return inMemoryHomepageConfig;
           }
         }
@@ -3814,7 +4008,7 @@ export const DatabaseService = {
             bannerAutoplaySeconds: Number(rawData.bannerAutoplaySeconds) || DEFAULT_HOMEPAGE_CONFIG.bannerAutoplaySeconds,
             marqueePhrases: Array.isArray(rawData.marqueePhrases) && rawData.marqueePhrases.length > 0 ? rawData.marqueePhrases : DEFAULT_HOMEPAGE_CONFIG.marqueePhrases,
             categorySectionTitle: rawData.categorySectionTitle || DEFAULT_HOMEPAGE_CONFIG.categorySectionTitle,
-            categoryCards: Array.isArray(rawData.categoryCards) && rawData.categoryCards.length > 0 ? rawData.categoryCards : DEFAULT_HOMEPAGE_CONFIG.categoryCards,
+            categoryCards: ensureFiveCategoryCards(rawData.categoryCards),
             trendingTitle: rawData.trendingTitle || DEFAULT_HOMEPAGE_CONFIG.trendingTitle,
             trendingCtaText: rawData.trendingCtaText || DEFAULT_HOMEPAGE_CONFIG.trendingCtaText,
             influencerTitle: rawData.influencerTitle || DEFAULT_HOMEPAGE_CONFIG.influencerTitle,
@@ -3854,9 +4048,16 @@ export const DatabaseService = {
       imageFit: b.imageFit || 'contain',
       objectPosition: b.objectPosition || 'center',
     }));
+    const cleanCards = (config.categoryCards || []).map((c, idx) => ({
+      ...c,
+      image: normalizeStorageUrl(c.image || ''),
+      orderIndex: typeof c.orderIndex === 'number' ? c.orderIndex : idx,
+      active: c.active !== false,
+    }));
     const cleanConfig: HomepageConfig = {
       ...config,
       heroBanners: cleanBanners,
+      categoryCards: cleanCards,
     };
     const payload = {
       key: 'homepage_config',
