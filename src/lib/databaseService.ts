@@ -2145,18 +2145,25 @@ export const DatabaseService = {
   },
 
   async uploadProductImage(file: File): Promise<string> {
-    const optimizedBlob = await this.optimizeImageFile(file);
-    const cleanExt = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+    // Preserve original crystal-clear resolution if under 8MB
+    const fileToUpload = file.size > 8 * 1024 * 1024
+      ? await this.optimizeImageFile(file, 2560, 0.95)
+      : file;
+
+    let cleanExt = 'jpg';
+    if (file.type.includes('png')) cleanExt = 'png';
+    else if (file.type.includes('webp')) cleanExt = 'webp';
+    else if (file.type.includes('gif')) cleanExt = 'gif';
+    else if (file.type.includes('svg')) cleanExt = 'svg';
+
     const fileName = `prod_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${cleanExt}`;
     const filePath = `products/${fileName}`;
 
     const baseUrl = getEffectiveSupabaseUrl().replace(/\/+$/, '');
     const apiKey = getSupabaseAnonKey();
-
     const cdnBase = (getRawSupabaseUrl() || baseUrl).replace(/\/+$/, '');
 
     // 1. First attempt direct REST upload with clean Anon API key
-    // This avoids bulky browser cookies/headers being passed by client storage wrappers
     try {
       const uploadUrl = `${baseUrl}/storage/v1/object/product-images/${filePath}`;
       const uploadRes = await fetch(uploadUrl, {
@@ -2168,7 +2175,7 @@ export const DatabaseService = {
           'cache-control': 'max-age=3600',
           'x-upsert': 'true',
         },
-        body: optimizedBlob,
+        body: fileToUpload,
       });
 
       if (uploadRes.ok) {
@@ -2185,7 +2192,7 @@ export const DatabaseService = {
     const client = requireSupabase();
     let { error: uploadError } = await client.storage
       .from('product-images')
-      .upload(filePath, optimizedBlob, {
+      .upload(filePath, fileToUpload, {
         contentType: file.type || 'image/jpeg',
         cacheControl: '3600',
         upsert: true,
@@ -2196,7 +2203,7 @@ export const DatabaseService = {
         await client.storage.createBucket('product-images', { public: true });
         const retry = await client.storage
           .from('product-images')
-          .upload(filePath, optimizedBlob, {
+          .upload(filePath, fileToUpload, {
             contentType: file.type || 'image/jpeg',
             cacheControl: '3600',
             upsert: true,
@@ -2218,9 +2225,17 @@ export const DatabaseService = {
   },
 
   async uploadBannerImage(file: File, isMobile = false): Promise<string> {
-    const maxWidth = isMobile ? 828 : 1600;
-    const optimizedBlob = await this.optimizeImageFile(file, maxWidth, 0.92);
-    const cleanExt = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+    // Preserve full 100% original high-resolution banner image (up to 12MB) to prevent blurriness
+    const fileToUpload = file.size > 12 * 1024 * 1024
+      ? await this.optimizeImageFile(file, isMobile ? 1800 : 3840, 0.96)
+      : file;
+
+    let cleanExt = 'jpg';
+    if (file.type.includes('png')) cleanExt = 'png';
+    else if (file.type.includes('webp')) cleanExt = 'webp';
+    else if (file.type.includes('gif')) cleanExt = 'gif';
+    else if (file.type.includes('svg')) cleanExt = 'svg';
+
     const prefix = isMobile ? 'mobile' : 'laptop';
     const fileName = `banner_${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${cleanExt}`;
     const filePath = `banners/${fileName}`;
@@ -2241,7 +2256,7 @@ export const DatabaseService = {
           'cache-control': 'max-age=3600',
           'x-upsert': 'true',
         },
-        body: optimizedBlob,
+        body: fileToUpload,
       });
 
       if (uploadRes.ok) {
@@ -2258,7 +2273,7 @@ export const DatabaseService = {
     const client = requireSupabase();
     let { error: uploadError } = await client.storage
       .from('product-images')
-      .upload(filePath, optimizedBlob, {
+      .upload(filePath, fileToUpload, {
         contentType: file.type || 'image/jpeg',
         cacheControl: '3600',
         upsert: true,
@@ -2269,7 +2284,7 @@ export const DatabaseService = {
         await client.storage.createBucket('product-images', { public: true });
         const retry = await client.storage
           .from('product-images')
-          .upload(filePath, optimizedBlob, {
+          .upload(filePath, fileToUpload, {
             contentType: file.type || 'image/jpeg',
             cacheControl: '3600',
             upsert: true,
@@ -2290,7 +2305,7 @@ export const DatabaseService = {
     return normalizeStorageUrl(publicData?.publicUrl) || `${cdnBase}/storage/v1/object/public/product-images/${filePath}`;
   },
 
-  async optimizeImageFile(file: File, maxWidth = 1600, quality = 0.88): Promise<Blob> {
+  async optimizeImageFile(file: File, maxWidth = 2560, quality = 0.95): Promise<Blob> {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -2311,12 +2326,13 @@ export const DatabaseService = {
             return;
           }
           ctx.drawImage(img, 0, 0, width, height);
+          const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
           canvas.toBlob(
             (blob) => {
               if (blob) resolve(blob);
               else resolve(file);
             },
-            'image/webp',
+            mimeType,
             quality
           );
         };
