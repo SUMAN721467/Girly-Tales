@@ -120,6 +120,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
   // Category Manager State (matching reference screenshot)
   const [newCategoryInput, setNewCategoryInput] = useState('');
+  const [newCategorySubInput, setNewCategorySubInput] = useState('');
+  const [addingSubCatInput, setAddingSubCatInput] = useState<{ [catId: string]: string }>({});
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingCategoryName, setEditingCategoryName] = useState('');
 
@@ -147,6 +149,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     originalPrice: '',
     stockQuantity: '10',
     categories: [] as string[],
+    subCategory: '',
     badge: '',
     variety: '',
     materials: '',
@@ -1409,13 +1412,58 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     if (e) e.preventDefault();
     const trimmed = newCategoryInput.trim();
     if (!trimmed) return;
+    const subCategories = newCategorySubInput
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
     try {
-      const created = await DatabaseService.addCategory({ name: trimmed, isActive: true });
+      const created = await DatabaseService.addCategory({
+        name: trimmed,
+        isActive: true,
+        subCategories: subCategories.length > 0 ? subCategories : undefined,
+      });
       setCategoriesList((prev) => [...prev, created]);
       setNewCategoryInput('');
-      triggerToast('Category Added', `"${created.name}" stored in database.`, undefined, 'success');
+      setNewCategorySubInput('');
+      triggerToast('Category Added', `"${created.name}" stored in database with ${created.subCategories?.length || 0} sub-categories.`, undefined, 'success');
     } catch (e: any) {
       triggerToast('Error', e?.message || 'Failed to add category.', undefined, 'error');
+    }
+  };
+
+  const handleAddSubCategoryToCategory = async (catId: string) => {
+    const text = (addingSubCatInput[catId] || '').trim();
+    if (!text) return;
+    const cat = categoriesList.find((c) => c.id === catId);
+    if (!cat) return;
+    const currentSubs = cat.subCategories || [];
+    if (currentSubs.some((s) => s.toLowerCase() === text.toLowerCase())) {
+      triggerToast('Already Exists', `"${text}" is already a sub-category of ${cat.name}.`, undefined, 'info');
+      return;
+    }
+    const updatedSubs = [...currentSubs, text];
+    try {
+      const updatedList = await DatabaseService.updateCategorySubCategories(catId, updatedSubs);
+      setCategoriesList(updatedList);
+      setAddingSubCatInput((prev) => ({ ...prev, [catId]: '' }));
+      triggerToast('Sub-Category Added', `Added "${text}" to ${cat.name}.`, undefined, 'success');
+    } catch (e: any) {
+      triggerToast('Error', e?.message || 'Failed to add sub-category.', undefined, 'error');
+    }
+  };
+
+  const handleRemoveSubCategoryFromCategory = async (catId: string, subToRemove: string) => {
+    const cat = categoriesList.find((c) => c.id === catId);
+    if (!cat) return;
+    const currentSubs = cat.subCategories || [];
+    const updatedSubs = currentSubs.filter((s) => s !== subToRemove);
+    try {
+      const updatedList = await DatabaseService.updateCategorySubCategories(catId, updatedSubs);
+      setCategoriesList(updatedList);
+      triggerToast('Sub-Category Removed', `Removed "${subToRemove}" from ${cat.name}.`, undefined, 'info');
+    } catch (e: any) {
+      triggerToast('Error', e?.message || 'Failed to remove sub-category.', undefined, 'error');
     }
   };
 
@@ -1625,6 +1673,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       originalPrice: prod.originalPrice ? String(prod.originalPrice) : '',
       stockQuantity: String(prod.stockQuantity ?? 10),
       categories: prod.subCategory ? prod.subCategory.split(',').map((s) => s.trim()).filter(Boolean) : [],
+      subCategory: prod.subCategory || '',
       badge: prod.tag || '',
       variety: prod.variety || '',
       materials: prod.material || '',
@@ -1677,6 +1726,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       ? productForm.images
       : ['https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80']).map(normalizeStorageUrl);
 
+    const finalSubCategory = productForm.subCategory.trim() || productForm.categories.join(', ') || (mainCategory === 'nightwear' ? 'Nightwear Set' : 'Jewellery');
+
     try {
       if (editingProductId) {
         const existing = productsList.find((p) => p.id === editingProductId);
@@ -1685,7 +1736,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           name: productForm.name.trim(),
           slug: existing?.slug || productForm.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
           category: mainCategory,
-          subCategory: productForm.categories.join(', ') || 'Boutique Collection',
+          subCategory: finalSubCategory,
           price: priceNum,
           originalPrice: originalPriceNum,
           discount: discountCalc,
@@ -1718,7 +1769,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             'Materials': productForm.materials || 'Premium Satin / Silk',
             'Dimensions': productForm.dimensions || 'Standard',
             'SKU': productForm.sku || 'GT-01',
-            'Category': productForm.categories.join(', '),
+            'Category': mainCategory === 'nightwear' ? 'Nightwear' : 'Jewellery',
+            'Sub-Category': finalSubCategory,
           },
         };
 
@@ -1736,7 +1788,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         name: productForm.name.trim(),
         slug: productForm.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         category: mainCategory,
-        subCategory: productForm.categories.join(', ') || 'Boutique Collection',
+        subCategory: finalSubCategory,
         price: priceNum,
         originalPrice: originalPriceNum,
         discount: discountCalc,
@@ -1751,7 +1803,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         variety: productForm.variety,
         tag: productForm.badge || 'New Arrival',
         stockQuantity: Number(productForm.stockQuantity) || 10,
-        inStock: true,
+        inStock: productForm.inStock,
         highlights: highlightsArray.length > 0 ? highlightsArray : [
           'Free Delivery on all prepaid orders',
           '7-Day Hassle-Free Size Exchange',
@@ -1769,7 +1821,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           'Materials': productForm.materials || 'Premium Satin / Silk',
           'Dimensions': productForm.dimensions || 'Standard',
           'SKU': productForm.sku || 'GT-01',
-          'Category': productForm.categories.join(', '),
+          'Category': mainCategory === 'nightwear' ? 'Nightwear' : 'Jewellery',
+          'Sub-Category': finalSubCategory,
         },
       };
 
@@ -2576,7 +2629,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                     <div className="space-y-2.5 pt-2">
                       <div className="flex items-center justify-between">
                         <label className="block text-xs font-bold text-brand-charcoal">
-                          Category * (Select one or more)
+                          Store Category * (Select one or more)
                         </label>
                         <button
                           type="button"
@@ -2648,6 +2701,93 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           >
                             + New Category
                           </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Dedicated Sub-Category Section (e.g. Padded vs Non-Padded) */}
+                    <div className="space-y-2.5 pt-2.5 bg-[#FAF8F2]/70 border border-[#EAE6DB] rounded-2xl p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <label className="block text-xs font-black text-brand-charcoal tracking-wide uppercase">
+                            Sub-Category (Style / Fit / Type)
+                          </label>
+                          <p className="text-[11px] text-brand-muted">
+                            Choose or type the exact sub-category (e.g.{' '}
+                            <strong className="text-brand-charcoal">Padded</strong> vs{' '}
+                            <strong className="text-brand-charcoal">Non-Padded</strong> for nightwear)
+                          </p>
+                        </div>
+                        {productForm.subCategory && (
+                          <button
+                            type="button"
+                            onClick={() => setProductForm({ ...productForm, subCategory: '' })}
+                            className="text-[11px] font-bold text-rose-600 hover:underline cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Quick Presets based on main category & category manager */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {(() => {
+                          const matchedCat = categoriesList.find(
+                            (c) =>
+                              c.slug.toLowerCase() === productForm.mainCategory.toLowerCase() ||
+                              c.name.toLowerCase() === productForm.mainCategory.toLowerCase()
+                          );
+                          const presets = matchedCat?.subCategories || [];
+                          if (presets.length === 0) {
+                            return (
+                              <p className="text-[11px] text-brand-muted italic">
+                                No sub-categories added yet for this category. (Add them in "Manage Categories" or type a custom one below).
+                              </p>
+                            );
+                          }
+                          return presets.map((preset) => {
+                            const isSelected =
+                              productForm.subCategory.toLowerCase().trim() === preset.toLowerCase().trim();
+                            return (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() => {
+                                  setProductForm({
+                                    ...productForm,
+                                    subCategory: isSelected ? '' : preset,
+                                  });
+                                }}
+                                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-[#967BB6] text-white shadow-xs border border-[#7F62A1] scale-[1.03]'
+                                    : 'bg-white text-brand-charcoal border border-[#EAE6DB] hover:bg-[#F3EEF9] hover:border-[#967BB6]/40'
+                                }`}
+                              >
+                                {preset === 'Padded' ? '✨ Padded' : preset === 'Non-Padded' ? '🌿 Non-Padded' : preset}
+                              </button>
+                            );
+                          });
+                        })()}
+                      </div>
+
+                      {/* Custom sub-category text input */}
+                      <div className="relative mt-1">
+                        <input
+                          type="text"
+                          value={productForm.subCategory}
+                          onChange={(e) => setProductForm({ ...productForm, subCategory: e.target.value })}
+                          placeholder={
+                            productForm.mainCategory === 'nightwear'
+                              ? 'Click a preset above (Padded / Non-Padded) or type custom sub-category...'
+                              : 'Click a preset above or type custom jewellery sub-category...'
+                          }
+                          className="w-full px-4 py-2.5 bg-white border border-[#EAE6DB] rounded-xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:ring-2 focus:ring-[#967BB6]/15 transition-all"
+                        />
+                        {productForm.subCategory && (
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase tracking-wider text-[#967BB6] bg-[#F5EEFA] px-2 py-0.5 rounded-md border border-[#967BB6]/20">
+                            Active: {productForm.subCategory}
+                          </span>
                         )}
                       </div>
                     </div>
@@ -3187,13 +3327,26 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                             </div>
                           </td>
                           <td className="py-3.5 px-4">
-                            <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full ${
-                              prod.category === 'nightwear'
-                                ? 'bg-[#F3EEF9] text-[#967BB6]'
-                                : 'bg-amber-100 text-amber-800'
-                            }`}>
-                              {prod.category}
-                            </span>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full ${
+                                prod.category === 'nightwear'
+                                  ? 'bg-[#F3EEF9] text-[#967BB6]'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {prod.category}
+                              </span>
+                              {prod.subCategory && (
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                                  prod.subCategory.toLowerCase().includes('padded') && !prod.subCategory.toLowerCase().includes('non')
+                                    ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                    : prod.subCategory.toLowerCase().includes('non-padded')
+                                    ? 'bg-teal-50 text-teal-700 border-teal-200'
+                                    : 'bg-[#FAF8F2] text-brand-charcoal border-[#EAE6DB]'
+                                }`}>
+                                  {prod.subCategory}
+                                </span>
+                              )}
+                            </div>
                             {prod.sku && <span className="text-[10px] text-brand-muted block mt-1 font-mono">{prod.sku}</span>}
                           </td>
                           <td className="py-3.5 px-4 font-bold text-brand-charcoal">
@@ -7322,20 +7475,41 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                 </h3>
 
                 {/* Add Category Form */}
-                <form onSubmit={handleAddCategorySubmit} className="flex items-center gap-3">
-                  <input
-                    type="text"
-                    value={newCategoryInput}
-                    onChange={(e) => setNewCategoryInput(e.target.value)}
-                    placeholder="e.g., Silk Robes &amp; Sets"
-                    className="flex-1 px-4 py-3 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all placeholder:text-brand-muted/50"
-                  />
-                  <button
-                    type="submit"
-                    className="px-6 py-3 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-bold uppercase tracking-wider rounded-2xl shadow-xs transition-colors whitespace-nowrap"
-                  >
-                    Add Category
-                  </button>
+                <form onSubmit={handleAddCategorySubmit} className="space-y-3 bg-[#FAF8F2] p-4 sm:p-5 rounded-2xl border border-[#EAE6DB]">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-black uppercase tracking-wider text-brand-charcoal block">
+                        Category Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={newCategoryInput}
+                        onChange={(e) => setNewCategoryInput(e.target.value)}
+                        placeholder="e.g., Silk Robes &amp; Sets"
+                        className="w-full px-4 py-2.5 bg-white border border-[#EAE6DB] rounded-xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] transition-all placeholder:text-brand-muted/50"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-black uppercase tracking-wider text-brand-charcoal block">
+                        Sub-Categories <span className="font-normal text-brand-muted">(comma-separated)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={newCategorySubInput}
+                        onChange={(e) => setNewCategorySubInput(e.target.value)}
+                        placeholder="e.g., Padded, Non-Padded, Robe Sets"
+                        className="w-full px-4 py-2.5 bg-white border border-[#EAE6DB] rounded-xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] transition-all placeholder:text-brand-muted/50"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="submit"
+                      className="px-6 py-2.5 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-xs transition-colors whitespace-nowrap cursor-pointer"
+                    >
+                      Add Category
+                    </button>
+                  </div>
                 </form>
 
                 {/* Categories List */}
@@ -7352,126 +7526,195 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                       return (
                         <div
                           key={cat.id}
-                          className="bg-[#FAF8F2] hover:bg-[#F5EEFA]/60 border border-[#EAE6DB] hover:border-[#967BB6]/40 rounded-2xl p-4 sm:px-5 flex items-center justify-between gap-3 transition-all group shadow-2xs"
+                          className="bg-[#FAF8F2] hover:bg-[#F5EEFA]/40 border border-[#EAE6DB] hover:border-[#967BB6]/40 rounded-2xl p-4 sm:px-5 flex flex-col gap-1 transition-all group shadow-2xs"
                         >
-                          {/* Left: Checkbox + Name */}
-                          <div className="flex items-center gap-3.5 flex-1 min-w-0">
-                            <button
-                              type="button"
-                              onClick={() => handleToggleCategoryActive(cat.id, cat.isActive)}
-                              className={`w-5 h-5 rounded-md flex items-center justify-center transition-all shrink-0 ${
-                                cat.isActive
-                                  ? 'bg-[#967BB6] border border-[#7F62A1] text-white shadow-xs'
-                                  : 'border-2 border-[#EAE6DB] bg-white hover:border-[#967BB6]'
-                              }`}
-                              title={cat.isActive ? 'Active on Storefront' : 'Hidden from Storefront'}
-                            >
-                              {cat.isActive && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                            </button>
+                          <div className="flex items-center justify-between gap-3">
+                            {/* Left: Checkbox + Name */}
+                            <div className="flex items-center gap-3.5 flex-1 min-w-0">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleCategoryActive(cat.id, cat.isActive)}
+                                className={`w-5 h-5 rounded-md flex items-center justify-center transition-all shrink-0 ${
+                                  cat.isActive
+                                    ? 'bg-[#967BB6] border border-[#7F62A1] text-white shadow-xs'
+                                    : 'border-2 border-[#EAE6DB] bg-white hover:border-[#967BB6]'
+                                }`}
+                                title={cat.isActive ? 'Active on Storefront' : 'Hidden from Storefront'}
+                              >
+                                {cat.isActive && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                              </button>
 
-                            {isEditing ? (
-                              <div className="flex items-center gap-2 flex-1">
-                                <input
-                                  type="text"
-                                  value={editingCategoryName}
-                                  onChange={(e) => setEditingCategoryName(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') handleSaveEditCategory(cat.id);
-                                    if (e.key === 'Escape') setEditingCategoryId(null);
-                                  }}
-                                  className="px-3 py-1.5 bg-white border border-[#967BB6] rounded-xl text-xs sm:text-sm font-bold text-brand-charcoal focus:outline-none w-full max-w-xs shadow-xs"
-                                  autoFocus
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleSaveEditCategory(cat.id)}
-                                  className="px-3.5 py-1.5 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-bold rounded-xl transition-colors shadow-xs"
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setEditingCategoryId(null)}
-                                  className="p-1 text-brand-muted hover:text-brand-charcoal"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2 flex-1 min-w-0">
-                                <span
-                                  className={`text-xs sm:text-sm font-bold truncate transition-colors ${
-                                    cat.isActive
-                                      ? 'text-brand-charcoal'
-                                      : 'text-brand-muted/60 line-through'
-                                  }`}
-                                >
-                                  {cat.name}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleStartEditCategory(cat)}
-                                  className="opacity-0 group-hover:opacity-100 p-1 text-brand-muted hover:text-[#967BB6] hover:bg-white rounded-lg transition-all"
-                                  title="Rename category"
-                                >
-                                  <Edit3 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            )}
+                              {isEditing ? (
+                                <div className="flex items-center gap-2 flex-1">
+                                  <input
+                                    type="text"
+                                    value={editingCategoryName}
+                                    onChange={(e) => setEditingCategoryName(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') handleSaveEditCategory(cat.id);
+                                      if (e.key === 'Escape') setEditingCategoryId(null);
+                                    }}
+                                    className="px-3 py-1.5 bg-white border border-[#967BB6] rounded-xl text-xs sm:text-sm font-bold text-brand-charcoal focus:outline-none w-full max-w-xs shadow-xs"
+                                    autoFocus
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveEditCategory(cat.id)}
+                                    className="px-3.5 py-1.5 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-bold rounded-xl transition-colors shadow-xs"
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingCategoryId(null)}
+                                    className="p-1 text-brand-muted hover:text-brand-charcoal"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <span
+                                    className={`text-xs sm:text-sm font-bold truncate transition-colors ${
+                                      cat.isActive
+                                        ? 'text-brand-charcoal'
+                                        : 'text-brand-muted/60 line-through'
+                                    }`}
+                                  >
+                                    {cat.name}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStartEditCategory(cat)}
+                                    className="opacity-0 group-hover:opacity-100 p-1 text-brand-muted hover:text-[#967BB6] hover:bg-white rounded-lg transition-all"
+                                    title="Rename category"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Right: Actions (Up, Down, Delete) */}
+                            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 text-brand-muted">
+                              {/* Move Up */}
+                              <button
+                                type="button"
+                                onClick={() => handleMoveCategory(index, 'up')}
+                                disabled={index === 0}
+                                className={`p-1.5 rounded-xl transition-colors ${
+                                  index === 0
+                                    ? 'opacity-25 cursor-not-allowed'
+                                    : 'hover:text-[#967BB6] hover:bg-white'
+                                }`}
+                                title="Move Up"
+                              >
+                                <ArrowUp className="w-4 h-4" />
+                              </button>
+
+                              {/* Move Down */}
+                              <button
+                                type="button"
+                                onClick={() => handleMoveCategory(index, 'down')}
+                                disabled={index === categoriesList.length - 1}
+                                className={`p-1.5 rounded-xl transition-colors ${
+                                  index === categoriesList.length - 1
+                                    ? 'opacity-25 cursor-not-allowed'
+                                    : 'hover:text-[#967BB6] hover:bg-white'
+                                }`}
+                                title="Move Down"
+                              >
+                                <ArrowDown className="w-4 h-4" />
+                              </button>
+
+                              {/* Delete */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDeleteTarget({
+                                    type: 'Category',
+                                    name: cat.name,
+                                    id: cat.id,
+                                    description: `Slug: /${cat.slug}`,
+                                    onConfirm: async () => {
+                                      await handleDeleteCategory(cat.id, cat.name);
+                                    },
+                                  });
+                                  setDeleteConfirmInput('');
+                                }}
+                                className="p-1.5 text-brand-muted hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                                title="Delete Category"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
 
-                          {/* Right: Actions (Up, Down, Delete) */}
-                          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 text-brand-muted">
-                            {/* Move Up */}
-                            <button
-                              type="button"
-                              onClick={() => handleMoveCategory(index, 'up')}
-                              disabled={index === 0}
-                              className={`p-1.5 rounded-xl transition-colors ${
-                                index === 0
-                                  ? 'opacity-25 cursor-not-allowed'
-                                  : 'hover:text-[#967BB6] hover:bg-white'
-                              }`}
-                              title="Move Up"
-                            >
-                              <ArrowUp className="w-4 h-4" />
-                            </button>
+                          {/* Sub-Categories Section for this Category */}
+                          <div className="mt-2.5 pt-2.5 border-t border-[#EAE6DB]/70 space-y-2 pl-8">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-black uppercase tracking-wider text-brand-charcoal flex items-center gap-1.5">
+                                <span>Sub-Categories</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white border border-[#EAE6DB] text-brand-muted font-bold">
+                                  {(cat.subCategories || []).length}
+                                </span>
+                              </span>
+                              <span className="text-[10px] text-brand-muted">
+                                Displayed on storefront under {cat.name}
+                              </span>
+                            </div>
 
-                            {/* Move Down */}
-                            <button
-                              type="button"
-                              onClick={() => handleMoveCategory(index, 'down')}
-                              disabled={index === categoriesList.length - 1}
-                              className={`p-1.5 rounded-xl transition-colors ${
-                                index === categoriesList.length - 1
-                                  ? 'opacity-25 cursor-not-allowed'
-                                  : 'hover:text-[#967BB6] hover:bg-white'
-                              }`}
-                              title="Move Down"
-                            >
-                              <ArrowDown className="w-4 h-4" />
-                            </button>
+                            {/* Subcategory Chips */}
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {(cat.subCategories || []).map((sub) => (
+                                <span
+                                  key={sub}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-[#EAE6DB] rounded-lg text-xs font-bold text-brand-charcoal shadow-2xs hover:border-[#967BB6] transition-colors"
+                                >
+                                  <span>{sub === 'Padded' ? '✨ Padded' : sub === 'Non-Padded' ? '🌿 Non-Padded' : sub}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveSubCategoryFromCategory(cat.id, sub)}
+                                    className="text-brand-muted hover:text-rose-600 p-0.5 rounded transition-colors cursor-pointer"
+                                    title={`Remove ${sub}`}
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </span>
+                              ))}
 
-                            {/* Delete */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setDeleteTarget({
-                                  type: 'Category',
-                                  name: cat.name,
-                                  id: cat.id,
-                                  description: `Slug: /${cat.slug}`,
-                                  onConfirm: async () => {
-                                    await handleDeleteCategory(cat.id, cat.name);
-                                  },
-                                });
-                                setDeleteConfirmInput('');
-                              }}
-                              className="p-1.5 text-brand-muted hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
-                              title="Delete Category"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                              {(cat.subCategories || []).length === 0 && (
+                                <span className="text-[11px] text-brand-muted italic">
+                                  No sub-categories yet. Add below (e.g. Padded, Non-Padded).
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Inline Add Sub-Category */}
+                            <div className="flex items-center gap-2 max-w-sm pt-1">
+                              <input
+                                type="text"
+                                value={addingSubCatInput[cat.id] || ''}
+                                onChange={(e) =>
+                                  setAddingSubCatInput((prev) => ({ ...prev, [cat.id]: e.target.value }))
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddSubCategoryToCategory(cat.id);
+                                  }
+                                }}
+                                placeholder="Add sub-category (e.g. Padded)..."
+                                className="flex-1 px-3 py-1.5 bg-white border border-[#EAE6DB] rounded-xl text-xs text-brand-charcoal focus:outline-none focus:border-[#967BB6] transition-all placeholder:text-brand-muted/50"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleAddSubCategoryToCategory(cat.id)}
+                                className="px-3 py-1.5 bg-[#FAF8F2] hover:bg-[#967BB6] hover:text-white border border-[#EAE6DB] text-brand-charcoal text-xs font-bold rounded-xl transition-all shadow-2xs cursor-pointer whitespace-nowrap"
+                              >
+                                + Add
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );

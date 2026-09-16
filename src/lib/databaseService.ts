@@ -389,6 +389,7 @@ export interface RealCategory {
   slug: string;
   isActive: boolean;
   orderIndex: number;
+  subCategories?: string[];
   createdAt?: string;
 }
 
@@ -721,12 +722,32 @@ export const ensureFiveCategoryCards = (cards?: any[]): HomeCategoryCard[] => {
 };
 
 export const SEED_CATEGORIES: RealCategory[] = [
-  { id: 'cat-1', name: 'Nightwear & Pyjamas', slug: 'nightwear', isActive: true, orderIndex: 0 },
-  { id: 'cat-2', name: '18K Anti-Tarnish Jewels', slug: 'jewellery', isActive: true, orderIndex: 1 },
-  { id: 'cat-3', name: 'Satin & Silk Sets', slug: 'satin-sets', isActive: true, orderIndex: 2 },
-  { id: 'cat-4', name: 'Pure Cotton Sets', slug: 'cotton-sets', isActive: true, orderIndex: 3 },
-  { id: 'cat-5', name: 'Waterproof Necklaces & Rings', slug: 'jewels', isActive: true, orderIndex: 4 },
+  { id: 'cat-1', name: 'Nightwear & Pyjamas', slug: 'nightwear', isActive: true, orderIndex: 0, subCategories: [] },
+  { id: 'cat-2', name: '18K Anti-Tarnish Jewels', slug: 'jewellery', isActive: true, orderIndex: 1, subCategories: [] },
+  { id: 'cat-3', name: 'Satin & Silk Sets', slug: 'satin-sets', isActive: true, orderIndex: 2, subCategories: [] },
+  { id: 'cat-4', name: 'Pure Cotton Sets', slug: 'cotton-sets', isActive: true, orderIndex: 3, subCategories: [] },
+  { id: 'cat-5', name: 'Waterproof Necklaces & Rings', slug: 'jewels', isActive: true, orderIndex: 4, subCategories: [] },
 ];
+
+let inMemoryCategorySubcategories: Record<string, string[]> = {};
+
+export const getSubCategoriesForCat = (
+  catId?: string,
+  slug?: string,
+  name?: string,
+  customMap: Record<string, string[]> = inMemoryCategorySubcategories
+): string[] => {
+  const norm = (s?: string) => (s || '').toLowerCase().trim();
+  const idKey = norm(catId);
+  const slugKey = norm(slug);
+  const nameKey = norm(name);
+
+  if (idKey && Array.isArray(customMap[idKey])) return customMap[idKey];
+  if (slugKey && Array.isArray(customMap[slugKey])) return customMap[slugKey];
+  if (nameKey && Array.isArray(customMap[nameKey])) return customMap[nameKey];
+
+  return [];
+};
 
 const SEED_COUPONS: RealCoupon[] = [
   { id: 'cp-1', code: 'GIRLY10', discount: '10% OFF', description: 'VIP Member Exclusive Welcome Perk', minSpend: 999, usedCount: 14, status: 'Active', expires: '2026-12-31' },
@@ -752,6 +773,7 @@ const deletedOrderIds = new Set<string>();
 
 const PRODUCTS_CACHE_KEY = 'gt_cached_products_v3';
 const CATEGORIES_CACHE_KEY = 'gt_cached_categories_v3';
+const SUBCATEGORIES_CACHE_KEY = 'gt_cached_subcategories_v1';
 const ORDERS_CACHE_KEY = 'gt_cached_orders_v3';
 const COUPONS_CACHE_KEY = 'gt_cached_coupons_v3';
 const REVIEWS_CACHE_KEY = 'gt_cached_reviews_v3';
@@ -798,15 +820,15 @@ export const DEFAULT_TESTIMONIALS: RealTestimonial[] = [
   },
   {
     id: 't-4',
-    author: 'Sneha K.',
-    location: 'Delhi',
+    author: 'Tanvi K.',
+    location: 'Delhi NCR',
     rating: 5,
-    comment: 'Completely hypoallergenic! I have sensitive skin and these earrings never cause any itchiness or redness.',
-    productName: 'Waterproof Huggie Hoops',
+    comment: 'Obsessed with the mulberry silk robe set. The fit is elegant, silky smooth, and feels truly opulent.',
+    productName: 'Silk Satin Robe Set',
     verified: true,
     status: 'Approved',
     orderIndex: 3,
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
+    createdAt: new Date(Date.now() - 1 * 86400000).toISOString(),
   },
 ];
 
@@ -900,10 +922,26 @@ try {
       const parsed = JSON.parse(savedProds);
       if (Array.isArray(parsed) && parsed.length > 0) inMemoryProducts = parsed;
     }
+    const savedSubCats = localStorage.getItem(SUBCATEGORIES_CACHE_KEY);
+    if (savedSubCats) {
+      try {
+        const parsedSubs = JSON.parse(savedSubCats);
+        if (parsedSubs && typeof parsedSubs === 'object') {
+          inMemoryCategorySubcategories = parsedSubs;
+        }
+      } catch (e) {}
+    }
     const savedCats = localStorage.getItem(CATEGORIES_CACHE_KEY);
     if (savedCats) {
       const parsed = JSON.parse(savedCats);
-      if (Array.isArray(parsed) && parsed.length > 0) inMemoryCategories = parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        inMemoryCategories = parsed.map((c: any) => ({
+          ...c,
+          subCategories: Array.isArray(c.subCategories) && c.subCategories.length > 0
+            ? c.subCategories
+            : getSubCategoriesForCat(c.id, c.slug, c.name, inMemoryCategorySubcategories),
+        }));
+      }
     }
     const savedOrders = localStorage.getItem(ORDERS_CACHE_KEY);
     if (savedOrders) {
@@ -1516,7 +1554,12 @@ export const DatabaseService = {
   },
 
   getCachedCategories(): RealCategory[] {
-    return inMemoryCategories;
+    return inMemoryCategories.map((c) => ({
+      ...c,
+      subCategories: Array.isArray(c.subCategories) && c.subCategories.length > 0
+        ? c.subCategories
+        : getSubCategoriesForCat(c.id, c.slug, c.name, inMemoryCategorySubcategories),
+    }));
   },
 
   async getProducts(forceFresh = false): Promise<Product[]> {
@@ -3647,14 +3690,38 @@ export const DatabaseService = {
         }
 
         if (Array.isArray(rawCategories)) {
-          const mapped: RealCategory[] = rawCategories.map((d: any, idx: number) => ({
-            id: d.id,
-            name: d.name,
-            slug: d.slug || d.name.toLowerCase().replace(/\s+/g, '-'),
-            isActive: d.is_active !== false && d.isActive !== false,
-            orderIndex: d.order_index !== undefined ? Number(d.order_index) : idx,
-            createdAt: d.created_at || new Date().toISOString(),
-          }));
+          // Fetch category subcategories from store_settings
+          try {
+            const { data: subData } = await withTimeout(
+              client.from('store_settings').select('value').eq('key', 'category_subcategories').maybeSingle(),
+              2000,
+              { data: null }
+            );
+            if (subData?.value && typeof subData.value === 'object') {
+              inMemoryCategorySubcategories = { ...inMemoryCategorySubcategories, ...subData.value };
+              try {
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem(SUBCATEGORIES_CACHE_KEY, JSON.stringify(inMemoryCategorySubcategories));
+                }
+              } catch {}
+            }
+          } catch {}
+
+          const mapped: RealCategory[] = rawCategories.map((d: any, idx: number) => {
+            const rawSubs = Array.isArray(d.sub_categories) ? d.sub_categories : (Array.isArray(d.subCategories) ? d.subCategories : undefined);
+            const subs = rawSubs && rawSubs.length > 0
+              ? rawSubs
+              : getSubCategoriesForCat(d.id, d.slug || d.name.toLowerCase().replace(/\s+/g, '-'), d.name, inMemoryCategorySubcategories);
+            return {
+              id: d.id,
+              name: d.name,
+              slug: d.slug || d.name.toLowerCase().replace(/\s+/g, '-'),
+              isActive: d.is_active !== false && d.isActive !== false,
+              orderIndex: d.order_index !== undefined ? Number(d.order_index) : idx,
+              subCategories: subs,
+              createdAt: d.created_at || new Date().toISOString(),
+            };
+          });
 
           inMemoryCategories = mapped;
           lastCategoriesFetchTime = Date.now();
@@ -3681,16 +3748,21 @@ export const DatabaseService = {
     return activeCategoriesPromise;
   },
 
-  async addCategory(categoryData: { name: string; isActive?: boolean }): Promise<RealCategory> {
+  async addCategory(categoryData: { name: string; isActive?: boolean; subCategories?: string[] }): Promise<RealCategory> {
     const client = requireSupabase();
     const current = await this.getCategories();
     const nextOrderIndex = current.length > 0 ? Math.max(...current.map((c) => c.orderIndex ?? 0)) + 1 : 0;
+    const initialSubs = categoryData.subCategories && categoryData.subCategories.length > 0
+      ? categoryData.subCategories
+      : getSubCategoriesForCat(undefined, undefined, categoryData.name, inMemoryCategorySubcategories);
+
     const newCategory: RealCategory = {
       id: `cat-${Date.now()}`,
       name: categoryData.name.trim(),
       slug: categoryData.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
       isActive: categoryData.isActive !== false,
       orderIndex: nextOrderIndex,
+      subCategories: initialSubs,
       createdAt: new Date().toISOString(),
     };
 
@@ -3742,6 +3814,24 @@ export const DatabaseService = {
       }
     }
 
+    if (initialSubs && initialSubs.length > 0) {
+      inMemoryCategorySubcategories[newCategory.id] = initialSubs;
+      inMemoryCategorySubcategories[newCategory.slug] = initialSubs;
+      inMemoryCategorySubcategories[newCategory.name.toLowerCase()] = initialSubs;
+      try {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(SUBCATEGORIES_CACHE_KEY, JSON.stringify(inMemoryCategorySubcategories));
+        }
+        const payload = {
+          key: 'category_subcategories',
+          value: inMemoryCategorySubcategories,
+          updated_at: new Date().toISOString(),
+        };
+        client.from('store_settings').upsert(payload, { onConflict: 'key' }).then(() => {}, () => {});
+        supabaseRestMutation('store_settings', 'POST', 'on_conflict=key', payload, 'resolution=merge-duplicates,return=minimal').catch(() => {});
+      } catch {}
+    }
+
     inMemoryCategories = [...current.filter((c) => c.id !== newCategory.id), newCategory];
     try {
       if (typeof window !== 'undefined') {
@@ -3750,6 +3840,57 @@ export const DatabaseService = {
     } catch {}
     notifyDatabaseChange('categories');
     return newCategory;
+  },
+
+  async updateCategorySubCategories(catId: string, subCategories: string[]): Promise<RealCategory[]> {
+    const cleanedSubs = Array.from(new Set(subCategories.map((s) => s.trim()).filter(Boolean)));
+    const targetCat = inMemoryCategories.find((c) => c.id === catId);
+    const slug = (targetCat?.slug || '').toLowerCase();
+    const name = (targetCat?.name || '').toLowerCase();
+
+    inMemoryCategorySubcategories[catId] = cleanedSubs;
+    if (slug) inMemoryCategorySubcategories[slug] = cleanedSubs;
+    if (name) inMemoryCategorySubcategories[name] = cleanedSubs;
+
+    inMemoryCategories = inMemoryCategories.map((c) => {
+      if (c.id === catId) {
+        return { ...c, subCategories: cleanedSubs };
+      }
+      return c;
+    });
+
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(CATEGORIES_CACHE_KEY, JSON.stringify(inMemoryCategories));
+        localStorage.setItem(SUBCATEGORIES_CACHE_KEY, JSON.stringify(inMemoryCategorySubcategories));
+      }
+    } catch {}
+
+    const payload = {
+      key: 'category_subcategories',
+      value: inMemoryCategorySubcategories,
+      updated_at: new Date().toISOString(),
+    };
+
+    // 1. Save to Supabase store_settings via Client
+    let saved = false;
+    try {
+      const client = requireSupabase();
+      const { error } = await client.from('store_settings').upsert(payload, { onConflict: 'key' });
+      if (!error) saved = true;
+    } catch {}
+
+    // 2. Direct REST fallback to ensure live Supabase persistence
+    if (!saved) {
+      try {
+        await supabaseRestMutation('store_settings', 'POST', 'on_conflict=key', payload, 'resolution=merge-duplicates,return=minimal');
+      } catch (err) {
+        console.warn('Persist category_subcategories note:', err);
+      }
+    }
+
+    notifyDatabaseChange('categories');
+    return inMemoryCategories;
   },
 
   async updateCategory(id: string, updates: Partial<RealCategory>): Promise<RealCategory> {

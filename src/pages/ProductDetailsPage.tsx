@@ -526,8 +526,21 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
               {/* Category, Rating & Status Badges */}
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[11px] font-black uppercase tracking-widest text-[#967BB6] bg-[#967BB6]/10 px-2.5 py-0.5 rounded-md">
-                  {product.subCategory || product.category}
+                  {product.category}
                 </span>
+                {product.subCategory && product.subCategory.toLowerCase() !== product.category.toLowerCase() && (
+                  <span className={`text-[11px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-md border flex items-center gap-1 ${
+                    product.subCategory.toLowerCase().includes('padded') && !product.subCategory.toLowerCase().includes('non')
+                      ? 'bg-purple-50 text-purple-700 border-purple-200'
+                      : product.subCategory.toLowerCase().includes('non-padded')
+                      ? 'bg-teal-50 text-teal-700 border-teal-200'
+                      : 'bg-[#FAF8F2] text-brand-charcoal border-[#EAE6DB]'
+                  }`}>
+                    {product.subCategory.toLowerCase().includes('padded') && !product.subCategory.toLowerCase().includes('non') && '✨ '}
+                    {product.subCategory.toLowerCase().includes('non-padded') && '🌿 '}
+                    {product.subCategory}
+                  </span>
+                )}
                 <span className="flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60">
                   ★ {averageRating ? `${averageRating} (${reviewCount} ${reviewCount === 1 ? 'review' : 'reviews'})` : 'No reviews yet'}
                 </span>
