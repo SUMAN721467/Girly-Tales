@@ -32,6 +32,7 @@ export interface Product {
   isNewArrival?: boolean;
   isBestSeller?: boolean;
   tag?: string;
+  badge?: string;
   colors?: { name: string; hex: string }[];
 }
 

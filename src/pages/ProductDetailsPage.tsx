@@ -460,10 +460,13 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                   />
                 )}
 
-                {product.isNewArrival && (
-                  <span className="absolute top-3 left-3 bg-[#967BB6] text-white text-[9px] sm:text-[10px] font-bold px-2.5 py-1 uppercase tracking-wider rounded-md shadow-xs pointer-events-none z-10">
-                    New Arrival
-                  </span>
+                {/* Top-Left Admin Badge */}
+                {(product.tag || product.badge || product.isNewArrival || product.isBestSeller) && (
+                  <div className="absolute top-3 left-3 pointer-events-none z-10">
+                    <span className="bg-[#967BB6] text-white text-[9px] sm:text-[10px] font-bold px-2.5 py-1 uppercase tracking-wider rounded-md shadow-xs">
+                      {product.tag || product.badge || (product.isNewArrival ? 'New Arrival' : 'Back in Stock')}
+                    </span>
+                  </div>
                 )}
 
                 {/* Hint Badge */}

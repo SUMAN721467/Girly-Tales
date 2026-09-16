@@ -66,19 +66,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           }}
         />
 
-        {/* Top-Left Badges (New Arrival / Back in Stock / Discount) */}
-        <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5 z-10">
-          {product.isNewArrival && (
-            <span className="bg-[#967BB6] text-white text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-sm tracking-wide shadow-xs uppercase">
-              New Arrival
+        {/* Top-Left Admin Badge (entered in product listing from admin) */}
+        {(product.tag || product.badge || product.isNewArrival || product.isBestSeller) && (
+          <div className="absolute top-2.5 left-2.5 z-10 flex items-center">
+            <span className="bg-[#967BB6] text-white text-[9px] sm:text-[10px] font-bold px-2.5 py-0.5 rounded-md tracking-wide shadow-xs uppercase">
+              {product.tag || product.badge || (product.isNewArrival ? 'New Arrival' : 'Back in Stock')}
             </span>
-          )}
-          {product.isBestSeller && !product.isNewArrival && (
-            <span className="bg-[#E56B88] text-white text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-sm tracking-wide shadow-xs uppercase">
-              Back in Stock
-            </span>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Wishlist Button Top-Right */}
         <button
@@ -92,20 +87,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         >
           <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isFavorited ? 'fill-rose-500 text-rose-500' : ''}`} />
         </button>
-
-        {/* Bottom-Left Feature Badge (e.g. 100% Cotton / 18K Gold Plated) */}
-        <div className="absolute bottom-2.5 left-2.5 bg-white/90 backdrop-blur-xs px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold text-brand-charcoal flex items-center gap-1 border border-gray-100 shadow-xs">
-          {product.category === 'jewellery' ? (
-            <>
-              <Sparkles className="w-2.5 h-2.5 text-[#D4AF37]" />
-              <span>18K Gold Plated</span>
-            </>
-          ) : (
-            <>
-              <span>100% Cotton 🌿</span>
-            </>
-          )}
-        </div>
 
         {/* Quick Add overlay button on hover */}
         <div className="absolute inset-x-2 bottom-2 hidden sm:flex items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">

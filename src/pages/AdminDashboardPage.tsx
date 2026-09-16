@@ -1704,7 +1704,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       stockQuantity: String(prod.stockQuantity ?? 10),
       categories: prod.subCategory ? prod.subCategory.split(',').map((s) => s.trim()).filter(Boolean) : [],
       subCategory: prod.subCategory || '',
-      badge: prod.tag || '',
+      badge: prod.tag || prod.badge || '',
       variety: prod.variety || '',
       materials: prod.material || '',
       dimensions: prod.dimensions || '',
@@ -1779,7 +1779,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           dimensions: productForm.dimensions || 'Standard Fit',
           sku: productForm.sku || `GT-SKU-${Math.floor(1000 + Math.random() * 9000)}`,
           variety: productForm.variety,
-          tag: productForm.badge || 'New Arrival',
+          tag: productForm.badge.trim(),
+          badge: productForm.badge.trim(),
           stockQuantity: Number(productForm.stockQuantity) || 10,
           inStock: productForm.inStock,
           highlights: highlightsArray.length > 0 ? highlightsArray : [
@@ -1831,7 +1832,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         dimensions: productForm.dimensions || 'Standard Fit',
         sku: productForm.sku || `GT-SKU-${Math.floor(1000 + Math.random() * 9000)}`,
         variety: productForm.variety,
-        tag: productForm.badge || 'New Arrival',
+        tag: productForm.badge.trim(),
+        badge: productForm.badge.trim(),
         stockQuantity: Number(productForm.stockQuantity) || 10,
         inStock: productForm.inStock,
         highlights: highlightsArray.length > 0 ? highlightsArray : [
