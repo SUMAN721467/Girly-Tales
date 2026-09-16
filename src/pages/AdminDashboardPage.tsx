@@ -1365,6 +1365,36 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   useEffect(() => {
     // Initial fetch to sync any new remote database updates without blocking UI
     loadDatabaseData(false);
+
+    const handleSync = (e: any) => {
+      const type = e.detail?.type;
+      if (type === 'categories' || type === 'all') {
+        setCategoriesList(DatabaseService.getCachedCategories());
+      }
+      if (type === 'products' || type === 'all') {
+        setProductsList(DatabaseService.getCachedProducts());
+      }
+      if (type === 'orders' || type === 'all') {
+        setOrders(DatabaseService.getCachedOrders());
+      }
+      if (type === 'reviews' || type === 'all') {
+        setReviews(DatabaseService.getCachedReviews());
+      }
+      if (type === 'testimonials' || type === 'all') {
+        setTestimonials(DatabaseService.getCachedTestimonials());
+      }
+      if (type === 'coupons' || type === 'all') {
+        setCoupons(DatabaseService.getCachedCoupons());
+      }
+      if (type === 'homepage' || type === 'all') {
+        setHomepageConfig(DatabaseService.getCachedHomepageConfig());
+      }
+    };
+
+    window.addEventListener('gt_db_sync', handleSync);
+    return () => {
+      window.removeEventListener('gt_db_sync', handleSync);
+    };
   }, []);
 
   // Compute Real Metrics

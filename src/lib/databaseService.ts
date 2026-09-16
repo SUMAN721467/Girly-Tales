@@ -145,7 +145,31 @@ async function withTimeout<T>(promise: Promise<T> | any, ms = 15000, fallbackVal
     return { data: null, error: err } as unknown as T;
   }
 }
-
+// Resilient Promise.any helper that returns the first fulfilled promise
+export async function safePromiseAny<T>(promises: (Promise<T> | PromiseLike<T>)[]): Promise<T> {
+  if (typeof Promise.any === 'function') {
+    return Promise.any(promises);
+  }
+  return new Promise<T>((resolve, reject) => {
+    let rejectedCount = 0;
+    const errors: any[] = [];
+    if (promises.length === 0) {
+      reject(new Error('All promises were rejected (empty array)'));
+      return;
+    }
+    promises.forEach((p, idx) => {
+      Promise.resolve(p)
+        .then(resolve)
+        .catch((err) => {
+          errors[idx] = err;
+          rejectedCount++;
+          if (rejectedCount === promises.length) {
+            reject(errors);
+          }
+        });
+    });
+  });
+}
 // Purge legacy browser/local storage keys to guarantee pure direct Supabase operation
 if (typeof window !== 'undefined') {
   try {
@@ -1118,7 +1142,7 @@ export const DatabaseService = {
 
         let rawData: any[] = [];
         try {
-          rawData = await Promise.race([
+          rawData = await safePromiseAny([
             clientPromise.then((d) => {
               if (Array.isArray(d)) return d;
               throw new Error('client error');
@@ -1129,7 +1153,6 @@ export const DatabaseService = {
             }),
           ]);
         } catch {
-          // If race leader failed, await REST fallback
           try {
             const fallback = await restPromise;
             if (Array.isArray(fallback)) rawData = fallback;
@@ -1226,7 +1249,7 @@ export const DatabaseService = {
 
       let rawData: any[] = [];
       try {
-        rawData = await Promise.race([
+        rawData = await safePromiseAny([
           clientPromise.then((d) => {
             if (Array.isArray(d)) return d;
             throw new Error('client error');
@@ -1608,16 +1631,17 @@ export const DatabaseService = {
 
         let rawData: any[] | null = null;
         try {
-          // Whichever returns first with data wins (typically 200-350ms)
-          rawData = await Promise.race([
-            clientPromise,
+          rawData = await safePromiseAny([
+            clientPromise.then((d) => {
+              if (Array.isArray(d)) return d;
+              throw new Error('client error');
+            }),
             restPromise.then((d) => {
               if (Array.isArray(d)) return d;
               throw new Error('rest failed');
             }),
           ]);
         } catch {
-          // Fast fallback with 2.5s maximum timeout
           const fb = await withTimeout(restPromise, 2500, null);
           if (Array.isArray(fb)) {
             rawData = fb;
@@ -3305,7 +3329,7 @@ export const DatabaseService = {
 
         let rawData: any[] = [];
         try {
-          rawData = await Promise.race([
+          rawData = await safePromiseAny([
             clientPromise.then((d) => {
               if (Array.isArray(d)) return d;
               throw new Error('client error');
@@ -3672,8 +3696,11 @@ export const DatabaseService = {
 
         let rawCategories: any[] = [];
         try {
-          rawCategories = await Promise.race([
-            clientPromise,
+          rawCategories = await safePromiseAny([
+            clientPromise.then((d) => {
+              if (Array.isArray(d)) return d;
+              throw new Error('client error');
+            }),
             restPromise.then((d) => {
               if (Array.isArray(d)) return d;
               throw new Error('rest failed');
