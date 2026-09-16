@@ -453,4 +453,43 @@ export const CartService = {
 
     return true;
   },
+
+  /**
+   * Fetches all cart items from Supabase for Admin Analytics
+   */
+  async fetchAllCarts(): Promise<any[]> {
+    if (!isSupabaseConfigured) return [];
+    try {
+      const anonKey = getSupabaseAnonKey();
+      const candidateUrls = [getRawSupabaseUrl(), getEffectiveSupabaseUrl()].filter(Boolean);
+      for (const base of candidateUrls) {
+        try {
+          const cleanBase = base.replace(/\/+$/, '');
+          const url = `${cleanBase}/rest/v1/cart_items?select=*&order=created_at.desc`;
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 3500);
+          const res = await fetch(url, {
+            headers: {
+              apikey: anonKey,
+              Authorization: `Bearer ${anonKey}`,
+            },
+            signal: ctrl.signal,
+          });
+          clearTimeout(timer);
+          if (res.ok) {
+            const rows = await res.json();
+            if (Array.isArray(rows)) return rows;
+          }
+        } catch {}
+      }
+
+      const { data, error } = await supabase.from('cart_items').select('*').order('created_at', { ascending: false });
+      if (!error && Array.isArray(data)) {
+        return data;
+      }
+    } catch (err) {
+      console.warn('fetchAllCarts error:', err);
+    }
+    return [];
+  },
 };

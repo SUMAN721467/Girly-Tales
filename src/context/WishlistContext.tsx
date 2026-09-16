@@ -274,15 +274,28 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (product) {
         triggerToast('Removed from Wishlist 💔', product.name, product, 'info');
       }
-      if (isSupabaseConfigured && isLoggedIn && user) {
-        WishlistService.removeFromWishlist(user.id, user.email, productId);
+      if (isSupabaseConfigured) {
+        const uid = (isLoggedIn && user) ? (user.id || user.email) : (typeof window !== 'undefined' ? localStorage.getItem('girly_tales_guest_session_id') : null);
+        if (uid) {
+          WishlistService.removeFromWishlist(uid, user?.email || 'Guest Shopper', productId);
+        }
       }
     } else {
       if (product) {
         triggerToast('Saved to Wishlist 💕', product.name, product, 'wishlist');
       }
-      if (isSupabaseConfigured && isLoggedIn && user) {
-        WishlistService.addToWishlist(user.id, user.email, productId);
+      if (isSupabaseConfigured) {
+        let uid = (isLoggedIn && user) ? (user.id || user.email) : null;
+        if (!uid && typeof window !== 'undefined') {
+          uid = localStorage.getItem('girly_tales_guest_session_id');
+          if (!uid) {
+            uid = `guest_${Math.random().toString(36).substring(2, 9)}`;
+            localStorage.setItem('girly_tales_guest_session_id', uid);
+          }
+        }
+        if (uid) {
+          WishlistService.addToWishlist(uid, user?.email || 'Guest Shopper', productId);
+        }
       }
     }
   };

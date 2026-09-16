@@ -296,4 +296,43 @@ export const WishlistService = {
 
     return true;
   },
+
+  /**
+   * Fetches all wishlist rows from Supabase for Admin Analytics
+   */
+  async fetchAllWishlists(): Promise<any[]> {
+    if (!isSupabaseConfigured) return [];
+    try {
+      const anonKey = getSupabaseAnonKey();
+      const candidateUrls = [getRawSupabaseUrl(), getEffectiveSupabaseUrl()].filter(Boolean);
+      for (const base of candidateUrls) {
+        try {
+          const cleanBase = base.replace(/\/+$/, '');
+          const url = `${cleanBase}/rest/v1/wishlist?select=*&order=created_at.desc`;
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 3500);
+          const res = await fetch(url, {
+            headers: {
+              apikey: anonKey,
+              Authorization: `Bearer ${anonKey}`,
+            },
+            signal: ctrl.signal,
+          });
+          clearTimeout(timer);
+          if (res.ok) {
+            const rows = await res.json();
+            if (Array.isArray(rows)) return rows;
+          }
+        } catch {}
+      }
+
+      const { data, error } = await supabase.from('wishlist').select('*').order('created_at', { ascending: false });
+      if (!error && Array.isArray(data)) {
+        return data;
+      }
+    } catch (err) {
+      console.warn('fetchAllWishlists error:', err);
+    }
+    return [];
+  },
 };

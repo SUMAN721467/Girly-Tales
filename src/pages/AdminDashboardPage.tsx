@@ -44,6 +44,7 @@ import {
 } from '../lib/databaseService';
 import { supabase, isSupabaseConfigured, testSupabaseConnection, SupabaseConnectivityStatus, normalizeStorageUrl } from '../lib/supabase';
 import { SUPABASE_SCHEMA_SQL } from '../lib/supabaseSchemaSql';
+import { AdminCartsWishlistsSection } from '../components/admin/AdminCartsWishlistsSection';
 
 interface AdminDashboardPageProps {
   onNavigate: (page: string, category?: string) => void;
@@ -53,6 +54,7 @@ type AdminTab =
   | 'products'
   | 'orders'
   | 'customers'
+  | 'carts-wishlists'
   | 'reviews'
   | 'testimonials'
   | 'coupons'
@@ -2348,6 +2350,21 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
           <button
             onClick={() => {
+              setActiveTab('carts-wishlists');
+              setIsCreatingProduct(false);
+            }}
+            className={`px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === 'carts-wishlists'
+                ? 'bg-white text-brand-charcoal shadow-xs'
+                : 'text-brand-muted hover:text-brand-charcoal hover:bg-white/40'
+            }`}
+          >
+            <ShoppingCart className="w-3.5 h-3.5 text-[#967BB6]" />
+            <span>Carts &amp; Wishlist</span>
+          </button>
+
+          <button
+            onClick={() => {
               setActiveTab('reviews');
               setIsCreatingProduct(false);
             }}
@@ -4537,6 +4554,16 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
               </div>
             </div>
           )
+        )}
+
+        {/* TAB 3B: LIVE CUSTOMER CARTS & WISHLISTS SECTION */}
+        {activeTab === 'carts-wishlists' && (
+          <AdminCartsWishlistsSection
+            productsList={productsList}
+            customers={customers}
+            triggerToast={triggerToast}
+            onNavigateToProduct={(pid) => onNavigate('product', pid)}
+          />
         )}
 
         {/* TAB 4: REVIEWS */}

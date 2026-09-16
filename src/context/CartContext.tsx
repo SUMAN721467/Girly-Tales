@@ -39,6 +39,20 @@ const STANDARD_SHIPPING_FEE = 99;
 
 const GUEST_CART_STORAGE_KEY = 'girly_tales_guest_cart';
 
+export const getOrCreateGuestSessionId = (): string => {
+  if (typeof window === 'undefined') return 'guest_shopper';
+  try {
+    let id = localStorage.getItem('girly_tales_guest_session_id');
+    if (!id) {
+      id = `guest_${Math.random().toString(36).substring(2, 9)}`;
+      localStorage.setItem('girly_tales_guest_session_id', id);
+    }
+    return id;
+  } catch {
+    return 'guest_shopper';
+  }
+};
+
 const getUserCartKey = (email?: string | null) => {
   const clean = (email || '').toLowerCase().trim();
   return clean ? `girly_tales_user_cart_${clean}` : GUEST_CART_STORAGE_KEY;
@@ -336,11 +350,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 5. Cloud Sync Helper to push live cart changes to Supabase
   const scheduleCloudSync = useCallback(
     (updatedItems: CartItem[], immediate = false) => {
-      if (!isSupabaseConfigured || !isLoggedIn || !user) {
+      if (!isSupabaseConfigured) {
         return;
       }
 
-      const userId = user.id || user.email;
+      const userId = (isLoggedIn && user) ? (user.id || user.email) : getOrCreateGuestSessionId();
+      const userEmail = (isLoggedIn && user) ? user.email : 'Guest Shopper';
       if (!userId) return;
 
       if (syncTimeoutRef.current) {
@@ -352,7 +367,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const doSync = async () => {
         try {
-          await CartService.saveUserCart(userId, updatedItems, user.email);
+          await CartService.saveUserCart(userId, updatedItems, userEmail);
         } catch (e) {
           console.warn('Supabase cloud cart sync error:', e);
         } finally {

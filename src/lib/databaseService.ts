@@ -2,6 +2,7 @@ import { supabase, isSupabaseConfigured, requireSupabase, getEffectiveSupabaseUr
 import { Product } from '../types/product';
 import { MOCK_PRODUCTS } from '../data/products';
 import { CartService } from './cartService';
+import { WishlistService } from './wishlistService';
 import { EmailService } from './emailService';
 import banner1 from '../assets/banner1.png';
 import banner2 from '../assets/banner2.png';
@@ -381,6 +382,67 @@ export interface CustomerWishlistItem {
   image: string;
   price: number;
   addedAt?: string;
+}
+
+export interface CustomerIntentItem {
+  id: string;
+  type: 'cart' | 'wishlist';
+  userId: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  customerType: 'Registered' | 'Guest';
+  city?: string;
+  state?: string;
+  product: Product;
+  quantity: number;
+  selectedSize?: string;
+  selectedColor?: string;
+  unitPrice: number;
+  totalPrice: number;
+  addedAt: string;
+}
+
+export interface CustomerCartWishlistSummary {
+  userId: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  customerType: 'Registered' | 'Guest';
+  city?: string;
+  state?: string;
+  cartItems: CustomerCartItem[];
+  wishlistItems: CustomerWishlistItem[];
+  cartTotalValue: number;
+  wishlistTotalValue: number;
+  lastActive: string;
+}
+
+export interface ProductDemandItem {
+  productId: string;
+  productName: string;
+  image: string;
+  price: number;
+  inStock: boolean;
+  stockQuantity: number;
+  category: string;
+  cartCount: number;
+  cartUsersCount: number;
+  wishlistUsersCount: number;
+  totalCartValue: number;
+}
+
+export interface AllCartsWishlistsData {
+  items: CustomerIntentItem[];
+  customers: CustomerCartWishlistSummary[];
+  productDemands: ProductDemandItem[];
+  stats: {
+    totalCartItemsCount: number;
+    totalCartValue: number;
+    totalWishlistCount: number;
+    totalWishlistValue: number;
+    activeShoppersCount: number;
+  };
 }
 
 export interface RealCustomer {
@@ -2807,6 +2869,391 @@ export const DatabaseService = {
     }
 
     return result;
+  },
+
+  /**
+   * =========================================================================
+   * 3B. ADMIN CART & WISHLIST LIVE ANALYTICS
+   * Aggregates real-time customer carts & wishlists for admin monitoring & recovery
+   * =========================================================================
+   */
+  async getAllCartsAndWishlists(allProductsList?: Product[], allCustomersList?: RealCustomer[]): Promise<AllCartsWishlistsData> {
+    const products = (allProductsList && allProductsList.length > 0) ? allProductsList : (inMemoryProducts.length > 0 ? inMemoryProducts : await this.getProducts());
+    const customers = (allCustomersList && allCustomersList.length > 0) ? allCustomersList : inMemoryCustomers;
+
+    const resolveProduct = (productId: string): Product => {
+      if (!productId) {
+        return {
+          id: 'item',
+          name: 'Girly Tales Item',
+          slug: 'item',
+          category: 'nightwear',
+          subCategory: 'Curated Essentials',
+          price: 1299,
+          originalPrice: 1999,
+          discount: 35,
+          rating: 5,
+          reviewCount: 0,
+          images: ['https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80'],
+          description: '',
+          shortDescription: '',
+          material: 'Cotton / Silk',
+          features: [],
+          careInstructions: [],
+          specs: {},
+          inStock: true,
+          isNewArrival: false,
+          isBestSeller: false,
+        };
+      }
+      const cleanPid = String(productId).trim().toLowerCase();
+      const matched = products.find(
+        (p) =>
+          String(p.id).trim().toLowerCase() === cleanPid ||
+          String(p.slug).trim().toLowerCase() === cleanPid
+      );
+      if (matched) return matched;
+      return {
+        id: productId,
+        name: `Product (${productId})`,
+        slug: productId,
+        category: 'nightwear',
+        subCategory: 'Curated Essentials',
+        price: 1299,
+        originalPrice: 1999,
+        discount: 35,
+        rating: 5,
+        reviewCount: 0,
+        images: ['https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80'],
+        description: '',
+        shortDescription: '',
+        material: 'Cotton / Silk',
+        features: [],
+        careInstructions: [],
+        specs: {},
+        inStock: true,
+        isNewArrival: false,
+        isBestSeller: false,
+      };
+    };
+
+    const resolveCustomer = (rawUserId: string): {
+      name: string;
+      email: string;
+      phone: string;
+      accountType: 'Registered' | 'Guest';
+      city: string;
+      state: string;
+    } => {
+      const cleanUid = (rawUserId || '').toLowerCase().trim();
+      const matched = customers.find(
+        (c) =>
+          (c.email && c.email.toLowerCase().trim() === cleanUid) ||
+          (c.id && c.id.toLowerCase().trim() === cleanUid) ||
+          (c.supabaseUid && c.supabaseUid.toLowerCase().trim() === cleanUid)
+      );
+      if (matched) {
+        return {
+          name: matched.name || 'Customer',
+          email: matched.email || (cleanUid.includes('@') ? cleanUid : '—'),
+          phone: matched.phone || '—',
+          accountType: matched.accountType || 'Registered',
+          city: matched.city || 'India',
+          state: matched.state || '',
+        };
+      }
+
+      if (cleanUid.includes('@')) {
+        const prefix = cleanUid.split('@')[0];
+        const formattedName = prefix.charAt(0).toUpperCase() + prefix.slice(1);
+        return {
+          name: formattedName,
+          email: cleanUid,
+          phone: '—',
+          accountType: 'Registered',
+          city: 'India',
+          state: '',
+        };
+      }
+
+      if (cleanUid.startsWith('guest_') || cleanUid.includes('guest')) {
+        return {
+          name: `Guest (${cleanUid.slice(-4)})`,
+          email: 'Guest Session',
+          phone: '—',
+          accountType: 'Guest',
+          city: 'India',
+          state: '',
+        };
+      }
+
+      return {
+        name: `Customer (${cleanUid.slice(-4)})`,
+        email: cleanUid,
+        phone: '—',
+        accountType: 'Guest',
+        city: 'India',
+        state: '',
+      };
+    };
+
+    // Parallel fetch from Supabase
+    let rawCarts: any[] = [];
+    let rawWishlists: any[] = [];
+    try {
+      const [cartsRes, wishRes] = await Promise.allSettled([
+        CartService.fetchAllCarts(),
+        WishlistService.fetchAllWishlists(),
+      ]);
+      if (cartsRes.status === 'fulfilled' && Array.isArray(cartsRes.value)) {
+        rawCarts = cartsRes.value;
+      }
+      if (wishRes.status === 'fulfilled' && Array.isArray(wishRes.value)) {
+        rawWishlists = wishRes.value;
+      }
+    } catch (e) {
+      console.warn('getAllCartsAndWishlists error:', e);
+    }
+
+    // Merge current active session items if present in browser localStorage
+    if (typeof window !== 'undefined') {
+      try {
+        const guestCartStr = localStorage.getItem('girly_tales_guest_cart');
+        if (guestCartStr) {
+          const guestItems = JSON.parse(guestCartStr);
+          if (Array.isArray(guestItems) && guestItems.length > 0) {
+            guestItems.forEach((it: any) => {
+              const pid = it.product?.id || it.productId || it.id;
+              if (pid && !rawCarts.some((rc: any) => rc.user_id === 'guest_active' && (rc.product_id === pid || rc.productId === pid))) {
+                rawCarts.push({
+                  id: it.id || `guest_active_${pid}`,
+                  user_id: 'guest_active',
+                  product_id: pid,
+                  quantity: it.quantity || 1,
+                  selected_size: it.selectedSize || '',
+                  selected_color: it.selectedColor || '',
+                  created_at: new Date().toISOString(),
+                });
+              }
+            });
+          }
+        }
+
+        const guestWishStr = localStorage.getItem('girly_tales_guest_wishlist_v1');
+        if (guestWishStr) {
+          const guestWishIds = JSON.parse(guestWishStr);
+          if (Array.isArray(guestWishIds) && guestWishIds.length > 0) {
+            guestWishIds.forEach((pid: string) => {
+              if (pid && !rawWishlists.some((rw: any) => rw.user_id === 'guest_active' && (rw.product_id === pid || rw.productId === pid))) {
+                rawWishlists.push({
+                  id: `guest_wish_${pid}`,
+                  user_id: 'guest_active',
+                  product_id: pid,
+                  created_at: new Date().toISOString(),
+                });
+              }
+            });
+          }
+        }
+      } catch {}
+    }
+
+    const items: CustomerIntentItem[] = [];
+    const customerMap = new Map<string, CustomerCartWishlistSummary>();
+    const demandMap = new Map<string, ProductDemandItem>();
+
+    // Process Carts
+    rawCarts.forEach((row) => {
+      const uid = String(row.user_id || row.userId || 'guest_user').trim();
+      const pid = String(row.product_id || row.productId || '').trim();
+      if (!pid) return;
+
+      const product = resolveProduct(pid);
+      const custInfo = resolveCustomer(uid);
+      const qty = Number(row.quantity) || 1;
+      const unitPrice = Number(product.price) || 0;
+      const itemTotal = unitPrice * qty;
+      const addedAt = row.created_at || row.createdAt || new Date().toISOString();
+
+      items.push({
+        id: row.id || `cart-${uid}-${pid}`,
+        type: 'cart',
+        userId: uid,
+        customerName: custInfo.name,
+        customerEmail: custInfo.email,
+        customerPhone: custInfo.phone,
+        customerType: custInfo.accountType,
+        city: custInfo.city,
+        state: custInfo.state,
+        product,
+        quantity: qty,
+        selectedSize: row.selected_size || row.selectedSize || '',
+        selectedColor: row.selected_color || row.selectedColor || '',
+        unitPrice,
+        totalPrice: itemTotal,
+        addedAt,
+      });
+
+      // Customer map
+      if (!customerMap.has(uid)) {
+        customerMap.set(uid, {
+          userId: uid,
+          customerName: custInfo.name,
+          customerEmail: custInfo.email,
+          customerPhone: custInfo.phone,
+          customerType: custInfo.accountType,
+          city: custInfo.city,
+          state: custInfo.state,
+          cartItems: [],
+          wishlistItems: [],
+          cartTotalValue: 0,
+          wishlistTotalValue: 0,
+          lastActive: addedAt,
+        });
+      }
+      const cEntry = customerMap.get(uid)!;
+      cEntry.cartItems.push({
+        id: row.id || `ci-${pid}`,
+        productId: product.id,
+        name: product.name,
+        image: product.images?.[0] || '',
+        price: unitPrice,
+        quantity: qty,
+        selectedSize: row.selected_size || row.selectedSize || '',
+        selectedColor: row.selected_color || row.selectedColor || '',
+        addedAt,
+      });
+      cEntry.cartTotalValue += itemTotal;
+      if (new Date(addedAt) > new Date(cEntry.lastActive)) {
+        cEntry.lastActive = addedAt;
+      }
+
+      // Demand map
+      if (!demandMap.has(product.id)) {
+        demandMap.set(product.id, {
+          productId: product.id,
+          productName: product.name,
+          image: product.images?.[0] || '',
+          price: unitPrice,
+          inStock: product.inStock !== false && (product.stockQuantity === undefined || product.stockQuantity > 0),
+          stockQuantity: product.stockQuantity ?? 10,
+          category: product.category,
+          cartCount: 0,
+          cartUsersCount: 0,
+          wishlistUsersCount: 0,
+          totalCartValue: 0,
+        });
+      }
+      const dEntry = demandMap.get(product.id)!;
+      dEntry.cartCount += qty;
+      dEntry.cartUsersCount += 1;
+      dEntry.totalCartValue += itemTotal;
+    });
+
+    // Process Wishlists
+    rawWishlists.forEach((row) => {
+      const uid = String(row.user_id || row.userId || 'guest_user').trim();
+      const pid = String(row.product_id || row.productId || '').trim();
+      if (!pid) return;
+
+      const product = resolveProduct(pid);
+      const custInfo = resolveCustomer(uid);
+      const unitPrice = Number(product.price) || 0;
+      const addedAt = row.created_at || row.createdAt || new Date().toISOString();
+
+      items.push({
+        id: row.id || `wish-${uid}-${pid}`,
+        type: 'wishlist',
+        userId: uid,
+        customerName: custInfo.name,
+        customerEmail: custInfo.email,
+        customerPhone: custInfo.phone,
+        customerType: custInfo.accountType,
+        city: custInfo.city,
+        state: custInfo.state,
+        product,
+        quantity: 1,
+        unitPrice,
+        totalPrice: unitPrice,
+        addedAt,
+      });
+
+      // Customer map
+      if (!customerMap.has(uid)) {
+        customerMap.set(uid, {
+          userId: uid,
+          customerName: custInfo.name,
+          customerEmail: custInfo.email,
+          customerPhone: custInfo.phone,
+          customerType: custInfo.accountType,
+          city: custInfo.city,
+          state: custInfo.state,
+          cartItems: [],
+          wishlistItems: [],
+          cartTotalValue: 0,
+          wishlistTotalValue: 0,
+          lastActive: addedAt,
+        });
+      }
+      const cEntry = customerMap.get(uid)!;
+      cEntry.wishlistItems.push({
+        id: row.id || `wi-${pid}`,
+        productId: product.id,
+        name: product.name,
+        image: product.images?.[0] || '',
+        price: unitPrice,
+        addedAt,
+      });
+      cEntry.wishlistTotalValue += unitPrice;
+      if (new Date(addedAt) > new Date(cEntry.lastActive)) {
+        cEntry.lastActive = addedAt;
+      }
+
+      // Demand map
+      if (!demandMap.has(product.id)) {
+        demandMap.set(product.id, {
+          productId: product.id,
+          productName: product.name,
+          image: product.images?.[0] || '',
+          price: unitPrice,
+          inStock: product.inStock !== false && (product.stockQuantity === undefined || product.stockQuantity > 0),
+          stockQuantity: product.stockQuantity ?? 10,
+          category: product.category,
+          cartCount: 0,
+          cartUsersCount: 0,
+          wishlistUsersCount: 0,
+          totalCartValue: 0,
+        });
+      }
+      const dEntry = demandMap.get(product.id)!;
+      dEntry.wishlistUsersCount += 1;
+    });
+
+    const customersSummaryList = Array.from(customerMap.values()).sort(
+      (a, b) => new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime()
+    );
+
+    const productDemands = Array.from(demandMap.values()).sort(
+      (a, b) => (b.cartCount + b.wishlistUsersCount) - (a.cartCount + a.wishlistUsersCount)
+    );
+
+    const totalCartItemsCount = rawCarts.reduce((sum, c) => sum + (Number(c.quantity) || 1), 0);
+    const totalCartValue = items.filter((i) => i.type === 'cart').reduce((sum, i) => sum + i.totalPrice, 0);
+    const totalWishlistCount = rawWishlists.length;
+    const totalWishlistValue = items.filter((i) => i.type === 'wishlist').reduce((sum, i) => sum + i.totalPrice, 0);
+
+    return {
+      items,
+      customers: customersSummaryList,
+      productDemands,
+      stats: {
+        totalCartItemsCount,
+        totalCartValue,
+        totalWishlistCount,
+        totalWishlistValue,
+        activeShoppersCount: customersSummaryList.length,
+      },
+    };
   },
 
   // ==================== 4. REVIEWS ====================
