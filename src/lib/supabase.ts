@@ -49,8 +49,12 @@ export const normalizeStorageUrl = (url: string): string => {
 };
 
 const resilientFetch: typeof fetch = async (input, init) => {
+  const cleanInit: RequestInit = {
+    ...init,
+    credentials: 'omit',
+  };
   try {
-    return await fetch(input, init);
+    return await fetch(input, cleanInit);
   } catch (err: any) {
     if (
       typeof window !== 'undefined' &&
@@ -60,7 +64,7 @@ const resilientFetch: typeof fetch = async (input, init) => {
     ) {
       try {
         const proxyUrl = input.replace(rawUrl, `${window.location.origin}/supabase-proxy`);
-        return await fetch(proxyUrl, init);
+        return await fetch(proxyUrl, cleanInit);
       } catch {
         throw err;
       }

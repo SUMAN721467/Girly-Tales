@@ -2168,33 +2168,36 @@ export const DatabaseService = {
     const fileName = `prod_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${cleanExt}`;
     const filePath = `products/${fileName}`;
 
-    const baseUrl = getEffectiveSupabaseUrl().replace(/\/+$/, '');
+    const candidateBases = Array.from(new Set([
+      getEffectiveSupabaseUrl(),
+      getRawSupabaseUrl(),
+      typeof window !== 'undefined' && window.location?.origin ? `${window.location.origin}/supabase-proxy` : '',
+    ].filter(Boolean)));
     const apiKey = getSupabaseAnonKey();
-    const cdnBase = (getRawSupabaseUrl() || baseUrl).replace(/\/+$/, '');
+    const cdnBase = (getRawSupabaseUrl() || getEffectiveSupabaseUrl()).replace(/\/+$/, '');
 
-    // 1. First attempt direct REST upload with clean Anon API key
-    try {
-      const uploadUrl = `${baseUrl}/storage/v1/object/product-images/${filePath}`;
-      const uploadRes = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: {
-          apikey: apiKey,
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': file.type || 'image/jpeg',
-          'cache-control': 'max-age=3600',
-          'x-upsert': 'true',
-        },
-        body: fileToUpload,
-      });
+    // 1. First attempt direct REST upload with credentials: 'omit' to prevent HTTP 494 header/cookie errors
+    for (const base of candidateBases) {
+      try {
+        const cleanBase = base.replace(/\/+$/, '');
+        const uploadUrl = `${cleanBase}/storage/v1/object/product-images/${filePath}`;
+        const uploadRes = await fetch(uploadUrl, {
+          method: 'POST',
+          credentials: 'omit',
+          headers: {
+            apikey: apiKey,
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': file.type || 'image/jpeg',
+            'cache-control': 'max-age=3600',
+            'x-upsert': 'true',
+          },
+          body: fileToUpload,
+        });
 
-      if (uploadRes.ok) {
-        return `${cdnBase}/storage/v1/object/public/product-images/${filePath}`;
-      }
-
-      const errText = await uploadRes.text().catch(() => '');
-      console.warn('[Direct REST Storage Upload Failed, falling back to client]', uploadRes.status, errText);
-    } catch (restErr) {
-      console.warn('[Direct REST Storage Upload Network Error, falling back to client]', restErr);
+        if (uploadRes.ok) {
+          return `${cdnBase}/storage/v1/object/public/product-images/${filePath}`;
+        }
+      } catch (restErr) {}
     }
 
     // 2. Fallback to Supabase JS storage client
@@ -2249,33 +2252,36 @@ export const DatabaseService = {
     const fileName = `banner_${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${cleanExt}`;
     const filePath = `banners/${fileName}`;
 
-    const baseUrl = getEffectiveSupabaseUrl().replace(/\/+$/, '');
+    const candidateBases = Array.from(new Set([
+      getEffectiveSupabaseUrl(),
+      getRawSupabaseUrl(),
+      typeof window !== 'undefined' && window.location?.origin ? `${window.location.origin}/supabase-proxy` : '',
+    ].filter(Boolean)));
     const apiKey = getSupabaseAnonKey();
-    const cdnBase = (getRawSupabaseUrl() || baseUrl).replace(/\/+$/, '');
+    const cdnBase = (getRawSupabaseUrl() || getEffectiveSupabaseUrl()).replace(/\/+$/, '');
 
-    // 1. Direct REST storage upload to 'product-images' bucket
-    try {
-      const uploadUrl = `${baseUrl}/storage/v1/object/product-images/${filePath}`;
-      const uploadRes = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: {
-          apikey: apiKey,
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': file.type || 'image/jpeg',
-          'cache-control': 'max-age=3600',
-          'x-upsert': 'true',
-        },
-        body: fileToUpload,
-      });
+    // 1. Direct REST storage upload with credentials: 'omit' to prevent HTTP 494 header/cookie errors
+    for (const base of candidateBases) {
+      try {
+        const cleanBase = base.replace(/\/+$/, '');
+        const uploadUrl = `${cleanBase}/storage/v1/object/product-images/${filePath}`;
+        const uploadRes = await fetch(uploadUrl, {
+          method: 'POST',
+          credentials: 'omit',
+          headers: {
+            apikey: apiKey,
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': file.type || 'image/jpeg',
+            'cache-control': 'max-age=3600',
+            'x-upsert': 'true',
+          },
+          body: fileToUpload,
+        });
 
-      if (uploadRes.ok) {
-        return `${cdnBase}/storage/v1/object/public/product-images/${filePath}`;
-      }
-
-      const errText = await uploadRes.text().catch(() => '');
-      console.warn('[Direct REST Banner Upload Failed, falling back to client]', uploadRes.status, errText);
-    } catch (restErr) {
-      console.warn('[Direct REST Banner Upload Network Error, falling back to client]', restErr);
+        if (uploadRes.ok) {
+          return `${cdnBase}/storage/v1/object/public/product-images/${filePath}`;
+        }
+      } catch (restErr) {}
     }
 
     // 2. Fallback to Supabase JS client
@@ -2329,33 +2335,36 @@ export const DatabaseService = {
     const fileName = `category_card_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${cleanExt}`;
     const filePath = `banners/${fileName}`;
 
-    const baseUrl = getEffectiveSupabaseUrl().replace(/\/+$/, '');
+    const candidateBases = Array.from(new Set([
+      getEffectiveSupabaseUrl(),
+      getRawSupabaseUrl(),
+      typeof window !== 'undefined' && window.location?.origin ? `${window.location.origin}/supabase-proxy` : '',
+    ].filter(Boolean)));
     const apiKey = getSupabaseAnonKey();
-    const cdnBase = (getRawSupabaseUrl() || baseUrl).replace(/\/+$/, '');
+    const cdnBase = (getRawSupabaseUrl() || getEffectiveSupabaseUrl()).replace(/\/+$/, '');
 
-    // 1. Direct REST storage upload
-    try {
-      const uploadUrl = `${baseUrl}/storage/v1/object/product-images/${filePath}`;
-      const uploadRes = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: {
-          apikey: apiKey,
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': file.type || 'image/jpeg',
-          'cache-control': 'max-age=3600',
-          'x-upsert': 'true',
-        },
-        body: fileToUpload,
-      });
+    // 1. Direct REST storage upload with credentials: 'omit' to prevent HTTP 494 header/cookie errors
+    for (const base of candidateBases) {
+      try {
+        const cleanBase = base.replace(/\/+$/, '');
+        const uploadUrl = `${cleanBase}/storage/v1/object/product-images/${filePath}`;
+        const uploadRes = await fetch(uploadUrl, {
+          method: 'POST',
+          credentials: 'omit',
+          headers: {
+            apikey: apiKey,
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': file.type || 'image/jpeg',
+            'cache-control': 'max-age=3600',
+            'x-upsert': 'true',
+          },
+          body: fileToUpload,
+        });
 
-      if (uploadRes.ok) {
-        return `${cdnBase}/storage/v1/object/public/product-images/${filePath}`;
-      }
-
-      const errText = await uploadRes.text().catch(() => '');
-      console.warn('[Direct REST Category Card Upload Failed, falling back to client]', uploadRes.status, errText);
-    } catch (restErr) {
-      console.warn('[Direct REST Category Card Upload Network Error, falling back to client]', restErr);
+        if (uploadRes.ok) {
+          return `${cdnBase}/storage/v1/object/public/product-images/${filePath}`;
+        }
+      } catch (restErr) {}
     }
 
     // 2. Fallback to Supabase JS client
