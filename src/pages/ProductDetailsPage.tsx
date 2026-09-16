@@ -273,7 +273,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   };
 
   const [openAccordions, setOpenAccordions] = useState<{ [key: string]: boolean }>({
-    description: true,
+    description: false,
     care: false,
     shipping: false,
     reviews: true,
@@ -363,8 +363,8 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
       {/* Unified Luxury Product Showcase Card */}
       <div className="bg-white border border-[#EAE6DB] rounded-2xl sm:rounded-3xl p-5 sm:p-7 lg:p-8 shadow-xs w-full">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 lg:gap-10 xl:gap-12 items-start w-full">
-          {/* Left: Product Media (5 cols - Compact & Elegant) */}
-          <div className="lg:col-span-5 flex flex-col items-center space-y-3.5 w-full">
+          {/* Left: Product Media (5 cols - Sticky Floating on Desktop) */}
+          <div className="lg:col-span-5 lg:sticky lg:top-24 lg:self-start flex flex-col items-center space-y-3.5 w-full transition-all">
             {/* Main Image Frame Wrapper with Relative Anchor */}
             <div className="relative w-full max-w-[380px] lg:max-w-[420px]">
               <div
