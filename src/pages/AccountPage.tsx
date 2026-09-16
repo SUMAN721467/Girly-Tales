@@ -1307,11 +1307,27 @@ export const AccountPage: React.FC<AccountPageProps> = ({
 
                     const isDelivered = !isCancelled && currentStatus === 'Delivered';
 
+                    const isPaymentFailed =
+                      selectedOrderForDetail.customerStatus === 'Payment Failed' ||
+                      selectedOrderForDetail.paymentMethod?.toLowerCase().includes('failed');
+
                     return (
                       <>
                         <div className="space-y-6 pt-2">
-                          {/* Cancelled Alert Banner if applicable */}
-                          {isCancelled && (
+                          {/* Payment Failed Alert Banner */}
+                          {isPaymentFailed ? (
+                            <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 text-rose-800">
+                              <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center shrink-0 mt-0.5 text-rose-600 font-bold">
+                                ⚠️
+                              </div>
+                              <div className="space-y-1">
+                                <h6 className="font-sans font-bold text-xs text-rose-900">Payment Failed • Order Not Placed</h6>
+                                <p className="text-[11px] text-rose-700 leading-relaxed">
+                                  Payment was not completed. If any money was debited from your bank account or UPI, it will be <strong>automatically refunded</strong> back to your original source within <strong>3 - 5 business days</strong>.
+                                </p>
+                              </div>
+                            </div>
+                          ) : isCancelled ? (
                             <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-rose-700">
                               <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
                                 <X className="w-4 h-4 text-rose-600" />
@@ -1325,7 +1341,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                                 </p>
                               </div>
                             </div>
-                          )}
+                          ) : null}
 
                           {/* Stepper Node 1: Order Confirmed */}
                           <div className="flex items-start gap-4 relative">
@@ -1752,6 +1768,8 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                           <span
                             className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1 rounded-full ${
                               (() => {
+                                const isFail = ord.customerStatus === 'Payment Failed' || ord.paymentMethod?.toLowerCase().includes('failed');
+                                if (isFail) return 'bg-rose-50 border border-rose-200 text-rose-700';
                                 const s = (ord.sellerStatus || ord.status || 'Pending').trim();
                                 if (s.toLowerCase().includes('cancel') || ord.customerStatus?.toLowerCase().includes('cancel')) {
                                   return 'bg-rose-50 border border-rose-200 text-rose-700';
@@ -1766,6 +1784,8 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                             <span
                               className={`w-2 h-2 rounded-full ${
                                 (() => {
+                                  const isFail = ord.customerStatus === 'Payment Failed' || ord.paymentMethod?.toLowerCase().includes('failed');
+                                  if (isFail) return 'bg-rose-500';
                                   const s = (ord.sellerStatus || ord.status || 'Pending').trim();
                                   if (s.toLowerCase().includes('cancel') || ord.customerStatus?.toLowerCase().includes('cancel')) {
                                     return 'bg-rose-500';
@@ -1779,6 +1799,8 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                             />
                             <span>
                               {(() => {
+                                const isFail = ord.customerStatus === 'Payment Failed' || ord.paymentMethod?.toLowerCase().includes('failed');
+                                if (isFail) return 'Payment Failed • Order Not Placed';
                                 const s = (ord.sellerStatus || ord.status || 'Pending').trim();
                                 if (s === 'Cancelled by Seller') return 'Cancelled by Seller';
                                 if (s.toLowerCase().includes('cancel') || ord.customerStatus?.toLowerCase().includes('cancel')) return 'Order Cancelled';

@@ -350,6 +350,14 @@ export const AppContent: React.FC = () => {
         isOpen={isCheckoutOpen}
         onClose={() => setIsCheckoutOpen(false)}
         onOrderSuccess={() => {}}
+        onNavigateToOrders={() => {
+          setIsCheckoutOpen(false);
+          navigateTo('orders');
+        }}
+        onNavigateToShop={() => {
+          setIsCheckoutOpen(false);
+          navigateTo('shop');
+        }}
       />
 
       <ToastContainer />

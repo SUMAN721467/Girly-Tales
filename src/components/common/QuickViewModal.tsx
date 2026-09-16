@@ -32,8 +32,10 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
 
   const isFavorited = isInWishlist(product.id);
   const isProductInCart = items.some((item) => item.product.id === product.id);
+  const isOutOfStock = product.inStock === false || (product.stockQuantity !== undefined && product.stockQuantity <= 0);
 
   const handleAddToCart = () => {
+    if (isOutOfStock) return;
     if (isProductInCart) {
       onClose();
       openCart();
@@ -176,10 +178,12 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
               <Button
                 variant="primary"
                 fullWidth
+                disabled={isOutOfStock}
                 onClick={handleAddToCart}
-                leftIcon={<Sparkles className="w-4 h-4" />}
+                leftIcon={!isOutOfStock ? <Sparkles className="w-4 h-4" /> : undefined}
+                className={isOutOfStock ? 'bg-stone-300 text-stone-600 cursor-not-allowed border-stone-300' : ''}
               >
-                {isProductInCart ? 'Go to Cart' : 'Add to Cart'}
+                {isOutOfStock ? 'Out of Stock' : isProductInCart ? 'Go to Cart' : 'Add to Cart'}
               </Button>
               <button
                 onClick={() => toggleWishlist(product.id)}

@@ -1394,6 +1394,40 @@ export const DatabaseService = {
       });
     }
 
+    // 4. Auto-deduct stock for each purchased product in the database (ONLY for successful orders, NEVER on failed payments)
+    const isFailedOrder =
+      fullOrder.customerStatus === 'Payment Failed' ||
+      fullOrder.customerStatus === 'Cancelled by Customer' ||
+      fullOrder.paymentMethod?.toLowerCase().includes('failed') ||
+      fullOrder.sellerStatus === 'Cancelled by Seller';
+
+    if (!isFailedOrder) {
+      try {
+        const normalizedItems = normalizeOrderItems(fullOrder.items);
+        for (const item of normalizedItems) {
+          const prod = inMemoryProducts.find(
+            (p) =>
+              (item.productId && (p.id === item.productId || p.slug === item.productId)) ||
+              (p.name && item.name && p.name.toLowerCase().trim() === item.name.toLowerCase().trim())
+          );
+          if (prod) {
+            const currentStock = typeof prod.stockQuantity === 'number' ? prod.stockQuantity : (prod.inStock !== false ? 10 : 0);
+            const newStock = Math.max(0, currentStock - (item.quantity || 1));
+            const newInStock = newStock > 0;
+
+            await this.updateProduct(prod.id, {
+              stockQuantity: newStock,
+              inStock: newInStock,
+            }).catch((err) => {
+              console.warn(`[Stock Deduction] Failed for ${prod.name}:`, err);
+            });
+          }
+        }
+      } catch (stockErr) {
+        console.warn('[Stock Deduction Error]', stockErr);
+      }
+    }
+
     return fullOrder;
   },
 
@@ -1672,8 +1706,8 @@ export const DatabaseService = {
             description: d.description || '',
             shortDescription: d.short_description || d.shortDescription || '',
             material: d.material || '',
-            inStock: d.in_stock !== false && d.inStock !== false,
-            stockQuantity: Number(d.stock_quantity ?? d.stockQuantity ?? 10),
+            inStock: d.in_stock !== false && d.inStock !== false && (d.stock_quantity === undefined && d.stockQuantity === undefined ? true : Number(d.stock_quantity ?? d.stockQuantity) > 0),
+            stockQuantity: Number(d.stock_quantity ?? d.stockQuantity ?? (d.in_stock === false ? 0 : 10)),
             sku: d.sku || '',
             dimensions: d.dimensions || '',
             variety: d.variety || '',

@@ -377,6 +377,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     selectedSize?: string,
     selectedColor?: string
   ) => {
+    const isOutOfStock = product.inStock === false || (product.stockQuantity !== undefined && product.stockQuantity <= 0);
+    if (isOutOfStock) {
+      triggerToast('Out of Stock', `${product.name} is currently out of stock.`, product, 'error');
+      return;
+    }
+
+    const availableStock = typeof product.stockQuantity === 'number' ? product.stockQuantity : 999;
     const size = selectedSize || (product.sizes && product.sizes.length > 0 ? product.sizes[0] : undefined);
     const defaultColor = (product.colors && product.colors.length > 0)
       ? (typeof product.colors[0] === 'object' ? (product.colors[0] as any)?.name : String(product.colors[0]))
@@ -391,13 +398,19 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let updated: CartItem[];
       const existing = prev.find((item) => item.id === itemId);
       if (existing) {
+        const nextQty = Math.min(availableStock, existing.quantity + quantity);
+        if (existing.quantity >= availableStock) {
+          triggerToast('Stock Limit Reached', `Only ${availableStock} unit(s) available in stock.`, product, 'info');
+          return prev;
+        }
         updated = prev.map((item) =>
           item.id === itemId
-            ? { ...item, quantity: item.quantity + quantity }
+            ? { ...item, quantity: nextQty }
             : item
         );
       } else {
-        updated = [...prev, { id: itemId, product, quantity, selectedSize: size, selectedColor: color }];
+        const initialQty = Math.min(availableStock, quantity);
+        updated = [...prev, { id: itemId, product, quantity: initialQty, selectedSize: size, selectedColor: color }];
       }
 
       persistLocally(updated, user);
@@ -437,9 +450,19 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
+    const item = items.find((i) => i.id === cartItemId);
+    let finalQty = newQuantity;
+    if (item) {
+      const maxStock = typeof item.product.stockQuantity === 'number' ? item.product.stockQuantity : (item.product.inStock !== false ? 99 : 0);
+      if (newQuantity > maxStock && maxStock > 0) {
+        triggerToast('Stock Limit', `Only ${maxStock} unit(s) available in stock.`, item.product, 'info');
+        finalQty = maxStock;
+      }
+    }
+
     setItems((prev) => {
       const updated = prev.map((item) =>
-        item.id === cartItemId ? { ...item, quantity: newQuantity } : item
+        item.id === cartItemId ? { ...item, quantity: finalQty } : item
       );
       persistLocally(updated, user);
       if (isLoggedIn && user) {

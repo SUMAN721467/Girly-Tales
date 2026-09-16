@@ -17,11 +17,20 @@ import {
   UserCheck,
   CreditCard,
   Smartphone,
+  Package,
+  Copy,
+  Check,
+  ShoppingBag,
+  Phone,
+  User as UserIcon,
+  Clock,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../common/Button';
-import { DatabaseService, RealCoupon } from '../../lib/databaseService';
+import { DatabaseService, RealCoupon, RealOrder, normalizeOrderItems } from '../../lib/databaseService';
 import { AddressService } from '../../lib/addressService';
 import { ShippingAddress } from '../../types/product';
 import { RazorpayService } from '../../lib/razorpayService';
@@ -30,6 +39,8 @@ interface CheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOrderSuccess: (orderId: string) => void;
+  onNavigateToOrders?: () => void;
+  onNavigateToShop?: () => void;
 }
 
 // Fallback Indian postal prefix lookup when offline or network fails
@@ -87,6 +98,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   isOpen,
   onClose,
   onOrderSuccess,
+  onNavigateToOrders,
+  onNavigateToShop,
 }) => {
   const {
     items,
@@ -103,7 +116,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   } = useCart();
   const { user, isLoggedIn, openAuthModal } = useAuth();
 
-  const [step, setStep] = useState<'details' | 'success'>('details');
+  const [step, setStep] = useState<'details' | 'success' | 'payment_failed'>('details');
+  const [paymentErrorReason, setPaymentErrorReason] = useState<string>('');
   const [savedAddresses, setSavedAddresses] = useState<ShippingAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string>('custom');
   const [showNewAddressForm, setShowNewAddressForm] = useState(false);
@@ -127,8 +141,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [pincodeLoading, setPincodeLoading] = useState(false);
   const [pincodeDetected, setPincodeDetected] = useState(false);
   const [orderId, setOrderId] = useState('');
+  const [confirmedOrder, setConfirmedOrder] = useState<RealOrder | null>(null);
+  const [countdown, setCountdown] = useState<number>(5);
+  const [isCopiedId, setIsCopiedId] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const countdownTimerRef = useRef<any>(null);
 
   // Load saved addresses on mount/open
   const loadSavedAddresses = async () => {
@@ -179,10 +197,48 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       setStep('details');
       setIsSubmitting(false);
       setCouponError('');
+      setConfirmedOrder(null);
+      setCountdown(5);
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
       loadSavedAddresses();
       loadCoupons();
+    } else {
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
     }
   }, [isOpen, user]);
+
+  // Handle 5-second countdown on success
+  useEffect(() => {
+    if (step === 'success') {
+      setCountdown(5);
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+      }
+      countdownTimerRef.current = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(countdownTimerRef.current);
+            countdownTimerRef.current = null;
+            // Auto redirect to orders
+            handleGoToOrders();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+      }
+    };
+  }, [step]);
 
   useEffect(() => {
     window.addEventListener('gt_addresses_sync', loadSavedAddresses);
@@ -323,7 +379,43 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     await applyCoupon(code);
   };
 
+  const handleGoToOrders = () => {
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    setStep('details');
+    onClose();
+    if (onNavigateToOrders) {
+      onNavigateToOrders();
+    } else {
+      window.location.href = '/orders';
+    }
+  };
+
+  const handleContinueShopping = () => {
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    setStep('details');
+    onClose();
+    if (onNavigateToShop) {
+      onNavigateToShop();
+    }
+  };
+
+  const handleCopyOrderId = (idToCopy: string) => {
+    navigator.clipboard.writeText(idToCopy);
+    setIsCopiedId(true);
+    setTimeout(() => setIsCopiedId(false), 2000);
+  };
+
   const handleModalClose = () => {
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
     setStep('details');
     setIsSubmitting(false);
     onClose();
@@ -396,7 +488,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           },
           onSuccess: async (rzpRes) => {
             try {
-              await DatabaseService.createOrder({
+              const created = await DatabaseService.createOrder({
                 id: generatedId,
                 customerName: formData.name || 'Customer',
                 email: formData.email || user?.email || '',
@@ -430,6 +522,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 await DatabaseService.incrementCouponUsedCount(appliedCoupon);
               }
 
+              setConfirmedOrder(created);
               setOrderId(generatedId);
               setIsSubmitting(false);
               setStep('success');
@@ -446,13 +539,48 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             setIsSubmitting(false);
             triggerToast('Payment Cancelled', 'Razorpay checkout was closed. You can retry when ready.', undefined, 'info');
           },
-          onError: (errMsg) => {
+          onError: async (errMsg) => {
             setIsSubmitting(false);
-            triggerToast('Payment Failed', errMsg || 'Payment could not be completed.', undefined, 'error');
+            const failReason = errMsg || 'Payment was declined by the bank or gateway.';
+            setPaymentErrorReason(failReason);
+            setOrderId(generatedId);
+
+            // Record failed order in Supabase so it appears in My Orders as Payment Failed (Stock is NOT deducted)
+            try {
+              const failedOrder = await DatabaseService.createOrder({
+                id: generatedId,
+                customerName: formData.name || 'Customer',
+                email: formData.email || user?.email || '',
+                phone: formData.phone || '',
+                items: structuredOrderItems,
+                total: finalTotal,
+                subtotal: subtotal,
+                shippingFee: shippingFee,
+                discountAmount: discountAmount,
+                sellerStatus: 'Cancelled by Seller',
+                customerStatus: 'Payment Failed',
+                status: 'Cancelled',
+                paymentMethod: 'Razorpay Online (Payment Failed)',
+                address: formData.address || '',
+                city: formData.city || 'Mumbai',
+                state: formData.state || 'Maharashtra',
+                pincode: formData.pincode || '',
+                specialInstructions: `Payment Failed: ${failReason}`,
+              });
+              setConfirmedOrder(failedOrder);
+            } catch (saveErr) {
+              console.warn('Failed order record error:', saveErr);
+            }
+
+            // IMPORTANT: Cart is NOT cleared! Cart items remain safe.
+            setStep('payment_failed');
+            triggerToast('Payment Failed', failReason, undefined, 'error');
           },
         });
       } catch (err: any) {
         setIsSubmitting(false);
+        setPaymentErrorReason(err?.message || 'Failed to initialize Razorpay checkout.');
+        setStep('payment_failed');
         triggerToast('Payment Error', err?.message || 'Failed to initialize Razorpay checkout.', undefined, 'error');
       }
       return;
@@ -460,7 +588,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
     // 2. If Cash on Delivery (COD) is selected
     try {
-      await DatabaseService.createOrder({
+      const created = await DatabaseService.createOrder({
         id: generatedId,
         customerName: formData.name || 'Customer',
         email: formData.email || user?.email || '',
@@ -494,6 +622,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         await DatabaseService.incrementCouponUsedCount(appliedCoupon);
       }
 
+      setConfirmedOrder(created);
       setOrderId(generatedId);
       setIsSubmitting(false);
       setStep('success');
@@ -966,42 +1095,246 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </button>
             </form>
           </div>
+        ) : step === 'payment_failed' ? (
+          /* PAYMENT FAILED SCREEN */
+          <div className="py-4 sm:py-6 space-y-5 animate-scale-in text-center">
+            {/* Warning Icon */}
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-rose-50 border-2 border-rose-200 text-rose-600 flex items-center justify-center mx-auto shadow-md">
+              <AlertTriangle className="w-9 h-9 sm:w-11 sm:h-11 stroke-[2.2]" />
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-rose-600 bg-rose-50 px-3 py-1 rounded-full border border-rose-200">
+                Payment Incomplete
+              </span>
+              <h3 className="font-sans font-black text-xl sm:text-2xl text-brand-charcoal uppercase tracking-tight">
+                Payment Failed • Order Not Placed
+              </h3>
+              <p className="text-xs text-brand-muted max-w-md mx-auto leading-relaxed">
+                {paymentErrorReason || 'Your transaction could not be processed by your bank or payment gateway.'}
+              </p>
+            </div>
+
+            {/* Refund & Cart Safe Notice Card */}
+            <div className="bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl p-4 sm:p-5 space-y-3 text-xs text-left shadow-xs">
+              <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 space-y-1 leading-relaxed">
+                <div className="flex items-center gap-2 font-bold text-amber-950">
+                  <ShieldCheck className="w-4 h-4 text-amber-700 shrink-0" />
+                  <span>Auto-Refund Protection Guarantee</span>
+                </div>
+                <p className="text-[11px] text-amber-800">
+                  If any money was debited from your bank account, card, or UPI, don't worry! It will be <strong>automatically refunded</strong> back to your original payment method within <strong>3 - 5 business days</strong>.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-[#EAE6DB]">
+                <div className="flex items-center gap-2">
+                  <ShoppingBag className="w-4 h-4 text-[#967BB6]" />
+                  <span className="font-bold text-brand-charcoal">Cart Items Preserved ({items.length} products)</span>
+                </div>
+                <span className="text-xs font-bold text-[#967BB6]">₹{finalTotal.toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setStep('details')}
+                className="w-full sm:flex-1 py-3.5 px-5 bg-[#967BB6] hover:bg-[#7F62A1] text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-95"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Retry Payment</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleGoToOrders}
+                className="w-full sm:w-auto py-3.5 px-5 bg-[#FAF8F2] hover:bg-[#fffeea] text-brand-charcoal font-bold text-xs uppercase tracking-wider rounded-2xl border border-[#EAE6DB] transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Package className="w-4 h-4 text-brand-muted" />
+                <span>Go to My Orders</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleContinueShopping}
+                className="w-full sm:w-auto py-3.5 px-4 text-brand-muted hover:text-brand-charcoal font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
+              >
+                <span>Cancel</span>
+              </button>
+            </div>
+          </div>
         ) : (
-          /* ORDER CONFIRMATION SCREEN */
-          <div className="py-8 text-center space-y-4">
-            <div className="w-20 h-20 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-md animate-bounce">
-              <CheckCircle className="w-10 h-10" />
+          /* RICH LUXURY ORDER CONFIRMATION SCREEN WITH 5S REDIRECT */
+          <div className="py-4 sm:py-6 space-y-5 animate-scale-in">
+            {/* 1. Header Celebratory Badge */}
+            <div className="text-center space-y-2">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-emerald-50 border-2 border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto shadow-md animate-bounce">
+                <CheckCircle2 className="w-9 h-9 sm:w-11 sm:h-11 stroke-[2.2]" />
+              </div>
+
+              <span className="font-script text-2xl sm:text-3xl text-[#967BB6] block">
+                Order Confirmed! 💕
+              </span>
+
+              <h3 className="font-sans font-black text-xl sm:text-2xl text-brand-charcoal uppercase tracking-tight">
+                Thank You, {(confirmedOrder?.customerName || formData.name).split(' ')[0]}!
+              </h3>
+
+              <p className="text-xs text-brand-muted max-w-md mx-auto leading-relaxed">
+                Your order has been recorded successfully. Live updates will be sent to <strong>{confirmedOrder?.phone || formData.phone}</strong>.
+              </p>
             </div>
 
-            <span className="font-script text-3xl text-[#967BB6] block">
-              Hooray! Order Confirmed 💕
-            </span>
-
-            <h3 className="font-serif text-2xl font-bold text-brand-charcoal">
-              Thank You, {formData.name.split(' ')[0]}!
-            </h3>
-
-            <p className="text-xs text-brand-muted max-w-sm mx-auto leading-relaxed">
-              We have received your order <strong>#{orderId}</strong>. A confirmation WhatsApp &amp; email has been sent to{' '}
-              <strong>{formData.phone}</strong>.
-            </p>
-
-            <div className="p-4 bg-[#FAF8F2] rounded-2xl border border-[#EAE6DB] max-w-sm mx-auto text-xs text-left space-y-1.5">
-              <p className="font-bold text-brand-charcoal">Estimated Delivery:</p>
-              <p className="text-brand-muted">2 - 4 Business Days with Premium Express Shipping 🚚</p>
-              <p className="text-brand-muted">Delivery to: <strong>{formData.address}, {formData.city} ({formData.pincode})</strong></p>
-              <p className="text-brand-muted">Payment: ONLINE PREPAID</p>
+            {/* 2. Auto-redirect Countdown Notice */}
+            <div className="p-3.5 bg-gradient-to-r from-purple-50 via-[#FAF8F2] to-pink-50 rounded-2xl border border-[#967BB6]/30 text-xs flex flex-col sm:flex-row items-center justify-between gap-2 shadow-2xs">
+              <div className="flex items-center gap-2 text-brand-charcoal font-bold">
+                <Clock className="w-4 h-4 text-[#967BB6] animate-spin" />
+                <span>
+                  Auto-redirecting to <strong className="text-[#967BB6]">My Orders</strong> in{' '}
+                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#967BB6] text-white text-xs font-black shadow-xs">
+                    {countdown}s
+                  </span>
+                </span>
+              </div>
+              <div className="w-full sm:w-32 bg-stone-200 h-1.5 rounded-full overflow-hidden">
+                <div
+                  className="bg-[#967BB6] h-full transition-all duration-1000 ease-linear"
+                  style={{ width: `${(countdown / 5) * 100}%` }}
+                />
+              </div>
             </div>
 
-            <Button
-              variant="primary"
-              size="md"
-              onClick={handleModalClose}
-              className="mt-4 bg-[#967BB6] hover:bg-[#7F62A1] text-white"
-              rightIcon={<ArrowRight className="w-4 h-4" />}
-            >
-              Continue Shopping
-            </Button>
+            {/* 3. Detailed Order Summary Card */}
+            <div className="bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl p-4 sm:p-5 space-y-3.5 text-xs text-left shadow-xs">
+              <div className="flex items-center justify-between border-b border-[#EAE6DB] pb-3">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Order ID</span>
+                  <span className="font-mono font-bold text-sm text-brand-charcoal">#{confirmedOrder?.id || orderId}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleCopyOrderId(confirmedOrder?.id || orderId)}
+                  className="px-2.5 py-1 bg-white hover:bg-stone-50 border border-[#EAE6DB] rounded-lg text-[11px] font-bold text-brand-charcoal flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                >
+                  {isCopiedId ? (
+                    <>
+                      <Check className="w-3 h-3 text-emerald-600" />
+                      <span className="text-emerald-600">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3 text-brand-muted" />
+                      <span>Copy ID</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-0.5">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted flex items-center gap-1">
+                    <UserIcon className="w-3 h-3 text-[#967BB6]" />
+                    Customer Name
+                  </span>
+                  <p className="font-bold text-brand-charcoal">{confirmedOrder?.customerName || formData.name}</p>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted flex items-center gap-1">
+                    <Phone className="w-3 h-3 text-[#967BB6]" />
+                    Mobile Number
+                  </span>
+                  <p className="font-bold text-brand-charcoal">{confirmedOrder?.phone || formData.phone}</p>
+                </div>
+              </div>
+
+              <div className="space-y-1 pt-1 border-t border-[#EAE6DB]">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted flex items-center gap-1">
+                  <MapPin className="w-3 h-3 text-[#967BB6]" />
+                  Shipping Address
+                </span>
+                <p className="font-medium text-brand-charcoal leading-relaxed">
+                  {confirmedOrder?.address || formData.address}, {confirmedOrder?.city || formData.city}, {confirmedOrder?.state || formData.state} -{' '}
+                  <strong>{confirmedOrder?.pincode || formData.pincode}</strong>
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-[#EAE6DB] text-xs">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Payment Method</span>
+                  <span className="font-bold text-brand-charcoal">
+                    {confirmedOrder?.paymentMethod || (paymentMethod === 'cod' ? 'Cash on Delivery' : 'Online Prepaid (Razorpay)')}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Total Amount</span>
+                  <span className="font-black text-sm sm:text-base text-[#967BB6]">
+                    ₹{(confirmedOrder?.total ?? finalTotal).toLocaleString('en-IN')}.00
+                  </span>
+                </div>
+              </div>
+
+              {/* Ordered Items Preview */}
+              {(() => {
+                const orderItems = normalizeOrderItems(confirmedOrder?.items);
+                if (orderItems.length === 0) return null;
+                return (
+                  <div className="pt-2 border-t border-[#EAE6DB] space-y-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">
+                      Ordered Items ({orderItems.length})
+                    </span>
+                    <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                      {orderItems.map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between gap-2 p-1.5 rounded-lg bg-white border border-[#EAE6DB]">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {item.image && (
+                              <img src={item.image} alt={item.name} className="w-9 h-9 rounded object-cover border border-[#EAE6DB] shrink-0" />
+                            )}
+                            <div className="min-w-0">
+                              <p className="font-bold text-brand-charcoal text-[11px] truncate">{item.name}</p>
+                              <p className="text-[10px] text-brand-muted">
+                                Qty: {item.quantity} {item.size ? `• Size: ${item.size}` : ''}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="font-bold text-xs text-brand-charcoal shrink-0">
+                            ₹{(item.price * item.quantity).toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-800 text-[11px] font-medium flex items-center gap-2">
+                <Truck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Estimated Delivery: 2 - 4 Business Days • Express Pan-India Dispatch</span>
+              </div>
+            </div>
+
+            {/* 4. Action Buttons */}
+            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleGoToOrders}
+                className="w-full sm:flex-1 py-3.5 px-5 bg-[#967BB6] hover:bg-[#7F62A1] text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Package className="w-4 h-4" />
+                <span>Go to My Orders ({countdown}s)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleContinueShopping}
+                className="w-full sm:flex-1 py-3.5 px-5 bg-[#FAF8F2] hover:bg-[#fffeea] text-brand-charcoal font-bold text-xs uppercase tracking-wider rounded-2xl border border-[#EAE6DB] transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <ShoppingBag className="w-4 h-4 text-brand-muted" />
+                <span>Continue Shopping</span>
+              </button>
+            </div>
           </div>
         )}
       </div>

@@ -347,6 +347,8 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
       ? (visibleReviews.reduce((sum, r) => sum + (r.rating || 5), 0) / reviewCount).toFixed(1)
       : null;
 
+  const isOutOfStock = product.inStock === false || (product.stockQuantity !== undefined && product.stockQuantity <= 0);
+
   return (
     <div className="max-w-6xl xl:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-6 space-y-6 sm:space-y-8 bg-[#fffeea] w-full">
       {/* Back button */}
@@ -460,14 +462,21 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                   />
                 )}
 
-                {/* Top-Left Admin Badge */}
-                {(product.tag || product.badge || product.isNewArrival || product.isBestSeller) && (
+                {/* Top-Left Badge (Out of Stock OR Admin Badge) */}
+                {isOutOfStock ? (
+                  <div className="absolute top-3 left-3 pointer-events-none z-10">
+                    <span className="bg-[#1A1821]/90 backdrop-blur-xs text-rose-300 text-[9px] sm:text-[10px] font-black px-2.5 py-1 uppercase tracking-wider rounded-md shadow-xs border border-rose-500/30 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                      Out of Stock
+                    </span>
+                  </div>
+                ) : (product.tag || product.badge || product.isNewArrival || product.isBestSeller) ? (
                   <div className="absolute top-3 left-3 pointer-events-none z-10">
                     <span className="bg-[#967BB6] text-white text-[9px] sm:text-[10px] font-bold px-2.5 py-1 uppercase tracking-wider rounded-md shadow-xs">
                       {product.tag || product.badge || (product.isNewArrival ? 'New Arrival' : 'Back in Stock')}
                     </span>
                   </div>
-                )}
+                ) : null}
 
                 {/* Hint Badge */}
                 <div className="absolute bottom-3 right-3 bg-black/65 backdrop-blur-md text-white px-2.5 py-1 rounded-full text-[10px] font-bold items-center gap-1 hidden lg:flex pointer-events-none opacity-85 transition-opacity z-10">
@@ -547,10 +556,22 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                 <span className="flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60">
                   ★ {averageRating ? `${averageRating} (${reviewCount} ${reviewCount === 1 ? 'review' : 'reviews'})` : 'No reviews yet'}
                 </span>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  In Stock
-                </span>
+                {isOutOfStock ? (
+                  <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200/60 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                    Out of Stock
+                  </span>
+                ) : typeof product.stockQuantity === 'number' && product.stockQuantity <= 3 ? (
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                    Only {product.stockQuantity} Left in Stock
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    In Stock
+                  </span>
+                )}
               </div>
 
               {/* Big Prominent Product Title */}
@@ -619,15 +640,20 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
               {/* Stepper */}
               <div className="flex items-center border border-[#EAE6DB] bg-[#fffeea] px-2.5 py-2 text-xs font-bold shrink-0">
                 <button
+                  disabled={isOutOfStock}
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                  className="px-1.5"
+                  className="px-1.5 disabled:opacity-40"
                 >
                   -
                 </button>
                 <span className="px-2">{quantity}</span>
                 <button
-                  onClick={() => setQuantity((q) => q + 1)}
-                  className="px-1.5"
+                  disabled={isOutOfStock}
+                  onClick={() => {
+                    const maxStock = typeof product.stockQuantity === 'number' ? product.stockQuantity : 999;
+                    setQuantity((q) => Math.min(maxStock, q + 1));
+                  }}
+                  className="px-1.5 disabled:opacity-40"
                 >
                   +
                 </button>
@@ -635,14 +661,19 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
 
               {/* Add to Cart / Go to Cart */}
               <button
-                onClick={isProductInCart ? openCart : handleAddToCart}
-                className={`flex-1 py-3 font-black text-xs uppercase tracking-wider transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer ${
-                  isProductInCart
-                    ? 'bg-[#1A1821] hover:bg-[#967BB6] text-white ring-2 ring-[#967BB6]/20 active:scale-[0.99]'
-                    : 'bg-[#967BB6] hover:bg-brand-lavender-dark text-white'
+                onClick={isOutOfStock ? undefined : isProductInCart ? openCart : handleAddToCart}
+                disabled={isOutOfStock}
+                className={`flex-1 py-3 font-black text-xs uppercase tracking-wider transition-all shadow-xs flex items-center justify-center gap-2 ${
+                  isOutOfStock
+                    ? 'bg-stone-200 text-stone-400 cursor-not-allowed border border-stone-300'
+                    : isProductInCart
+                    ? 'bg-[#1A1821] hover:bg-[#967BB6] text-white ring-2 ring-[#967BB6]/20 active:scale-[0.99] cursor-pointer'
+                    : 'bg-[#967BB6] hover:bg-brand-lavender-dark text-white cursor-pointer'
                 }`}
               >
-                {isProductInCart ? (
+                {isOutOfStock ? (
+                  <span>Out of Stock</span>
+                ) : isProductInCart ? (
                   <>
                     <ShoppingBag className="w-4 h-4 text-[#FBB6CE]" />
                     <span>Go to Cart</span>
@@ -688,10 +719,15 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
 
             {/* Buy Now Button (Pink) */}
             <button
-              onClick={handleBuyNow}
-              className="w-full py-3 bg-[#FBB6CE] hover:bg-[#F89CBA] text-[#1A1821] font-black text-xs uppercase tracking-wider transition-colors shadow-xs"
+              onClick={isOutOfStock ? undefined : handleBuyNow}
+              disabled={isOutOfStock}
+              className={`w-full py-3 font-black text-xs uppercase tracking-wider transition-colors shadow-xs ${
+                isOutOfStock
+                  ? 'bg-stone-200 text-stone-400 cursor-not-allowed'
+                  : 'bg-[#FBB6CE] hover:bg-[#F89CBA] text-[#1A1821] cursor-pointer'
+              }`}
             >
-              Buy It Now (Express Checkout)
+              {isOutOfStock ? 'Sold Out / Out of Stock' : 'Buy It Now (Express Checkout)'}
             </button>
           </div>
 

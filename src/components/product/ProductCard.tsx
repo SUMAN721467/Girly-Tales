@@ -25,9 +25,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   const isFavorited = isInWishlist(product.id);
   const isProductInCart = items.some((item) => item.product.id === product.id);
+  const isOutOfStock = product.inStock === false || (product.stockQuantity !== undefined && product.stockQuantity <= 0);
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isOutOfStock) return;
     if (isProductInCart) {
       openCart();
       return;
@@ -59,21 +61,30 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <img
           src={currentImage}
           alt={product.name}
-          className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105 rounded-lg"
+          className={`w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105 rounded-lg ${
+            isOutOfStock ? 'grayscale-[35%] opacity-85' : ''
+          }`}
           loading="lazy"
           onError={(e) => {
             (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=600&q=80';
           }}
         />
 
-        {/* Top-Left Admin Badge (entered in product listing from admin) */}
-        {(product.tag || product.badge || product.isNewArrival || product.isBestSeller) && (
+        {/* Top-Left Badge (Out of Stock OR Admin Badge) */}
+        {isOutOfStock ? (
+          <div className="absolute top-2.5 left-2.5 z-10 flex items-center">
+            <span className="bg-[#1A1821]/90 backdrop-blur-xs text-rose-300 text-[9px] sm:text-[10px] font-black px-2.5 py-0.5 rounded-md tracking-wider shadow-xs uppercase flex items-center gap-1 border border-rose-500/30">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+              Out of Stock
+            </span>
+          </div>
+        ) : (product.tag || product.badge || product.isNewArrival || product.isBestSeller) ? (
           <div className="absolute top-2.5 left-2.5 z-10 flex items-center">
             <span className="bg-[#967BB6] text-white text-[9px] sm:text-[10px] font-bold px-2.5 py-0.5 rounded-md tracking-wide shadow-xs uppercase">
               {product.tag || product.badge || (product.isNewArrival ? 'New Arrival' : 'Back in Stock')}
             </span>
           </div>
-        )}
+        ) : null}
 
         {/* Wishlist Button Top-Right */}
         <button
@@ -92,15 +103,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <div className="absolute inset-x-2 bottom-2 hidden sm:flex items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <button
             onClick={handleQuickAdd}
+            disabled={isOutOfStock}
             className={`w-full py-2 rounded text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5 ${
-              isAdded 
-                ? 'bg-emerald-600 text-white' 
+              isOutOfStock
+                ? 'bg-[#1A1821]/80 text-stone-300 cursor-not-allowed border border-stone-600/30'
+                : isAdded 
+                ? 'bg-emerald-600 text-white cursor-pointer' 
                 : isProductInCart 
-                ? 'bg-[#1A1821] hover:bg-[#967BB6] text-white ring-1 ring-[#967BB6]/30'
-                : 'bg-[#1A1821] hover:bg-[#967BB6] text-white'
+                ? 'bg-[#1A1821] hover:bg-[#967BB6] text-white ring-1 ring-[#967BB6]/30 cursor-pointer'
+                : 'bg-[#1A1821] hover:bg-[#967BB6] text-white cursor-pointer'
             }`}
           >
-            {isAdded ? (
+            {isOutOfStock ? (
+              <span>Out of Stock</span>
+            ) : isAdded ? (
               <>
                 <Check className="w-3.5 h-3.5" />
                 <span>Added to Bag</span>
