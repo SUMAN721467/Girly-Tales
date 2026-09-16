@@ -1798,17 +1798,38 @@ export const DatabaseService = {
   async updateProduct(id: string, updates: Partial<Product>): Promise<Product> {
     const client = requireSupabase();
 
-    const payload: any = { ...updates, updated_at: new Date().toISOString() };
+    const payload: any = { updated_at: new Date().toISOString() };
+    if (updates.name !== undefined) payload.name = updates.name;
+    if (updates.slug !== undefined) payload.slug = updates.slug;
+    if (updates.category !== undefined) payload.category = updates.category;
     if (updates.subCategory !== undefined) payload.sub_category = updates.subCategory;
+    if (updates.price !== undefined) payload.price = updates.price;
     if (updates.originalPrice !== undefined) payload.original_price = updates.originalPrice;
+    if (updates.discount !== undefined) payload.discount = updates.discount;
+    if (updates.rating !== undefined) payload.rating = updates.rating;
+    if (updates.reviewCount !== undefined) payload.review_count = updates.reviewCount;
+    if (updates.description !== undefined) payload.description = updates.description;
     if (updates.shortDescription !== undefined) payload.short_description = updates.shortDescription;
-    if (updates.stockQuantity !== undefined) payload.stock_quantity = updates.stockQuantity;
+    if (updates.material !== undefined) payload.material = updates.material;
     if (updates.inStock !== undefined) payload.in_stock = updates.inStock;
+    if (updates.stockQuantity !== undefined) payload.stock_quantity = updates.stockQuantity;
+    if (updates.sku !== undefined) payload.sku = updates.sku;
+    if (updates.dimensions !== undefined) payload.dimensions = updates.dimensions;
+    if (updates.variety !== undefined) payload.variety = updates.variety;
+    if (updates.tag !== undefined || updates.badge !== undefined) payload.tag = (updates.tag ?? updates.badge) || '';
+    if (updates.sizes !== undefined) payload.sizes = updates.sizes;
+    if (updates.features !== undefined) payload.features = updates.features;
+    if (updates.highlights !== undefined) payload.highlights = updates.highlights;
     if (updates.careInstructions !== undefined) payload.care_instructions = updates.careInstructions;
     if (updates.deliveryPolicy !== undefined) payload.delivery_policy = updates.deliveryPolicy;
-    if (updates.reviewCount !== undefined) payload.review_count = updates.reviewCount;
+    if (updates.specs !== undefined) payload.specs = updates.specs;
+    if (updates.colors !== undefined) payload.colors = updates.colors;
     if (updates.antiTarnishGuarantee !== undefined) payload.anti_tarnish_guarantee = updates.antiTarnishGuarantee;
-    if (updates.isNewArrival !== undefined) payload.is_new_arrival = updates.isNewArrival;
+    if (updates.waterproof !== undefined) payload.waterproof = Boolean(updates.waterproof);
+    if (updates.hypoallergenic !== undefined) payload.hypoallergenic = Boolean(updates.hypoallergenic);
+    if (updates.isNewArrival !== undefined) payload.is_new_arrival = Boolean(updates.isNewArrival);
+    if (updates.isBestSeller !== undefined) payload.is_best_seller = Boolean(updates.isBestSeller);
+
     if (updates.images !== undefined && Array.isArray(updates.images)) {
       const normalizedNewImages = updates.images.map(normalizeStorageUrl);
       payload.images = normalizedNewImages;
@@ -1828,18 +1849,6 @@ export const DatabaseService = {
         }
       }
     }
-
-    delete payload.subCategory;
-    delete payload.originalPrice;
-    delete payload.shortDescription;
-    delete payload.stockQuantity;
-    delete payload.inStock;
-    delete payload.careInstructions;
-    delete payload.deliveryPolicy;
-    delete payload.reviewCount;
-    delete payload.antiTarnishGuarantee;
-    delete payload.isNewArrival;
-    delete payload.isBestSeller;
 
     // 1. Call Supabase FIRST
     let updateError: any = null;
