@@ -560,7 +560,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
 
               {/* Price Box */}
               <div className="flex flex-wrap items-baseline gap-2.5 pt-1">
-                <span className="text-2xl sm:text-3xl font-black text-brand-charcoal">
+                <span className="text-2xl sm:text-3xl font-black text-[#E56B88]">
                   Rs. {product.price.toLocaleString('en-IN')}.00
                 </span>
                 {product.originalPrice > product.price && (
@@ -568,7 +568,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                     <span className="text-sm sm:text-base text-brand-muted-light line-through font-semibold">
                       Rs. {product.originalPrice.toLocaleString('en-IN')}.00
                     </span>
-                    <span className="bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded tracking-wider uppercase shadow-xs">
+                    <span className="bg-[#E56B88] text-white text-[10px] font-black px-2 py-0.5 rounded tracking-wider uppercase shadow-xs">
                       Save {Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}%
                     </span>
                   </>

@@ -123,7 +123,7 @@ export const WishlistPage: React.FC<WishlistPageProps> = ({
 
               <div className="space-y-3 pt-2 border-t border-brand-border/60">
                 <div className="flex items-baseline gap-2">
-                  <span className="font-bold text-sm text-brand-charcoal">
+                  <span className="font-bold text-sm text-[#E56B88]">
                     ₹{product.price.toLocaleString('en-IN')}
                   </span>
                   {product.originalPrice > product.price && (

@@ -68,25 +68,7 @@ export const CategorySlider: React.FC<CategorySliderProps> = ({
 }) => {
   const displayCategories = React.useMemo(() => {
     if (!categories || categories.length === 0) return DEFAULT_CATEGORIES;
-    if (categories.length >= 5) return categories;
-    const existingNames = new Set(categories.map((c) => (c.name || '').toUpperCase()));
-    const combined = [...categories];
-    for (const d of DEFAULT_CATEGORIES) {
-      if (combined.length >= 5) break;
-      if (!existingNames.has(d.name.toUpperCase())) {
-        combined.push(d);
-        existingNames.add(d.name.toUpperCase());
-      }
-    }
-    let idx = 0;
-    while (combined.length < 5 && idx < DEFAULT_CATEGORIES.length) {
-      combined.push({
-        ...DEFAULT_CATEGORIES[idx],
-        id: `cat-fill-${idx}-${Date.now()}`
-      });
-      idx++;
-    }
-    return combined;
+    return categories;
   }, [categories]);
 
   const [activeIndex, setActiveIndex] = useState(0);

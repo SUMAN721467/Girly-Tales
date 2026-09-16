@@ -1062,13 +1062,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
     setIsUploadingCatCardImg(cardId);
     try {
-      const url = await DatabaseService.uploadProductImage(file);
+      const url = await DatabaseService.uploadCategoryCardImage(file);
       if (url) {
         setHomepageConfig((prev) => ({
           ...prev,
           categoryCards: prev.categoryCards.map((c) => (c.id === cardId ? { ...c, image: url } : c)),
         }));
-        triggerToast('Category Image Updated! 🖼️', 'Card image set. Remember to click "Save Homepage Changes".', undefined, 'success');
+        triggerToast('Category Image Updated! 🖼️', 'Card image set. Click "Save Homepage Changes" to publish.', undefined, 'success');
       }
     } catch (err: any) {
       triggerToast('Upload Failed', err?.message || 'Could not upload image.', undefined, 'error');
@@ -6518,17 +6518,28 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
                         {/* Hover Overlay Buttons */}
                         <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-4">
+                          <input
+                            id={`cat-card-file-${card.id || idx}`}
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,image/jpg"
+                            className="hidden"
+                            onChange={(e) => handleUploadCatCardImage(e, card.id)}
+                          />
                           <button
                             type="button"
                             disabled={isUploadingCatCardImg === card.id}
                             onClick={() => {
-                              setUploadingTargetCardId(card.id);
-                              if (catCardFileInputRef.current) catCardFileInputRef.current.click();
+                              const input = document.getElementById(`cat-card-file-${card.id || idx}`) as HTMLInputElement;
+                              if (input) input.click();
                             }}
                             className="px-3.5 py-1.5 bg-white text-[#1A1821] hover:bg-[#F3EEF9] hover:text-[#967BB6] rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
                           >
-                            <UploadCloud className="w-3.5 h-3.5" />
-                            <span>{card.image ? 'Replace Photo' : 'Upload Photo'}</span>
+                            {isUploadingCatCardImg === card.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#967BB6]" />
+                            ) : (
+                              <UploadCloud className="w-3.5 h-3.5" />
+                            )}
+                            <span>{isUploadingCatCardImg === card.id ? 'Uploading...' : card.image ? 'Replace Photo' : 'Upload Photo'}</span>
                           </button>
 
                           {card.image && (

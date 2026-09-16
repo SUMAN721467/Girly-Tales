@@ -126,7 +126,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {product.name}
         </h3>
         <div className="flex items-baseline gap-2">
-          <span className="font-bold text-xs sm:text-sm text-brand-charcoal">
+          <span className="font-bold text-xs sm:text-sm text-[#E56B88]">
             Rs. {product.price.toLocaleString('en-IN')}.00
           </span>
           {product.originalPrice > product.price && (
