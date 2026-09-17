@@ -22,6 +22,7 @@ import {
   Briefcase,
   X,
   AlertTriangle,
+  AlertCircle,
   Phone,
   Mail,
   Calendar,
@@ -187,6 +188,12 @@ export const AccountPage: React.FC<AccountPageProps> = ({
   const [trackedOrder, setTrackedOrder] = useState<RealOrder | null>(null);
   const [trackerError, setTrackerError] = useState('');
   const [isSearchingOrder, setIsSearchingOrder] = useState(false);
+
+  // Cancel Order Modal State
+  const [isCancelOrderModalOpen, setIsCancelOrderModalOpen] = useState(false);
+  const [cancelOrderReason, setCancelOrderReason] = useState('Ordered wrong size or product');
+  const [customCancelReason, setCustomCancelReason] = useState('');
+  const [isCancellingOrder, setIsCancellingOrder] = useState(false);
 
   // Sync profileForm with logged-in user
   useEffect(() => {
@@ -525,6 +532,42 @@ export const AccountPage: React.FC<AccountPageProps> = ({
       setTrackerError('Failed to search order. Please try again.');
     } finally {
       setIsSearchingOrder(false);
+    }
+  };
+
+  // Customer Order Cancellation (Only allowed before dispatch)
+  const handleConfirmCancelOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOrderForDetail) return;
+    setIsCancellingOrder(true);
+    try {
+      const finalReason = cancelOrderReason === 'Other reason' && customCancelReason.trim()
+        ? customCancelReason.trim()
+        : cancelOrderReason;
+
+      await DatabaseService.cancelOrderByCustomer(selectedOrderForDetail.id, finalReason);
+
+      const updatedOrder: RealOrder = {
+        ...selectedOrderForDetail,
+        status: 'Cancelled by Seller',
+        sellerStatus: 'Cancelled by Seller',
+        customerStatus: 'Cancelled by Customer',
+        specialInstructions: `Cancelled by Customer: ${finalReason}`,
+      };
+
+      setSelectedOrderForDetail(updatedOrder);
+      setUserOrders((prev) => prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)));
+      setIsCancelOrderModalOpen(false);
+      triggerToast(
+        'Order Cancelled Successfully ✦',
+        `Order #${selectedOrderForDetail.id} has been cancelled.`,
+        undefined,
+        'success'
+      );
+    } catch (err: any) {
+      triggerToast('Cancellation Failed', err?.message || 'Could not cancel order.', undefined, 'error');
+    } finally {
+      setIsCancellingOrder(false);
     }
   };
 
@@ -1447,8 +1490,28 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                           </div>
                         </div>
 
+                        {/* Status Policy Notice Banner */}
+                        {isCancelled ? null : isShipped || isDelivered ? (
+                          <div className="p-3.5 bg-amber-50/90 border border-amber-200/90 rounded-2xl flex items-start gap-2.5 text-amber-900 text-xs mt-2">
+                            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                            <div className="space-y-0.5">
+                              <p className="font-bold">Cancellation Closed (Already Dispatched)</p>
+                              <p className="text-[11px] text-amber-800 leading-relaxed">
+                                This order has already been dispatched with <strong>{selectedOrderForDetail.courierName || 'our courier partner'}</strong>. Orders cannot be cancelled after shipment. You can easily request a <strong>7-day doorstep size exchange or return</strong> once delivered.
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-3 bg-emerald-50/80 border border-emerald-200/80 rounded-2xl flex items-center gap-2.5 text-emerald-900 text-xs mt-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                            <p className="text-[11px] text-emerald-800 leading-tight">
+                              <strong>Preparing for dispatch.</strong> You can cancel this order anytime before it is shipped with our courier.
+                            </p>
+                          </div>
+                        )}
+
                         {/* Actions: Cancel Order & Contact Us */}
-                        <div className="pt-6 border-t border-[#EAE6DB] grid grid-cols-2 gap-4">
+                        <div className="pt-4 border-t border-[#EAE6DB] grid grid-cols-2 gap-4">
                           <button
                             type="button"
                             disabled={isCancelled || isShipped || isDelivered}
@@ -1458,24 +1521,27 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                                 return;
                               }
                               if (isShipped || isDelivered) {
-                                triggerToast('Cannot Cancel', 'Order is already dispatched with courier partner.', undefined, 'info');
+                                triggerToast('Cannot Cancel', 'This order is already dispatched with courier and cannot be cancelled.', undefined, 'info');
                                 return;
                               }
-                              if (window.confirm('Are you sure you want to cancel this order?')) {
-                                DatabaseService.updateOrderStatus(selectedOrderForDetail.id, 'Cancelled');
-                                setSelectedOrderForDetail((prev) => prev ? { ...prev, status: 'Cancelled', sellerStatus: 'Cancelled by Seller' } : null);
-                                triggerToast('Order Cancelled', 'Your order status has been updated to Cancelled.', undefined, 'info');
-                              }
+                              setIsCancelOrderModalOpen(true);
                             }}
-                            className={`py-3 px-4 border font-bold text-xs uppercase tracking-wider rounded-2xl transition-all text-center ${
+                            className={`py-3 px-4 border font-bold text-xs uppercase tracking-wider rounded-2xl transition-all text-center flex items-center justify-center gap-1.5 ${
                               isCancelled
                                 ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
                                 : isShipped || isDelivered
-                                ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
-                                : 'border-rose-200 bg-rose-50/50 hover:bg-rose-50 text-rose-600 cursor-pointer'
+                                ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed opacity-80'
+                                : 'border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-600 hover:text-rose-700 cursor-pointer shadow-2xs'
                             }`}
                           >
-                            {isCancelled ? 'Order Cancelled' : isShipped || isDelivered ? 'Dispatched (In Transit)' : 'Cancel Order'}
+                            <X className="w-3.5 h-3.5" />
+                            <span>
+                              {isCancelled
+                                ? 'Order Cancelled'
+                                : isShipped || isDelivered
+                                ? 'Cannot Cancel (Shipped)'
+                                : 'Cancel Order'}
+                            </span>
                           </button>
 
                           <button
@@ -2161,6 +2227,122 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Delete Address</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: CANCEL ORDER CONFIRMATION (BEFORE SHIPMENT) */}
+      {/* ========================================================= */}
+      {isCancelOrderModalOpen && selectedOrderForDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop animate-fade-in">
+          <div
+            className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl relative animate-scale-in space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setIsCancelOrderModalOpen(false)}
+              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-[#FAF8F2] hover:bg-[#fffeea] flex items-center justify-center text-brand-charcoal transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3 pb-3 border-b border-[#EAE6DB]">
+              <div className="w-11 h-11 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shadow-xs shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-serif text-lg font-bold text-brand-charcoal">
+                  Cancel Order #{selectedOrderForDetail.id}?
+                </h3>
+                <p className="text-xs text-brand-muted font-medium">
+                  Cancellation is allowed prior to dispatch. Order total: ₹{selectedOrderForDetail.total.toLocaleString('en-IN')}
+                </p>
+              </div>
+            </div>
+
+            {/* Order Items Snapshot */}
+            <div className="p-3.5 bg-[#FAF8F2] rounded-2xl border border-[#EAE6DB] space-y-2 text-xs">
+              <p className="font-bold text-brand-charcoal">Items in this order:</p>
+              <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+                {selectedOrderForDetail.items.map((it, idx) => (
+                  <div key={idx} className="flex items-center justify-between text-brand-muted">
+                    <span className="truncate max-w-[240px]">
+                      • {typeof it === 'string' ? it : it.name} {typeof it === 'object' && it.size ? `(${it.size})` : ''}
+                    </span>
+                    <span className="font-bold text-brand-charcoal">
+                      {typeof it === 'object' ? `Qty: ${it.quantity || 1} • ₹${it.price || 0}` : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <form onSubmit={handleConfirmCancelOrder} className="space-y-4">
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-brand-charcoal">
+                  Please select a reason for cancellation: <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={cancelOrderReason}
+                  onChange={(e) => setCancelOrderReason(e.target.value)}
+                  className="w-full bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl px-3.5 py-2.5 text-xs text-brand-charcoal font-medium focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all cursor-pointer"
+                  required
+                >
+                  <option value="Ordered wrong size or product">Ordered wrong size or product</option>
+                  <option value="Found a better deal / Changed my mind">Found a better deal / Changed my mind</option>
+                  <option value="Want to change shipping address">Want to change shipping address</option>
+                  <option value="Delivery timeline is longer than expected">Delivery timeline is longer than expected</option>
+                  <option value="Ordered by mistake">Ordered by mistake</option>
+                  <option value="Other reason">Other reason</option>
+                </select>
+
+                {cancelOrderReason === 'Other reason' && (
+                  <textarea
+                    rows={2}
+                    value={customCancelReason}
+                    onChange={(e) => setCustomCancelReason(e.target.value)}
+                    placeholder="Please specify reason..."
+                    className="w-full bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl px-3.5 py-2 text-xs text-brand-charcoal font-medium focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all resize-none mt-2"
+                    required
+                  />
+                )}
+              </div>
+
+              {/* Prepaid Refund Notice */}
+              <div className="p-3 bg-rose-50/80 border border-rose-200/80 rounded-2xl text-[11px] text-rose-800 leading-relaxed">
+                ℹ️ <strong>Prepaid Refund Guarantee:</strong> If this order was prepaid, the full refund of <strong>₹{selectedOrderForDetail.total.toLocaleString('en-IN')}</strong> will be automatically credited back to your original payment method within <strong>3-5 business days</strong>.
+              </div>
+
+              {/* Modal Action Buttons */}
+              <div className="pt-2 flex items-center justify-end gap-3 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setIsCancelOrderModalOpen(false)}
+                  className="px-4 py-2.5 border border-[#EAE6DB] hover:bg-gray-50 text-brand-charcoal font-bold rounded-xl cursor-pointer"
+                  disabled={isCancellingOrder}
+                >
+                  Keep My Order
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCancellingOrder}
+                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold uppercase text-xs tracking-wider rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {isCancellingOrder ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Cancelling...</span>
+                    </>
+                  ) : (
+                    <>
+                      <X className="w-3.5 h-3.5" />
+                      <span>Yes, Cancel Order</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

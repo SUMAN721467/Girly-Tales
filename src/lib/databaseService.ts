@@ -1677,6 +1677,71 @@ export const DatabaseService = {
     await this.updateSellerStatus(orderId, validSellerStatus);
   },
 
+  async cancelOrderByCustomer(orderId: string, reason?: string): Promise<void> {
+    const cleanId = String(orderId).trim();
+    if (!cleanId) throw new Error('Order ID is required');
+
+    // 1. Check if the order is already shipped or delivered
+    const existing = inMemoryOrders.find(
+      (o) => o.id === cleanId || o.id.toLowerCase() === cleanId.toLowerCase()
+    );
+    const currSeller = (existing?.sellerStatus || existing?.status || 'Pending').trim();
+    const isShipped = currSeller === 'Shipped' || currSeller === 'Out for Delivery' || currSeller === 'Delivered';
+    
+    if (isShipped) {
+      throw new Error('This order has already been dispatched with courier partner and cannot be cancelled.');
+    }
+
+    const client = requireSupabase();
+    const updatePayload: any = {
+      status: 'Cancelled by Seller',
+      seller_status: 'Cancelled by Seller',
+      customer_status: 'Cancelled by Customer',
+    };
+    if (reason) {
+      updatePayload.special_instructions = `Cancelled by Customer: ${reason}`;
+    }
+
+    let updateError: any = null;
+    try {
+      const { error } = await client
+        .from('orders')
+        .update(updatePayload)
+        .eq('id', cleanId);
+      updateError = error;
+    } catch (err) {
+      updateError = err;
+    }
+
+    if (updateError) {
+      const ok = await supabaseRestMutation('orders', 'PATCH', `id=eq.${encodeURIComponent(cleanId)}`, updatePayload);
+      if (!ok) {
+        console.error('Supabase cancelOrderByCustomer failed:', updateError);
+        throw new Error(`Failed to cancel order: ${formatQueryError(updateError)}`);
+      }
+    }
+
+    // 2. Update local state
+    inMemoryOrders = inMemoryOrders.map((o) =>
+      o.id === cleanId || o.id.toLowerCase() === cleanId.toLowerCase()
+        ? {
+            ...o,
+            status: 'Cancelled by Seller' as const,
+            sellerStatus: 'Cancelled by Seller' as const,
+            customerStatus: 'Cancelled by Customer' as const,
+            ...(reason ? { specialInstructions: `Cancelled by Customer: ${reason}` } : {}),
+          }
+        : o
+    );
+
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(inMemoryOrders));
+      }
+    } catch {}
+    notifyDatabaseChange('orders');
+  },
+
   async deleteOrder(orderId: string): Promise<void> {
     const cleanId = String(orderId).trim();
     if (!cleanId) throw new Error('Order ID is required');
