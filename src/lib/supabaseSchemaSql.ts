@@ -314,6 +314,7 @@ CREATE TABLE IF NOT EXISTS public.promotions (
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.shipping_rules (
     id TEXT PRIMARY KEY,
+    is_enabled BOOLEAN DEFAULT true NOT NULL,
     free_threshold NUMERIC DEFAULT 999 NOT NULL,
     standard_rate NUMERIC DEFAULT 99 NOT NULL,
     express_rate NUMERIC DEFAULT 199 NOT NULL,
@@ -322,6 +323,9 @@ CREATE TABLE IF NOT EXISTS public.shipping_rules (
     couriers JSONB DEFAULT '["BlueDart Express", "Delhivery Surface", "DTDC Prime"]'::jsonb NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Safe idempotent column migrations
+ALTER TABLE public.shipping_rules ADD COLUMN IF NOT EXISTS is_enabled BOOLEAN DEFAULT true;
 
 -- ==============================================================================
 -- 13. TABLE: FAQS (ADMIN FAQ MANAGER)

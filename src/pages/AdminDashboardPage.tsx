@@ -8,7 +8,7 @@ import {
   UploadCloud, Image as ImageIcon, MoveLeft, MoveRight, Star, Loader2,
   MapPin, Send, Mail, Phone, Calendar, MessageSquare,
   Heart, ShoppingCart, User, Ticket, Quote,
-  ChevronDown, ChevronUp, Smartphone, Feather, HeartHandshake, Gift
+  ChevronDown, ChevronUp, Smartphone, Feather, HeartHandshake, Gift, Settings
 } from 'lucide-react';
 import { Product } from '../types/product';
 import { useCart } from '../context/CartContext';
@@ -386,6 +386,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   // Shipping Rules State
   const [shippingRules, setShippingRules] = useState<ShippingRules>({
     id: 'default',
+    enabled: true,
     freeThreshold: 999,
     standardRate: 99,
     expressRate: 199,
@@ -393,6 +394,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     estimatedDays: '2 to 4 Business Days',
     couriers: ['BlueDart Express', 'Delhivery Surface', 'DTDC Prime'],
   });
+  const [shippingForm, setShippingForm] = useState({
+    enabled: true,
+    freeThreshold: 999,
+    standardRate: 99,
+  });
+  const [isSavingShippingRules, setIsSavingShippingRules] = useState(false);
+  const [shippingSaveSuccess, setShippingSaveSuccess] = useState(false);
 
   // FAQs State
   const [faqs, setFaqs] = useState<FAQItem[]>([
@@ -497,6 +505,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
       if (shippingResult.status === 'fulfilled' && shippingResult.value) {
         setShippingRules(shippingResult.value);
+        setShippingForm({
+          enabled: shippingResult.value.enabled !== false,
+          freeThreshold: shippingResult.value.freeThreshold ?? 999,
+          standardRate: shippingResult.value.standardRate ?? 99,
+        });
       }
 
       if (faqsResult.status === 'fulfilled' && faqsResult.value && faqsResult.value.length > 0) {
@@ -2035,6 +2048,28 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       triggerToast('Save Failed', e?.message || 'Could not save instruction to database.', undefined, 'error');
     } finally {
       setIsSavingInstruction(false);
+    }
+  };
+
+  const handleSaveShippingSettings = async () => {
+    setIsSavingShippingRules(true);
+    setShippingSaveSuccess(false);
+    try {
+      const updated: Partial<ShippingRules> = {
+        enabled: shippingForm.enabled,
+        freeThreshold: Math.max(0, Number(shippingForm.freeThreshold) || 0),
+        standardRate: Math.max(0, Number(shippingForm.standardRate) || 0),
+      };
+      await DatabaseService.updateShippingRules(updated);
+      setShippingRules((prev) => ({ ...prev, ...updated }));
+      setShippingSaveSuccess(true);
+      triggerToast('Shipping Settings Saved ✨', 'Storefront checkout rates updated successfully.', undefined, 'success');
+      setTimeout(() => setShippingSaveSuccess(false), 4000);
+    } catch (e: any) {
+      console.error('Error saving shipping rules:', e);
+      triggerToast('Save Failed', e?.message || 'Could not save shipping configuration.', undefined, 'error');
+    } finally {
+      setIsSavingShippingRules(false);
     }
   };
 
@@ -7529,38 +7564,110 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
         {/* TAB 8: SHIPPING */}
         {activeTab === 'shipping' && (
-          <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-6 animate-fade-in">
-            <div>
-              <h3 className="font-serif text-xl text-brand-charcoal font-medium">Shipping Rates &amp; Delivery Rules</h3>
-              <p className="text-xs text-brand-muted">Database delivery rules, COD fees, and courier partner configurations.</p>
+          <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 sm:p-10 shadow-xs space-y-8 animate-fade-in max-w-3xl">
+            {/* Header with Icon and Title */}
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-[#FAF8F2] border border-[#EAE6DB] flex items-center justify-center shrink-0 text-brand-charcoal">
+                <Settings className="w-6 h-6 text-brand-charcoal/80 stroke-[1.75]" />
+              </div>
+              <div>
+                <h3 className="font-serif text-2xl sm:text-3xl text-brand-charcoal font-medium">Shipping Configuration</h3>
+                <p className="text-xs sm:text-sm text-brand-muted mt-1 leading-relaxed">
+                  Configure global shipping fees and free shipping thresholds for your storefront checkout.
+                </p>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl">
-              <div className="p-5 border border-[#EAE6DB] rounded-2xl bg-[#FAF8F2] space-y-1">
-                <span className="text-xs font-bold text-brand-muted uppercase">Free Shipping Threshold</span>
-                <div className="text-xl font-black text-brand-charcoal">₹{shippingRules.freeThreshold}</div>
-                <p className="text-[11px] text-brand-muted">Orders at or above this amount ship for free.</p>
-              </div>
-
-              <div className="p-5 border border-[#EAE6DB] rounded-2xl bg-[#FAF8F2] space-y-1">
-                <span className="text-xs font-bold text-brand-muted uppercase">Standard Delivery Fee</span>
-                <div className="text-xl font-black text-brand-charcoal">₹{shippingRules.standardRate}</div>
-                <p className="text-[11px] text-brand-muted">Applied to orders below ₹{shippingRules.freeThreshold}.</p>
-              </div>
-
-              <div className="p-5 border border-[#EAE6DB] rounded-2xl bg-[#FAF8F2] space-y-1">
-                <span className="text-xs font-bold text-brand-muted uppercase">COD Handling Fee</span>
-                <div className="text-xl font-black text-brand-charcoal">₹{shippingRules.codHandlingFee}</div>
-                <p className="text-[11px] text-brand-muted">Additional fee on Cash on Delivery orders.</p>
-              </div>
-
-              <div className="p-5 border border-[#EAE6DB] rounded-2xl bg-[#FAF8F2] space-y-1">
-                <span className="text-xs font-bold text-brand-muted uppercase">Active Courier Partners</span>
-                <div className="text-xs font-bold text-[#967BB6] space-y-1 pt-1">
-                  {shippingRules.couriers.map((c, i) => (
-                    <div key={i}>✓ {c}</div>
-                  ))}
+            <div className="border-t border-[#EAE6DB]/70 pt-6 space-y-6">
+              {/* Enable Shipping Fees Card */}
+              <div className="rounded-2xl border border-[#EAE6DB] bg-[#FAF8F2]/50 p-5 sm:p-6 flex items-center justify-between gap-4 transition-all">
+                <div className="space-y-1">
+                  <h4 className="font-sans font-bold text-sm sm:text-base text-brand-charcoal">Enable Shipping Fees</h4>
+                  <p className="text-xs sm:text-sm text-brand-muted leading-relaxed">
+                    Charge shipping fees when cart value is below the threshold. If disabled, shipping is always free.
+                  </p>
                 </div>
+                <input
+                  type="checkbox"
+                  id="enable-shipping-fees"
+                  checked={shippingForm.enabled}
+                  onChange={(e) => setShippingForm(prev => ({ ...prev, enabled: e.target.checked }))}
+                  className="w-5 h-5 rounded border-[#EAE6DB] text-[#967BB6] accent-[#967BB6] focus:ring-[#967BB6] cursor-pointer"
+                />
+              </div>
+
+              {/* 2 Input Fields Side-by-Side */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {/* Shipping Fee (₹) */}
+                <div className="space-y-2">
+                  <label htmlFor="shipping-standard-rate" className="block font-sans font-bold text-xs sm:text-sm text-brand-charcoal">
+                    Shipping Fee (₹)
+                  </label>
+                  <div className="relative flex items-center">
+                    <span className="absolute left-4 text-sm font-semibold text-brand-charcoal/70 select-none">₹</span>
+                    <input
+                      id="shipping-standard-rate"
+                      type="number"
+                      min="0"
+                      value={shippingForm.standardRate}
+                      onChange={(e) => setShippingForm(prev => ({ ...prev, standardRate: Math.max(0, parseInt(e.target.value) || 0) }))}
+                      disabled={!shippingForm.enabled}
+                      className="w-full pl-9 pr-4 py-3 bg-[#FAF8F2]/60 border border-[#EAE6DB] rounded-2xl text-sm font-semibold text-brand-charcoal placeholder-brand-muted/50 focus:bg-white focus:border-[#967BB6] focus:ring-2 focus:ring-[#967BB6]/20 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      placeholder="50"
+                    />
+                  </div>
+                  <p className="text-[11px] sm:text-xs text-brand-muted leading-relaxed">
+                    Amount charged if the order value does not meet the free shipping threshold.
+                  </p>
+                </div>
+
+                {/* Free Shipping Threshold (₹) */}
+                <div className="space-y-2">
+                  <label htmlFor="shipping-free-threshold" className="block font-sans font-bold text-xs sm:text-sm text-brand-charcoal">
+                    Free Shipping Threshold (₹)
+                  </label>
+                  <div className="relative flex items-center">
+                    <span className="absolute left-4 text-sm font-semibold text-brand-charcoal/70 select-none">₹</span>
+                    <input
+                      id="shipping-free-threshold"
+                      type="number"
+                      min="0"
+                      value={shippingForm.freeThreshold}
+                      onChange={(e) => setShippingForm(prev => ({ ...prev, freeThreshold: Math.max(0, parseInt(e.target.value) || 0) }))}
+                      disabled={!shippingForm.enabled}
+                      className="w-full pl-9 pr-4 py-3 bg-[#FAF8F2]/60 border border-[#EAE6DB] rounded-2xl text-sm font-semibold text-brand-charcoal placeholder-brand-muted/50 focus:bg-white focus:border-[#967BB6] focus:ring-2 focus:ring-[#967BB6]/20 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      placeholder="500"
+                    />
+                  </div>
+                  <p className="text-[11px] sm:text-xs text-brand-muted leading-relaxed">
+                    Minimum order total required to qualify for free shipping.
+                  </p>
+                </div>
+              </div>
+
+              {/* Save Settings Button */}
+              <div className="pt-4 flex items-center justify-end gap-3 border-t border-[#EAE6DB]/70">
+                {shippingSaveSuccess && (
+                  <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1.5 animate-fade-in">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    Settings saved successfully!
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleSaveShippingSettings}
+                  disabled={isSavingShippingRules}
+                  className="px-8 py-3 rounded-2xl bg-[#967BB6] hover:bg-[#7F62A1] active:scale-[0.98] text-white font-sans font-medium text-sm transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {isSavingShippingRules ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Settings'
+                  )}
+                </button>
               </div>
             </div>
           </div>

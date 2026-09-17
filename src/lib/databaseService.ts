@@ -491,6 +491,7 @@ export interface PromotionItem {
 
 export interface ShippingRules {
   id: string;
+  enabled?: boolean;
   freeThreshold: number;
   standardRate: number;
   expressRate: number;
@@ -5157,6 +5158,7 @@ export const DatabaseService = {
   async getShippingRules(): Promise<ShippingRules> {
     const defaultRules: ShippingRules = {
       id: 'default',
+      enabled: true,
       freeThreshold: 999,
       standardRate: 99,
       expressRate: 199,
@@ -5165,7 +5167,15 @@ export const DatabaseService = {
       couriers: ['BlueDart Express', 'Delhivery Surface', 'DTDC Prime'],
     };
 
-    if (!isSupabaseConfigured) return inMemoryShippingRules || defaultRules;
+    let localSaved: ShippingRules | null = null;
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('girly_tales_shipping_rules_v1');
+        if (raw) localSaved = JSON.parse(raw);
+      } catch {}
+    }
+
+    if (!isSupabaseConfigured) return inMemoryShippingRules || localSaved || defaultRules;
 
     try {
       const client = requireSupabase();
@@ -5190,8 +5200,15 @@ export const DatabaseService = {
           try { parsedCouriers = JSON.parse(ruleData.couriers); } catch {}
         }
 
+        const isEnabled = ruleData.is_enabled !== undefined 
+          ? Boolean(ruleData.is_enabled) 
+          : (ruleData.enabled !== undefined 
+              ? Boolean(ruleData.enabled) 
+              : (localSaved?.enabled !== undefined ? localSaved.enabled : true));
+
         inMemoryShippingRules = {
-          id: ruleData.id,
+          id: ruleData.id || 'default',
+          enabled: isEnabled,
           freeThreshold: Number(ruleData.free_threshold) || 999,
           standardRate: Number(ruleData.standard_rate) || 99,
           expressRate: Number(ruleData.express_rate) || 199,
@@ -5199,46 +5216,84 @@ export const DatabaseService = {
           estimatedDays: ruleData.estimated_days || '2 to 4 Business Days',
           couriers: parsedCouriers,
         };
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('girly_tales_shipping_rules_v1', JSON.stringify(inMemoryShippingRules));
+          } catch {}
+        }
+
         return inMemoryShippingRules;
       }
     } catch (e) {}
 
-    return inMemoryShippingRules || defaultRules;
+    return inMemoryShippingRules || localSaved || defaultRules;
   },
 
   async updateShippingRules(rules: Partial<ShippingRules>): Promise<void> {
-    const client = requireSupabase();
     const current = await this.getShippingRules();
     const merged: ShippingRules = { ...current, ...rules };
 
-    const payload = {
-      id: 'default',
-      free_threshold: merged.freeThreshold,
-      standard_rate: merged.standardRate,
-      express_rate: merged.expressRate,
-      cod_handling_fee: merged.codHandlingFee,
-      estimated_days: merged.estimatedDays,
-      couriers: merged.couriers,
-      updated_at: new Date().toISOString(),
-    };
-
-    let saveError: any = null;
-    try {
-      const { error } = await client.from('shipping_rules').upsert(payload, { onConflict: 'id' });
-      saveError = error;
-    } catch (err) {
-      saveError = err;
+    // Persist locally immediately for flawless offline/realtime reactivity
+    inMemoryShippingRules = merged;
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('girly_tales_shipping_rules_v1', JSON.stringify(merged));
+      } catch {}
     }
 
-    if (saveError) {
-      const ok = await supabaseRestMutation('shipping_rules', 'POST', 'on_conflict=id', payload, 'resolution=merge-duplicates,return=minimal');
-      if (!ok) {
-        console.error('Supabase updateShippingRules failed:', saveError);
-        throw new Error(`Failed to save shipping rules in database: ${formatQueryError(saveError)}`);
+    if (isSupabaseConfigured) {
+      try {
+        const client = requireSupabase();
+
+        // 1. Full payload with is_enabled
+        const fullPayload: any = {
+          id: 'default',
+          is_enabled: merged.enabled !== false,
+          free_threshold: merged.freeThreshold,
+          standard_rate: merged.standardRate,
+          express_rate: merged.expressRate,
+          cod_handling_fee: merged.codHandlingFee,
+          estimated_days: merged.estimatedDays,
+          couriers: merged.couriers,
+          updated_at: new Date().toISOString(),
+        };
+
+        let { error: upsertErr } = await client.from('shipping_rules').upsert(fullPayload, { onConflict: 'id' });
+
+        // If is_enabled column doesn't exist in user's Supabase table yet, retry without is_enabled
+        if (upsertErr && (
+          String(upsertErr.message || '').includes('is_enabled') || 
+          String(upsertErr.message || '').includes('column') || 
+          upsertErr.code === '42703' || 
+          upsertErr.code === 'PGRST204'
+        )) {
+          const legacyPayload: any = {
+            id: 'default',
+            free_threshold: merged.freeThreshold,
+            standard_rate: merged.standardRate,
+            express_rate: merged.expressRate,
+            cod_handling_fee: merged.codHandlingFee,
+            estimated_days: merged.estimatedDays,
+            couriers: merged.couriers,
+            updated_at: new Date().toISOString(),
+          };
+          const retryRes = await client.from('shipping_rules').upsert(legacyPayload, { onConflict: 'id' });
+          upsertErr = retryRes.error;
+        }
+
+        // 2. If client library had issues, try REST mutation fallback
+        if (upsertErr) {
+          const ok = await supabaseRestMutation('shipping_rules', 'POST', 'on_conflict=id', fullPayload, 'resolution=merge-duplicates,return=minimal');
+          if (!ok) {
+            console.warn('Supabase updateShippingRules warning (changes persisted locally):', upsertErr);
+          }
+        }
+      } catch (err) {
+        console.warn('Supabase updateShippingRules error (changes persisted locally):', err);
       }
     }
 
-    inMemoryShippingRules = merged;
     notifyDatabaseChange('shipping');
   },
 

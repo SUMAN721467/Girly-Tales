@@ -3,7 +3,7 @@ import { Product, CartItem } from '../types/product';
 import { useToast, ToastData } from './ToastContext';
 import { useAuth } from './AuthContext';
 import { CartService } from '../lib/cartService';
-import { DatabaseService, RealCoupon } from '../lib/databaseService';
+import { DatabaseService, RealCoupon, ShippingRules } from '../lib/databaseService';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface CartContextType {
@@ -103,6 +103,29 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [activeCouponObj, setActiveCouponObj] = useState<RealCoupon | null>(null);
   const [dynamicDiscountAmount, setDynamicDiscountAmount] = useState<number>(0);
   const [isCartSyncing, setIsCartSyncing] = useState<boolean>(false);
+  const [shippingRules, setShippingRules] = useState<ShippingRules>({
+    id: 'default',
+    enabled: true,
+    freeThreshold: 999,
+    standardRate: 99,
+    expressRate: 199,
+    codHandlingFee: 49,
+    estimatedDays: '2 to 4 Business Days',
+    couriers: ['BlueDart Express', 'Delhivery Surface', 'DTDC Prime'],
+  });
+
+  useEffect(() => {
+    DatabaseService.getShippingRules().then((rules) => {
+      if (rules) setShippingRules(rules);
+    }).catch(() => {});
+
+    const unsub = DatabaseService.subscribeToChanges('shipping', () => {
+      DatabaseService.getShippingRules().then((rules) => {
+        if (rules) setShippingRules(rules);
+      }).catch(() => {});
+    });
+    return () => unsub();
+  }, []);
 
   const loadedUserRef = useRef<string | null>(null);
   const syncTimeoutRef = useRef<any>(null);
@@ -545,14 +568,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [subtotal, appliedCoupon]);
 
   const discountAmount = dynamicDiscountAmount;
+  const freeShippingThreshold = Number(shippingRules.freeThreshold) || 999;
+  const isShippingEnabled = shippingRules.enabled !== false;
+  const standardFee = Number(shippingRules.standardRate) || 0;
   const shippingFee =
-    subtotal === 0 || subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : STANDARD_SHIPPING_FEE;
+    subtotal === 0 || !isShippingEnabled || subtotal >= freeShippingThreshold ? 0 : standardFee;
   const finalTotal = Math.max(0, subtotal - discountAmount + shippingFee);
 
-  const freeShippingProgress = Math.min(
-    100,
-    Math.round((subtotal / FREE_SHIPPING_THRESHOLD) * 100)
-  );
+  const freeShippingProgress = !isShippingEnabled
+    ? 100
+    : Math.min(100, Math.round((subtotal / freeShippingThreshold) * 100));
 
   const applyCoupon = async (code: string): Promise<{ success: boolean; message: string }> => {
     const res = await DatabaseService.validateCoupon(code, subtotal);
@@ -592,7 +617,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         discountAmount,
         shippingFee,
         finalTotal,
-        freeShippingThreshold: FREE_SHIPPING_THRESHOLD,
+        freeShippingThreshold,
         freeShippingProgress,
         appliedCoupon,
         activeCouponObj,
