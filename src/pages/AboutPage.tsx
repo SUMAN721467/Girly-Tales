@@ -100,10 +100,10 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigateToShop }) => {
                 2
               </div>
               <h4 className="font-serif text-lg font-bold text-brand-charcoal">
-                18K Gold Vacuum PVD Plating
+                Jewellery Vacuum PVD Plating
               </h4>
               <p className="text-xs text-brand-muted leading-relaxed">
-                Physical Vapor Deposition (PVD) bonds real 18K Yellow Gold at a molecular level inside a high-temperature vacuum chamber—creating a coat 5x thicker than regular plating.
+                Physical Vapor Deposition (PVD) bonds gold finish at a molecular level inside a high-temperature vacuum chamber—creating a coat 5x thicker than regular plating.
               </p>
             </div>
 

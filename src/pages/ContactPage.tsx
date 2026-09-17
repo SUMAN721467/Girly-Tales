@@ -6,7 +6,7 @@ import { useCart } from '../context/CartContext';
 const FAQS = [
   {
     q: 'Are your jewellery items truly waterproof and anti-tarnish?',
-    a: 'Yes! Every single jewellery piece is vacuum PVD plated in real 18K gold over surgical 316L stainless steel. You can wear them while taking a hot shower, swimming at the beach, or during intense gym workouts without worrying about tarnishing or green skin.'
+    a: 'Yes! Every single jewellery piece is vacuum PVD plated over surgical 316L stainless steel. You can wear them while taking a hot shower, swimming at the beach, or during intense gym workouts without worrying about tarnishing or green skin.'
   },
   {
     q: 'How do I pick the right size for night suits?',

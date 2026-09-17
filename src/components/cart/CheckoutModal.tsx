@@ -464,7 +464,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       price: item.product.price,
       quantity: item.quantity,
       size: item.selectedSize || '',
-      variant: item.product.category === 'jewellery' ? '18K Gold' : 'Standard',
+      variant: item.product.category === 'jewellery' ? 'Jewellery' : 'Standard',
       image: item.product.images?.[0] || '',
     }));
 

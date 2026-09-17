@@ -32,7 +32,7 @@ const DEFAULT_BANNERS: HomeBanner[] = [
   {
     id: 'b3',
     image: banner3,
-    alt: 'Girly Tales 18K Anti-Tarnish Jewels',
+    alt: 'Girly Tales Anti-Tarnish Jewellery',
     category: 'jewellery',
     active: true,
     orderIndex: 2,

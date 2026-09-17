@@ -32,7 +32,7 @@ export const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({
       location: r.location || 'Verified Buyer',
       rating: r.rating || 5,
       comment: r.comment,
-      productName: r.productName || '18K Anti-Tarnish Jewels',
+      productName: r.productName || 'Anti-Tarnish Jewellery',
     }));
   });
 
@@ -47,7 +47,7 @@ export const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({
             location: r.location || 'Verified Buyer',
             rating: r.rating || 5,
             comment: r.comment,
-            productName: r.productName || '18K Anti-Tarnish Jewels',
+            productName: r.productName || 'Anti-Tarnish Jewellery',
           }));
           setReviewsList(mapped);
         }

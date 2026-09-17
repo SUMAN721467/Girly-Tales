@@ -586,7 +586,7 @@ export interface HomepageConfig {
 }
 
 export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
-  announcementText: '✦ BUY 3 SETS FOR ₹2,999 ✦ FREE 18K GOLD POLISH GUARANTEE ✦ FREE SHIPPING ON ORDERS OVER ₹999 ✦',
+  announcementText: '✦ BUY 3 SETS FOR ₹2,999 ✦ FREE POLISH GUARANTEE ✦ FREE SHIPPING ON ORDERS OVER ₹999 ✦',
   announcementActive: true,
   heroBanners: [
     {
@@ -598,7 +598,7 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
       alt: 'Girly Tales Launch Offer',
       category: 'all',
       title: 'Everyday Luxury',
-      subtitle: 'Pure Cotton & 18K Anti-Tarnish',
+      subtitle: 'Pure Cotton & Anti-Tarnish Jewellery',
       active: true,
       orderIndex: 0,
     },
@@ -621,9 +621,9 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
       mobileImage: '',
       imageFit: 'contain',
       objectPosition: 'center',
-      alt: 'Girly Tales 18K Anti-Tarnish Jewels',
+      alt: 'Girly Tales Anti-Tarnish Jewellery',
       category: 'jewellery',
-      title: '18K Anti-Tarnish Jewels',
+      title: 'Anti-Tarnish Jewellery',
       subtitle: 'Waterproof & Shower-Safe',
       active: true,
       orderIndex: 2,
@@ -634,7 +634,7 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
     'SLEEP INTO COMFORT',
     'SWEET DREAMS START HERE',
     '100% PURE BREATHABLE COTTON',
-    '18K ANTI-TARNISH GOLD JEWELS',
+    'ANTI-TARNISH JEWELLERY',
     'EXPRESS PAN-INDIA DISPATCH',
   ],
   categorySectionTitle: 'THE ESSENTIALS',
@@ -709,7 +709,7 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
       id: 'inf-2',
       image: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=600&q=80',
       tagText: 'Pinteresty',
-      subTag: '18K Jewels ✨',
+      subTag: 'Jewellery ✨',
       views: '12.1k',
       productId: '',
       orderIndex: 1,
@@ -843,7 +843,7 @@ export const sanitizeValueProps = (props?: any[]): HomeValueProp[] => {
 
 export const SEED_CATEGORIES: RealCategory[] = [
   { id: 'cat-1', name: 'Nightwear & Pyjamas', slug: 'nightwear', isActive: true, orderIndex: 0, subCategories: [] },
-  { id: 'cat-2', name: '18K Anti-Tarnish Jewels', slug: 'jewellery', isActive: true, orderIndex: 1, subCategories: [] },
+  { id: 'cat-2', name: 'Anti-Tarnish Jewellery', slug: 'jewellery', isActive: true, orderIndex: 1, subCategories: [] },
   { id: 'cat-3', name: 'Satin & Silk Sets', slug: 'satin-sets', isActive: true, orderIndex: 2, subCategories: [] },
   { id: 'cat-4', name: 'Pure Cotton Sets', slug: 'cotton-sets', isActive: true, orderIndex: 3, subCategories: [] },
   { id: 'cat-5', name: 'Waterproof Necklaces & Rings', slug: 'jewels', isActive: true, orderIndex: 4, subCategories: [] },
@@ -872,7 +872,7 @@ export const getSubCategoriesForCat = (
 const SEED_COUPONS: RealCoupon[] = [
   { id: 'cp-1', code: 'GIRLY10', discount: '10% OFF', description: 'VIP Member Exclusive Welcome Perk', minSpend: 999, usedCount: 14, status: 'Active', expires: '2026-12-31' },
   { id: 'cp-2', code: 'SILKLOVE', discount: '15% OFF', description: 'Nightwear & Loungewear Collection', minSpend: 1499, usedCount: 8, status: 'Active', expires: '2026-11-30' },
-  { id: 'cp-3', code: '18KGOLD', discount: '₹200 OFF', description: '18K Anti-Tarnish Jewellery Orders', minSpend: 1299, usedCount: 5, status: 'Active', expires: '2026-10-15' },
+  { id: 'cp-3', code: 'JEWELS200', discount: '₹200 OFF', description: 'Anti-Tarnish Jewellery Orders', minSpend: 1299, usedCount: 5, status: 'Active', expires: '2026-10-15' },
   { id: 'cp-4', code: 'FREESHIP', discount: 'Free Express Delivery', description: 'Prepaid Orders Across All Pincodes', minSpend: 0, usedCount: 22, status: 'Active', expires: 'Unlimited' },
 ];
 
@@ -908,7 +908,7 @@ export const DEFAULT_TESTIMONIALS: RealTestimonial[] = [
     location: 'Mumbai',
     rating: 5,
     comment: 'Wore my necklace daily to the gym and in hot showers for 3 months — still 100% shiny gold with zero tarnish!',
-    productName: '18K Anti-Tarnish Necklace',
+    productName: 'Anti-Tarnish Necklace',
     verified: true,
     status: 'Approved',
     orderIndex: 0,
@@ -931,7 +931,7 @@ export const DEFAULT_TESTIMONIALS: RealTestimonial[] = [
     author: 'Rhea S.',
     location: 'Bengaluru',
     rating: 5,
-    comment: 'Luxury boutique unboxing with velvet pouch. Arrived in 2 days and looks just like solid 18K gold jewellery.',
+    comment: 'Luxury boutique unboxing with velvet pouch. Arrived in 2 days and looks just like solid luxury jewellery.',
     productName: 'Clover Anti-Tarnish Bracelet',
     verified: true,
     status: 'Approved',
@@ -956,7 +956,7 @@ export const DEFAULT_REVIEWS: RealReview[] = [
   {
     id: 't-1',
     productId: '',
-    productName: '18K Anti-Tarnish Necklace',
+    productName: 'Anti-Tarnish Necklace',
     author: 'Ananya S.',
     rating: 5,
     comment: 'Wore my necklace daily to the gym and in hot showers for 3 months — still 100% shiny gold with zero tarnish!',
@@ -985,7 +985,7 @@ export const DEFAULT_REVIEWS: RealReview[] = [
     productName: 'Clover Anti-Tarnish Bracelet',
     author: 'Rhea S.',
     rating: 5,
-    comment: 'Luxury boutique unboxing with velvet pouch. Arrived in 2 days and looks just like solid 18K gold jewellery.',
+    comment: 'Luxury boutique unboxing with velvet pouch. Arrived in 2 days and looks just like solid gold jewellery.',
     title: 'Luxury Boutique Unboxing',
     images: [],
     verified: true,
@@ -3619,7 +3619,7 @@ export const DatabaseService = {
             author: d.author || 'Verified Customer',
             rating: Number(d.rating) || 5,
             comment: d.comment || '',
-            productName: d.product_name || d.productName || '18K Anti-Tarnish Jewels',
+            productName: d.product_name || d.productName || 'Anti-Tarnish Jewellery',
             productId: d.product_id || d.productId || '',
             location: d.location || 'Verified Buyer',
             verified: d.verified !== false,
@@ -3649,7 +3649,7 @@ export const DatabaseService = {
                 author: r.author || 'Verified Customer',
                 rating: r.rating || 5,
                 comment: r.comment,
-                productName: r.productName || '18K Anti-Tarnish Jewels',
+                productName: r.productName || 'Anti-Tarnish Jewellery',
                 productId: r.productId || '',
                 location: 'Verified Buyer',
                 verified: r.verified !== false,
@@ -3696,7 +3696,7 @@ export const DatabaseService = {
     const newTestimonial: RealTestimonial = {
       id: 'testi-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
       author: testimonialData.author.trim(),
-      productName: testimonialData.productName.trim() || '18K Anti-Tarnish Jewels',
+      productName: testimonialData.productName.trim() || 'Anti-Tarnish Jewellery',
       productId: testimonialData.productId || '',
       location: testimonialData.location || 'Verified Buyer',
       rating: Math.max(1, Math.min(5, Number(testimonialData.rating) || 5)),
@@ -3843,7 +3843,7 @@ export const DatabaseService = {
       updatedTestimonial = {
         id,
         author: updates.author || 'Verified Customer',
-        productName: updates.productName || '18K Anti-Tarnish Jewels',
+        productName: updates.productName || 'Anti-Tarnish Jewellery',
         rating: updates.rating || 5,
         comment: updates.comment || '',
         verified: updates.verified !== false,
@@ -4694,9 +4694,9 @@ export const DatabaseService = {
   // 7.1 Store Settings
   async getStoreSettings(): Promise<StoreSettings> {
     const defaultSettings: StoreSettings = {
-      announcementText: '✦ BUY 3 SETS FOR ₹2,999 ✦ FREE 18K GOLD POLISH GUARANTEE ✦ FREE SHIPPING ON ORDERS OVER ₹999 ✦',
-      heroHeadline: 'EVERYDAY LUXURY NIGHTWEAR & 18K JEWELS',
-      heroSubtext: 'Indulge in feather-soft Mulberry Silk & 18K Anti-Tarnish jewellery crafted for graceful everyday living.',
+      announcementText: '✦ BUY 3 SETS FOR ₹2,999 ✦ FREE POLISH GUARANTEE ✦ FREE SHIPPING ON ORDERS OVER ₹999 ✦',
+      heroHeadline: 'EVERYDAY LUXURY NIGHTWEAR & JEWELLERY',
+      heroSubtext: 'Indulge in feather-soft Mulberry Silk & Anti-Tarnish jewellery crafted for graceful everyday living.',
     };
 
     if (!isSupabaseConfigured) return inMemoryStoreSettings || defaultSettings;
@@ -4998,7 +4998,7 @@ export const DatabaseService = {
   async getPromotions(): Promise<PromotionItem[]> {
     const defaultPromotions: PromotionItem[] = [
       { id: 'p-1', name: 'Monsoon Silk Comfort Bundle', discount: 'Buy Any 3 Sets for ₹2,999', badge: 'Best Deal', active: true, bannerText: 'Flat 35% Savings on Silk Lounge Combos' },
-      { id: 'p-2', name: '18K Gold Jewellery Welcome Gift', discount: 'Free Luxury Jewellery Pouch with every ₹1,500+ order', badge: 'Freebie', active: true, bannerText: 'Complimentary Anti-Tarnish Pouch included' },
+      { id: 'p-2', name: 'Jewellery Welcome Gift', discount: 'Free Luxury Jewellery Pouch with every ₹1,500+ order', badge: 'Freebie', active: true, bannerText: 'Complimentary Anti-Tarnish Pouch included' },
       { id: 'p-3', name: 'VIP Secret Drop Sale', discount: 'Extra 10% for Registered Members', badge: 'Members Only', active: true, bannerText: 'Use code GIRLY10 at instant checkout' },
     ];
 
@@ -5181,7 +5181,7 @@ export const DatabaseService = {
   async getFaqs(): Promise<FAQItem[]> {
     const defaultFaqs: FAQItem[] = [
       { id: 'f-1', category: 'Nightwear & Loungewear', question: 'How do I care for Mulberry silk and modal sets?', answer: 'We recommend gentle machine wash in cold water using a laundry wash bag, or delicate hand wash with mild liquid detergent. Line dry in shade to preserve color luster.' },
-      { id: 'f-2', category: '18K Anti-Tarnish Jewellery', question: 'Can I wear the 18K jewellery while bathing or swimming?', answer: 'Yes! Our pieces are crafted with premium stainless steel / brass cores with vacuum-plated 18K real gold and protective clear ceramic seal, making them 100% waterproof, sweatproof, and hypoallergenic.' },
+      { id: 'f-2', category: 'Anti-Tarnish Jewellery', question: 'Can I wear the jewellery while bathing or swimming?', answer: 'Yes! Our pieces are crafted with premium stainless steel / brass cores with vacuum-plated real gold and protective clear ceramic seal, making them 100% waterproof, sweatproof, and hypoallergenic.' },
       { id: 'f-3', category: 'Shipping & Delivery', question: 'How soon will my order be dispatched and delivered?', answer: 'Orders placed before 2 PM IST are dispatched on the same business day. Delivery takes 2-4 business days for metro cities and 3-5 days for other locations.' },
       { id: 'f-4', category: 'Returns & Exchanges', question: 'What is your size exchange and return policy?', answer: 'We offer hassle-free 7-day doorstep size exchanges. If the nightwear size does not fit comfortably, you can request an exchange in 1 click from your account.' },
     ];

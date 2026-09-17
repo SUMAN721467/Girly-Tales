@@ -163,7 +163,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 Your bag is empty
               </h4>
               <p className="text-xs text-brand-muted max-w-xs">
-                Check out our bestselling cotton sets and 18K anti-tarnish jewellery!
+                Check out our bestselling cotton sets and anti-tarnish jewellery!
               </p>
               <button
                 onClick={() => {

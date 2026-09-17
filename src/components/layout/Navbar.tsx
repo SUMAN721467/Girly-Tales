@@ -79,7 +79,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => onNavigate('shop', 'jewellery')}
               className="hover:text-[#967BB6] transition-colors flex items-center gap-1"
             >
-              <span>18K Jewellery</span>
+              <span>Jewellery</span>
             </button>
             <button
               onClick={() => onNavigate('about')}

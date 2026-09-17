@@ -323,9 +323,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const [isAddingCoupon, setIsAddingCoupon] = useState(false);
 
   // Homepage Settings State (Legacy & Rich HomepageConfig)
-  const [announcementText, setAnnouncementText] = useState('✦ BUY 3 SETS FOR ₹2,999 ✦ FREE 18K GOLD POLISH GUARANTEE ✦ FREE SHIPPING ON ORDERS OVER ₹999 ✦');
-  const [heroHeadline, setHeroHeadline] = useState('EVERYDAY LUXURY NIGHTWEAR & 18K JEWELS');
-  const [heroSubtext, setHeroSubtext] = useState('Indulge in feather-soft Mulberry Silk & 18K Anti-Tarnish jewellery crafted for graceful everyday living.');
+  const [announcementText, setAnnouncementText] = useState('✦ BUY 3 SETS FOR ₹2,999 ✦ FREE POLISH GUARANTEE ✦ FREE SHIPPING ON ORDERS OVER ₹999 ✦');
+  const [heroHeadline, setHeroHeadline] = useState('EVERYDAY LUXURY NIGHTWEAR & JEWELLERY');
+  const [heroSubtext, setHeroSubtext] = useState('Indulge in feather-soft Mulberry Silk & Anti-Tarnish jewellery crafted for graceful everyday living.');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   // Complete Homepage Visual Content Editor State
@@ -379,7 +379,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   // Promotions State
   const [promotions, setPromotions] = useState<PromotionItem[]>([
     { id: 'p-1', name: 'Monsoon Silk Comfort Bundle', discount: 'Buy Any 3 Sets for ₹2,999', badge: 'Best Deal', active: true, bannerText: 'Flat 35% Savings on Silk Lounge Combos' },
-    { id: 'p-2', name: '18K Gold Jewellery Welcome Gift', discount: 'Free Luxury Jewellery Pouch with every ₹1,500+ order', badge: 'Freebie', active: true, bannerText: 'Complimentary Anti-Tarnish Pouch included' },
+    { id: 'p-2', name: 'Jewellery Welcome Gift', discount: 'Free Luxury Jewellery Pouch with every ₹1,500+ order', badge: 'Freebie', active: true, bannerText: 'Complimentary Anti-Tarnish Pouch included' },
     { id: 'p-3', name: 'VIP Secret Drop Sale', discount: 'Extra 10% for Registered Members', badge: 'Members Only', active: true, bannerText: 'Use code GIRLY10 at instant checkout' },
   ]);
 
@@ -397,7 +397,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   // FAQs State
   const [faqs, setFaqs] = useState<FAQItem[]>([
     { id: 'f-1', category: 'Nightwear & Loungewear', question: 'How do I care for Mulberry silk and modal sets?', answer: 'We recommend gentle machine wash in cold water using a laundry wash bag, or delicate hand wash with mild liquid detergent. Line dry in shade to preserve color luster.' },
-    { id: 'f-2', category: '18K Anti-Tarnish Jewellery', question: 'Can I wear the 18K jewellery while bathing or swimming?', answer: 'Yes! Our pieces are crafted with premium stainless steel / brass cores with vacuum-plated 18K real gold and protective clear ceramic seal, making them 100% waterproof, sweatproof, and hypoallergenic.' },
+    { id: 'f-2', category: 'Anti-Tarnish Jewellery', question: 'Can I wear the jewellery while bathing or swimming?', answer: 'Yes! Our pieces are crafted with premium stainless steel / brass cores with vacuum-plated gold coating and protective clear ceramic seal, making them 100% waterproof, sweatproof, and hypoallergenic.' },
     { id: 'f-3', category: 'Shipping & Delivery', question: 'How soon will my order be dispatched and delivered?', answer: 'Orders placed before 2 PM IST are dispatched on the same business day. Delivery takes 2-4 business days for metro cities and 3-5 days for other locations.' },
     { id: 'f-4', category: 'Returns & Exchanges', question: 'What is your size exchange and return policy?', answer: 'We offer hassle-free 7-day doorstep size exchanges. If the nightwear size does not fit comfortably, you can request an exchange in 1 click from your account.' },
   ]);
@@ -698,7 +698,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     setEditingTestimonialId(null);
     setTestimonialForm({
       author: '',
-      productName: productsList[0]?.name || '18K Anti-Tarnish Necklace',
+      productName: productsList[0]?.name || 'Anti-Tarnish Necklace',
       location: 'Verified Buyer',
       rating: 5,
       comment: '',
@@ -712,7 +712,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     setEditingTestimonialId(t.id);
     setTestimonialForm({
       author: t.author || '',
-      productName: t.productName || '18K Anti-Tarnish Jewels',
+      productName: t.productName || 'Anti-Tarnish Jewellery',
       location: t.location || 'Verified Buyer',
       rating: t.rating || 5,
       comment: t.comment || '',
@@ -736,7 +736,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       if (editingTestimonialId) {
         const updated = await DatabaseService.updateTestimonial(editingTestimonialId, {
           author: testimonialForm.author.trim(),
-          productName: testimonialForm.productName.trim() || '18K Anti-Tarnish Jewels',
+          productName: testimonialForm.productName.trim() || 'Anti-Tarnish Jewellery',
           location: testimonialForm.location.trim() || 'Verified Buyer',
           rating: testimonialForm.rating,
           comment: testimonialForm.comment.trim(),
@@ -750,7 +750,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       } else {
         const added = await DatabaseService.addTestimonial({
           author: testimonialForm.author.trim(),
-          productName: testimonialForm.productName.trim() || '18K Anti-Tarnish Jewels',
+          productName: testimonialForm.productName.trim() || 'Anti-Tarnish Jewellery',
           location: testimonialForm.location.trim() || 'Verified Buyer',
           rating: testimonialForm.rating,
           comment: testimonialForm.comment.trim(),
@@ -1824,7 +1824,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           images: finalImages,
           description: productForm.description || 'Luxurious craftsmanship designed for everyday glamour.',
           shortDescription: productForm.description.slice(0, 90) || 'Premium curated collection item.',
-          material: productForm.materials || 'Premium Cotton / Silk / 18K Finish',
+          material: productForm.materials || 'Premium Cotton / Silk / Gold Finish',
           dimensions: productForm.dimensions || 'Standard Fit',
           sku: productForm.sku || `GT-SKU-${Math.floor(1000 + Math.random() * 9000)}`,
           variety: productForm.variety,
@@ -1883,7 +1883,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         images: finalImages,
         description: productForm.description || 'Luxurious craftsmanship designed for everyday glamour.',
         shortDescription: productForm.description.slice(0, 90) || 'Premium curated collection item.',
-        material: productForm.materials || 'Premium Cotton / Silk / 18K Finish',
+        material: productForm.materials || 'Premium Cotton / Silk / Gold Finish',
         dimensions: productForm.dimensions || 'Standard Fit',
         sku: productForm.sku || `GT-SKU-${Math.floor(1000 + Math.random() * 9000)}`,
         variety: productForm.variety,
@@ -2656,7 +2656,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           />
                           <div>
                             <div className="text-xs font-black uppercase tracking-wide text-brand-charcoal">JEWELLERY</div>
-                            <div className="text-[11px] text-brand-muted">18K Anti-Tarnish Necklaces, Earrings, Bracelets & Rings</div>
+                            <div className="text-[11px] text-brand-muted">Anti-Tarnish Necklaces, Earrings, Bracelets & Rings</div>
                           </div>
                         </label>
                       </div>
@@ -3035,7 +3035,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                               required
                               value={productForm.materials}
                               onChange={(e) => setProductForm({ ...productForm, materials: e.target.value })}
-                              placeholder="e.g. Hollow 316L Titanium Steel with 18K Gold PVD"
+                              placeholder="e.g. Hollow 316L Titanium Steel with Gold PVD"
                               className="w-full px-4 py-2.5 bg-white border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] transition-all"
                             />
                           </div>
@@ -5421,7 +5421,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           </span>
                         </p>
                         <p className="text-[10px] font-medium text-[#967BB6] mt-0.5 truncate">
-                          ✦ {item.productName || '18K Anti-Tarnish Jewels'}
+                          ✦ {item.productName || 'Anti-Tarnish Jewellery'}
                         </p>
 
                         {/* Action Toolbar on Preview Card */}
@@ -5712,7 +5712,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                         type="text"
                         value={testimonialForm.productName}
                         onChange={(e) => setTestimonialForm((p) => ({ ...p, productName: e.target.value }))}
-                        placeholder="e.g. 18K Anti-Tarnish Necklace"
+                        placeholder="e.g. Anti-Tarnish Necklace"
                         className="w-full px-3.5 py-2 text-xs border border-[#EAE6DB] rounded-xl bg-[#FAF8F2] focus:bg-white focus:outline-none focus:border-[#967BB6]"
                       />
                     </div>
@@ -6806,7 +6806,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                         setHomepageConfig((p) => ({ ...p, announcementText: val }));
                         setAnnouncementText(val);
                       }}
-                      placeholder="✦ BUY 3 SETS FOR ₹2,999 ✦ FREE 18K GOLD POLISH GUARANTEE..."
+                      placeholder="✦ BUY 3 SETS FOR ₹2,999 ✦ FREE POLISH GUARANTEE..."
                       className="w-full px-4 py-3 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs font-medium focus:bg-white focus:outline-none focus:border-[#967BB6] leading-relaxed"
                     />
                   </div>
@@ -7571,7 +7571,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-6 animate-fade-in">
             <div>
               <h3 className="font-serif text-xl text-brand-charcoal font-medium">Frequently Asked Questions</h3>
-              <p className="text-xs text-brand-muted">Manage help guides for sizing, 18K gold anti-tarnish guarantee, and exchanges.</p>
+              <p className="text-xs text-brand-muted">Manage help guides for sizing, anti-tarnish guarantee, and exchanges.</p>
             </div>
 
             <div className="space-y-3">
@@ -8053,7 +8053,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
                 {[
                   { name: 'categories', label: 'Categories Table', desc: 'Shop navigation & custom category ordering', count: categoriesList.length },
-                  { name: 'products', label: 'Products Catalog', desc: 'Nightwear, 18K Jewellery, prices, stock & specs', count: productsList.length },
+                  { name: 'products', label: 'Products Catalog', desc: 'Nightwear, Jewellery, prices, stock & specs', count: productsList.length },
                   { name: 'orders', label: 'Customer Orders', desc: 'Customer checkout, payment status & delivery address', count: orders.length },
                   { name: 'reviews', label: 'Product Reviews', desc: 'Ratings, product reviews & moderation flags', count: reviews.length },
                   { name: 'testimonials', label: 'Testimonials Table', desc: 'Homepage quotes, ratings, author names & slots', count: testimonials.length },
@@ -8065,7 +8065,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                   { name: 'store_settings', label: 'Store Settings', desc: 'Announcement bar, hero headline & store metadata', count: 1 },
                   { name: 'promotions', label: 'Promotions', desc: 'Flash deals, bundle offers & promo banners', count: promotions.length },
                   { name: 'shipping_rules', label: 'Shipping Rules', desc: 'Free threshold, standard rates & courier partners', count: 1 },
-                  { name: 'faqs', label: 'FAQs Directory', desc: 'Product care, 18K guarantee & return policies', count: faqs.length },
+                  { name: 'faqs', label: 'FAQs Directory', desc: 'Product care, anti-tarnish guarantee & return policies', count: faqs.length },
                 ].map((tbl) => {
                   const tableStatus = dbStatus?.tables?.find((t) => t.name === tbl.name);
                   const isReady = tableStatus ? tableStatus.status === 'ready' : true;

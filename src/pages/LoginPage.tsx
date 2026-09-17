@@ -234,7 +234,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     Shop New Drops
                   </h3>
                   <p className="text-xs text-brand-muted">
-                    Explore our latest 18K jewels &amp; mulberry silk sets.
+                    Explore our latest jewellery &amp; mulberry silk sets.
                   </p>
                 </div>
 
@@ -502,7 +502,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 <ChevronRight className="w-4 h-4 text-brand-muted group-hover:translate-x-0.5 transition-transform" />
               </h4>
               <p className="text-xs text-brand-muted">
-                Explore luxury Mulberry silk sets and 18K waterproof jewels.
+                Explore luxury Mulberry silk sets and waterproof jewellery.
               </p>
             </div>
 

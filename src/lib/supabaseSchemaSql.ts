@@ -176,7 +176,7 @@ CREATE TABLE IF NOT EXISTS public.testimonials (
     author TEXT NOT NULL,
     rating NUMERIC NOT NULL DEFAULT 5,
     comment TEXT NOT NULL,
-    product_name TEXT DEFAULT '18K Anti-Tarnish Jewels',
+    product_name TEXT DEFAULT 'Anti-Tarnish Jewellery',
     product_id TEXT,
     location TEXT DEFAULT 'Verified Buyer',
     verified BOOLEAN DEFAULT TRUE NOT NULL,
@@ -188,7 +188,7 @@ CREATE TABLE IF NOT EXISTS public.testimonials (
 ALTER TABLE public.testimonials ADD COLUMN IF NOT EXISTS author TEXT NOT NULL DEFAULT 'Verified Buyer';
 ALTER TABLE public.testimonials ADD COLUMN IF NOT EXISTS rating NUMERIC NOT NULL DEFAULT 5;
 ALTER TABLE public.testimonials ADD COLUMN IF NOT EXISTS comment TEXT NOT NULL DEFAULT '';
-ALTER TABLE public.testimonials ADD COLUMN IF NOT EXISTS product_name TEXT DEFAULT '18K Anti-Tarnish Jewels';
+ALTER TABLE public.testimonials ADD COLUMN IF NOT EXISTS product_name TEXT DEFAULT 'Anti-Tarnish Jewellery';
 ALTER TABLE public.testimonials ADD COLUMN IF NOT EXISTS product_id TEXT;
 ALTER TABLE public.testimonials ADD COLUMN IF NOT EXISTS location TEXT DEFAULT 'Verified Buyer';
 ALTER TABLE public.testimonials ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT TRUE NOT NULL;
@@ -580,7 +580,7 @@ CREATE TRIGGER on_auth_user_created
 INSERT INTO public.categories (id, name, slug, is_active, order_index)
 VALUES 
     ('cat-1', 'Nightwear & Pyjamas', 'nightwear', TRUE, 0),
-    ('cat-2', '18K Anti-Tarnish Jewels', 'jewellery', TRUE, 1),
+    ('cat-2', 'Anti-Tarnish Jewellery', 'jewellery', TRUE, 1),
     ('cat-3', 'Satin & Silk Sets', 'satin-sets', TRUE, 2),
     ('cat-4', 'Pure Cotton Sets', 'cotton-sets', TRUE, 3),
     ('cat-5', 'Waterproof Necklaces & Rings', 'jewels', TRUE, 4)
@@ -595,7 +595,7 @@ INSERT INTO public.coupons (id, code, discount, description, min_spend, used_cou
 VALUES 
     ('cp-1', 'GIRLY10', '10% OFF', 'VIP Member Exclusive Welcome Perk', 999, 14, 'Active', '2026-12-31'),
     ('cp-2', 'SILKLOVE', '15% OFF', 'Nightwear & Loungewear Collection', 1499, 8, 'Active', '2026-11-30'),
-    ('cp-3', '18KGOLD', '₹200 OFF', '18K Anti-Tarnish Jewellery Orders', 1299, 5, 'Active', '2026-10-15'),
+    ('cp-3', 'JEWELS200', '₹200 OFF', 'Anti-Tarnish Jewellery Orders', 1299, 5, 'Active', '2026-10-15'),
     ('cp-4', 'FREESHIP', 'Free Express Delivery', 'Prepaid Orders Across All Pincodes', 0, 22, 'Active', 'Unlimited')
 ON CONFLICT (id) DO UPDATE SET 
     code = EXCLUDED.code,
@@ -608,9 +608,9 @@ ON CONFLICT (id) DO UPDATE SET
 INSERT INTO public.store_settings (key, value)
 VALUES 
     ('homepage', '{
-        "announcementText": "✦ BUY 3 SETS FOR ₹2,999 ✦ FREE 18K GOLD POLISH GUARANTEE ✦ FREE SHIPPING ON ORDERS OVER ₹999 ✦",
-        "heroHeadline": "EVERYDAY LUXURY NIGHTWEAR & 18K JEWELS",
-        "heroSubtext": "Indulge in feather-soft Mulberry Silk & 18K Anti-Tarnish jewellery crafted for graceful everyday living."
+        "announcementText": "✦ BUY 3 SETS FOR ₹2,999 ✦ FREE POLISH GUARANTEE ✦ FREE SHIPPING ON ORDERS OVER ₹999 ✦",
+        "heroHeadline": "EVERYDAY LUXURY NIGHTWEAR & JEWELLERY",
+        "heroSubtext": "Indulge in feather-soft Mulberry Silk & Anti-Tarnish jewellery crafted for graceful everyday living."
     }'::jsonb)
 ON CONFLICT (key) DO NOTHING;
 
@@ -618,7 +618,7 @@ ON CONFLICT (key) DO NOTHING;
 INSERT INTO public.promotions (id, name, discount, badge, active, banner_text)
 VALUES 
     ('p-1', 'Monsoon Silk Comfort Bundle', 'Buy Any 3 Sets for ₹2,999', 'Best Deal', TRUE, 'Flat 35% Savings on Silk Lounge Combos'),
-    ('p-2', '18K Gold Jewellery Welcome Gift', 'Free Luxury Jewellery Pouch with every ₹1,500+ order', 'Freebie', TRUE, 'Complimentary Anti-Tarnish Pouch included'),
+    ('p-2', 'Jewellery Welcome Gift', 'Free Luxury Jewellery Pouch with every ₹1,500+ order', 'Freebie', TRUE, 'Complimentary Anti-Tarnish Pouch included'),
     ('p-3', 'VIP Secret Drop Sale', 'Extra 10% for Registered Members', 'Members Only', TRUE, 'Use code GIRLY10 at instant checkout')
 ON CONFLICT (id) DO NOTHING;
 
@@ -632,7 +632,7 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.faqs (id, category, question, answer, order_index)
 VALUES 
     ('f-1', 'Nightwear & Loungewear', 'How do I care for Mulberry silk and modal sets?', 'We recommend gentle machine wash in cold water using a laundry wash bag, or delicate hand wash with mild liquid detergent. Line dry in shade to preserve color luster.', 0),
-    ('f-2', '18K Anti-Tarnish Jewellery', 'Can I wear the 18K jewellery while bathing or swimming?', 'Yes! Our pieces are crafted with premium stainless steel / brass cores with vacuum-plated 18K real gold and protective clear ceramic seal, making them 100% waterproof, sweatproof, and hypoallergenic.', 1),
+    ('f-2', 'Anti-Tarnish Jewellery', 'Can I wear the jewellery while bathing or swimming?', 'Yes! Our pieces are crafted with premium stainless steel / brass cores with vacuum-plated real gold and protective clear ceramic seal, making them 100% waterproof, sweatproof, and hypoallergenic.', 1),
     ('f-3', 'Shipping & Delivery', 'How soon will my order be dispatched and delivered?', 'Orders placed before 2 PM IST are dispatched on the same business day. Delivery takes 2-4 business days for metro cities and 3-5 days for other locations.', 2),
     ('f-4', 'Returns & Exchanges', 'What is your size exchange and return policy?', 'We offer hassle-free 7-day doorstep size exchanges. If the nightwear size does not fit comfortably, you can request an exchange in 1 click from your account.', 3)
 ON CONFLICT (id) DO NOTHING;
@@ -640,9 +640,9 @@ ON CONFLICT (id) DO NOTHING;
 -- Testimonials Seed
 INSERT INTO public.testimonials (id, author, rating, comment, product_name, location, verified, status, order_index)
 VALUES 
-    ('t-1', 'Ananya S.', 5, 'Wore my necklace daily to the gym and in hot showers for 3 months — still 100% shiny gold with zero tarnish!', '18K Anti-Tarnish Necklace', 'Mumbai', TRUE, 'Approved', 0),
+    ('t-1', 'Ananya S.', 5, 'Wore my necklace daily to the gym and in hot showers for 3 months — still 100% shiny gold with zero tarnish!', 'Anti-Tarnish Necklace', 'Mumbai', TRUE, 'Approved', 0),
     ('t-2', 'Priya M.', 5, 'The softest pure cotton nightwear I have ever worn. Breathable, airy, and the floral print is so aesthetic.', 'Blossom Pure Cotton PJ Set', 'Kolkata', TRUE, 'Approved', 1),
-    ('t-3', 'Rhea S.', 5, 'Luxury boutique unboxing with velvet pouch. Arrived in 2 days and looks just like solid 18K gold jewellery.', 'Clover Anti-Tarnish Bracelet', 'Bengaluru', TRUE, 'Approved', 2),
+    ('t-3', 'Rhea S.', 5, 'Luxury boutique unboxing with velvet pouch. Arrived in 2 days and looks just like solid gold jewellery.', 'Clover Anti-Tarnish Bracelet', 'Bengaluru', TRUE, 'Approved', 2),
     ('t-4', 'Sneha K.', 5, 'Completely hypoallergenic! I have sensitive skin and these earrings never cause any itchiness or redness.', 'Waterproof Huggie Hoops', 'Delhi', TRUE, 'Approved', 3)
 ON CONFLICT (id) DO UPDATE SET 
     author = EXCLUDED.author,
@@ -653,7 +653,7 @@ ON CONFLICT (id) DO UPDATE SET
     status = EXCLUDED.status,
     order_index = EXCLUDED.order_index;
 
--- Products Seed (Nightwear & 18K Jewellery)
+-- Products Seed (Nightwear & Jewellery)
 INSERT INTO public.products (
     id, name, slug, category, sub_category, price, original_price, discount, rating, review_count, 
     images, description, short_description, material, in_stock, stock_quantity, sku, dimensions, variety, tag,
@@ -730,8 +730,8 @@ VALUES
     ),
     (
         'jw-1',
-        '18K Gold Plated Chunky Croissant Dome Ring',
-        '18k-gold-chunky-croissant-dome-ring',
+        'Gold Plated Chunky Croissant Dome Ring',
+        'gold-chunky-croissant-dome-ring',
         'jewellery',
         'Rings',
         899,
@@ -740,9 +740,9 @@ VALUES
         4.95,
         210,
         '["https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=1000&q=80", "https://images.unsplash.com/photo-1603561591411-07134e71a2a9?auto=format&fit=crop&w=1000&q=80"]'::jsonb,
-        'The iconic French Parisian croissant silhouette. Triple-layered in 18K Real Gold via vacuum PVD coating over surgical-grade 316L stainless steel. Wear it in the shower, gym, or pool—it never turns green or loses its mirror shine.',
-        '18K PVD gold-coated sculptural dome ring. 100% waterproof & sweatproof.',
-        '316L Stainless Steel with 18K Yellow Gold PVD Vacuum Coating',
+        'The iconic French Parisian croissant silhouette. Triple-layered in Real Gold via vacuum PVD coating over surgical-grade 316L stainless steel. Wear it in the shower, gym, or pool—it never turns green or loses its mirror shine.',
+        'PVD gold-coated sculptural dome ring. 100% waterproof & sweatproof.',
+        '316L Stainless Steel with Yellow Gold PVD Vacuum Coating',
         TRUE,
         50,
         'GT-JW-001',
@@ -754,7 +754,7 @@ VALUES
         '["Lifetime Anti-Tarnish & Waterproof Guarantee", "Free Delivery on all prepaid orders"]'::jsonb,
         '["Zero maintenance required! Wear daily in bath and gym.", "Simply rinse with warm soapy water and wipe with soft cloth."]'::jsonb,
         'Dispatched within 24 hours. Delivered across India within 2 to 4 business days. Easy 7-day exchange support available on WhatsApp.',
-        '{"Base Metal": "Medical-Grade 316L Stainless Steel", "Coating": "18K Gold PVD (5x thicker than standard)"}'::jsonb,
+        '{"Base Metal": "Medical-Grade 316L Stainless Steel", "Coating": "Gold PVD (5x thicker than standard)"}'::jsonb,
         '[]'::jsonb,
         'Lifetime Anti-Tarnish & Waterproof Guarantee',
         TRUE,
@@ -775,8 +775,8 @@ VALUES
         164,
         '["https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=1000&q=80", "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=1000&q=80"]'::jsonb,
         'A genuine organic Baroque freshwater pearl paired with an embossed North Star medallion on an adjustable cable chain. Designed for everyday layering and effortless elegance.',
-        'Real baroque freshwater pearl on 18K gold anti-tarnish chain.',
-        '316L Stainless Steel + 18K Gold PVD + Cultured Baroque Pearl',
+        'Real baroque freshwater pearl on gold anti-tarnish chain.',
+        '316L Stainless Steel + Gold PVD + Cultured Baroque Pearl',
         TRUE,
         35,
         'GT-JW-002',
@@ -784,7 +784,7 @@ VALUES
         'Baroque Pearl',
         'Customer Fav',
         '[]'::jsonb,
-        '["✨ Genuine naturally formed freshwater Baroque Pearl", "✨ 18K Gold Plated anti-tarnish chain", "✨ Safe for sensitive skin & daily swimming"]'::jsonb,
+        '["✨ Genuine naturally formed freshwater Baroque Pearl", "✨ Gold Plated anti-tarnish chain", "✨ Safe for sensitive skin & daily swimming"]'::jsonb,
         '["100% Waterproof & Tarnish-Resistant for 2+ Years", "Free Delivery on all prepaid orders"]'::jsonb,
         '["Rinse after swimming in chlorinated water", "Store in velvet pouch when not in use"]'::jsonb,
         'Dispatched within 24 hours. Delivered across India within 2 to 4 business days. Easy 7-day exchange support available on WhatsApp.',

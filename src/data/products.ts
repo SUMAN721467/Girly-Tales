@@ -324,8 +324,8 @@ export const MOCK_PRODUCTS: Product[] = [
   // =================== ANTI-TARNISH JEWELLERY (8 Products) ===================
   {
     id: 'jw-1',
-    name: '18K Gold Plated Chunky Croissant Dome Ring',
-    slug: '18k-gold-chunky-croissant-dome-ring',
+    name: 'Gold Plated Chunky Croissant Dome Ring',
+    slug: 'gold-chunky-croissant-dome-ring',
     category: 'jewellery',
     subCategory: 'Rings',
     price: 899,
@@ -338,9 +338,9 @@ export const MOCK_PRODUCTS: Product[] = [
       'https://images.unsplash.com/photo-1603561591411-07134e71a2a9?auto=format&fit=crop&w=1000&q=80',
       'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=1000&q=80'
     ],
-    description: 'The iconic French Parisian croissant silhouette. Triple-layered in 18K Real Gold via vacuum PVD coating over surgical-grade 316L stainless steel. Wear it in the shower, gym, or pool—it never turns green or loses its mirror shine.',
-    shortDescription: '18K PVD gold-coated sculptural dome ring. 100% waterproof & sweatproof.',
-    material: '316L Stainless Steel with 18K Yellow Gold PVD Vacuum Coating',
+    description: 'The iconic French Parisian croissant silhouette. Triple-layered in Real Gold via vacuum PVD coating over surgical-grade 316L stainless steel. Wear it in the shower, gym, or pool—it never turns green or loses its mirror shine.',
+    shortDescription: 'PVD gold-coated sculptural dome ring. 100% waterproof & sweatproof.',
+    material: '316L Stainless Steel with Yellow Gold PVD Vacuum Coating',
     antiTarnishGuarantee: 'Lifetime Anti-Tarnish & Waterproof Guarantee',
     waterproof: true,
     hypoallergenic: true,
@@ -357,7 +357,7 @@ export const MOCK_PRODUCTS: Product[] = [
     ],
     specs: {
       'Base Metal': 'Medical-Grade 316L Stainless Steel',
-      'Coating': '18K Gold PVD (5x thicker than standard plating)',
+      'Coating': 'Gold PVD (5x thicker than standard plating)',
       'Sizes': 'Size 6, Size 7, Size 8 (US Standard)',
       'Weight': '5.2 grams (Lightweight & hollowed comfort)'
     },
@@ -381,14 +381,14 @@ export const MOCK_PRODUCTS: Product[] = [
       'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=1000&q=80'
     ],
     description: 'A genuine organic Baroque freshwater pearl paired with an embossed North Star medallion on an adjustable cable chain. Designed for everyday layering and effortless elegance.',
-    shortDescription: 'Real baroque freshwater pearl on 18K gold anti-tarnish chain.',
-    material: '316L Stainless Steel + 18K Gold PVD + Cultured Baroque Pearl',
+    shortDescription: 'Real baroque freshwater pearl on gold anti-tarnish chain.',
+    material: '316L Stainless Steel + Gold PVD + Cultured Baroque Pearl',
     antiTarnishGuarantee: '100% Waterproof & Tarnish-Resistant for 2+ Years',
     waterproof: true,
     hypoallergenic: true,
     features: [
       '✨ Genuine naturally formed freshwater Baroque Pearl',
-      '✨ 18K Gold Plated anti-tarnish chain with 2-inch extender',
+      '✨ Gold Plated anti-tarnish chain with 2-inch extender',
       '✨ Safe for sensitive skin & daily swimming',
       '✨ Laser engraved celestial starburst detailing'
     ],
@@ -421,8 +421,8 @@ export const MOCK_PRODUCTS: Product[] = [
       'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=1000&q=80'
     ],
     description: 'Get the perfect layered necklace look without the hassle of tangling. Combines our bestselling sleek herringbone snake chain with a modern paperclip link chain in one easy clasp.',
-    shortDescription: '2-in-1 layered herringbone & paperclip chain in anti-tarnish 18K gold.',
-    material: '316L Stainless Steel with 18K Gold Vacuum PVD Plating',
+    shortDescription: '2-in-1 layered herringbone & paperclip chain in anti-tarnish gold.',
+    material: '316L Stainless Steel with Gold Vacuum PVD Plating',
     antiTarnishGuarantee: 'Lifetime Anti-Tarnish Guarantee',
     waterproof: true,
     hypoallergenic: true,
@@ -457,8 +457,8 @@ export const MOCK_PRODUCTS: Product[] = [
       'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=1000&q=80'
     ],
     description: 'The viral bulbous teardrop earrings you have seen on the runway, crafted for ultra-lightweight all-day comfort. Features a secure snap hinge and a high-shine mirrored finish.',
-    shortDescription: 'Ultra-lightweight viral teardrop earrings. 18K gold, hypoallergenic.',
-    material: 'Hollow 316L Titanium Steel with 18K Gold PVD',
+    shortDescription: 'Ultra-lightweight viral teardrop earrings. Gold finish, hypoallergenic.',
+    material: 'Hollow 316L Titanium Steel with Gold PVD',
     antiTarnishGuarantee: '100% Tarnish-Free & Waterproof',
     waterproof: true,
     hypoallergenic: true,
@@ -466,7 +466,7 @@ export const MOCK_PRODUCTS: Product[] = [
       '✨ Hollow interior—does NOT drag your earlobes down (only 3.8g per earring!)',
       '✨ Secure click-lock clicker clasp',
       '✨ 100% hypoallergenic for the most sensitive ears',
-      '✨ 18K lustrous deep gold shine'
+      '✨ Lustrous deep gold shine'
     ],
     careInstructions: ['Simply wipe clean with a dry cloth'],
     specs: {
@@ -493,9 +493,9 @@ export const MOCK_PRODUCTS: Product[] = [
       'https://images.unsplash.com/photo-1611591475102-4fa0f930e181?auto=format&fit=crop&w=1000&q=80',
       'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=1000&q=80'
     ],
-    description: 'Sparkling baguette cut AAA Cubic Zirconia emerald gems prong-set on an 18K gold waterproof band. Captures the light like genuine mined emeralds without the high price tag.',
-    shortDescription: 'AAA Cubic Zirconia emerald tennis bracelet on anti-tarnish 18K gold band.',
-    material: '316L Stainless Steel + 18K Gold PVD + AAA Grade CZ Crystals',
+    description: 'Sparkling baguette cut AAA Cubic Zirconia emerald gems prong-set on a gold waterproof band. Captures the light like genuine mined emeralds without the high price tag.',
+    shortDescription: 'AAA Cubic Zirconia emerald tennis bracelet on anti-tarnish gold band.',
+    material: '316L Stainless Steel + Gold PVD + AAA Grade CZ Crystals',
     antiTarnishGuarantee: 'Waterproof & Tarnish Resistant Guarantee',
     waterproof: true,
     hypoallergenic: true,
@@ -529,7 +529,7 @@ export const MOCK_PRODUCTS: Product[] = [
     ],
     description: 'Ward off bad energy in style. Natural iridescent mother of pearl evil eye bezel-set on a delicate gold satellite bead chain that never rusts even on beach getaways.',
     shortDescription: 'Iridescent mother of pearl evil eye on waterproof satellite chain.',
-    material: '316L Stainless Steel with 18K Gold PVD & Genuine Mother of Pearl',
+    material: '316L Stainless Steel with Gold PVD & Genuine Mother of Pearl',
     antiTarnishGuarantee: '100% Sea-water & Beach-proof',
     waterproof: true,
     hypoallergenic: true,
@@ -564,7 +564,7 @@ export const MOCK_PRODUCTS: Product[] = [
     ],
     description: 'A 2-pair bundle featuring our bestselling braided rope hoops and chunky mini croissant hoops. Mix and match for curated ear stack goals.',
     shortDescription: 'Pack of 2 anti-tarnish hoops: 1 Braided Rope + 1 Croissant Hoop.',
-    material: '316L Stainless Steel with 18K Gold PVD',
+    material: '316L Stainless Steel with Gold PVD',
     antiTarnishGuarantee: 'Lifetime Anti-Tarnish Guarantee',
     waterproof: true,
     hypoallergenic: true,
@@ -597,8 +597,8 @@ export const MOCK_PRODUCTS: Product[] = [
       'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=1000&q=80'
     ],
     description: 'Timeless luxury inspired by high European jewelry houses. Precision laser-engraved Roman numerals centered with a brilliant round brilliant solitaire crystal with invisible push-clasp.',
-    shortDescription: '18K gold Roman numeral oval bangle with solitaire crystal.',
-    material: '316L Stainless Steel + 18K Real Gold PVD + Brilliant Cut CZ',
+    shortDescription: 'Gold Roman numeral oval bangle with solitaire crystal.',
+    material: '316L Stainless Steel + Real Gold PVD + Brilliant Cut CZ',
     antiTarnishGuarantee: '100% Anti-Tarnish & Waterproof Guarantee',
     waterproof: true,
     hypoallergenic: true,
@@ -628,7 +628,7 @@ export const MOCK_REVIEWS: Review[] = [
     title: 'Literally never taking this off!!',
     comment: 'I was so skeptical about "waterproof" claims, but I have worn my Croissant ring and Snake chain every day in the shower and gym for 3 weeks now. Still blindingly shiny and zero green skin! Girly Tales is my new obsession.',
     verified: true,
-    productName: '18K Gold Plated Chunky Croissant Dome Ring'
+    productName: 'Gold Plated Chunky Croissant Dome Ring'
   },
   {
     id: 'rev-2',
@@ -688,7 +688,7 @@ export const INSTAGRAM_POSTS = [
     id: 'ig-4',
     image: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=600&q=80',
     handle: '@girlytalesofficial',
-    caption: 'Layered perfection with our 18K celestial pearls ✨ Tap link in bio to shop.',
+    caption: 'Layered perfection with our celestial pearls ✨ Tap link in bio to shop.',
     likes: '3.3k'
   }
 ];

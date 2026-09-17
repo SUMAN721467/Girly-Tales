@@ -18,7 +18,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               <img src={logoLine} alt="Girly Tales" className="h-8 w-auto object-contain brightness-0 invert" />
             </div>
             <p className="text-white/70 leading-relaxed max-w-xs">
-              Everyday comfort &amp; shine. Cloud-soft night suits and 18K gold-plated anti-tarnish jewellery designed in India.
+              Everyday comfort &amp; shine. Cloud-soft night suits and gold-plated anti-tarnish jewellery designed in India.
             </p>
             <div className="flex items-center space-x-3 pt-2">
               <a
@@ -60,7 +60,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               </li>
               <li>
                 <button onClick={() => onNavigate('shop', 'jewellery')} className="hover:text-white hover:underline">
-                  Anti-Tarnish 18K Jewellery
+                  Anti-Tarnish Jewellery
                 </button>
               </li>
               <li>

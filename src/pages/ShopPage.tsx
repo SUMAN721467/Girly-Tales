@@ -280,7 +280,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
           {category === 'nightwear'
             ? 'Nightwear & Sleepsuits'
             : category === 'jewellery'
-            ? '18K Anti-Tarnish Jewellery'
+            ? 'Anti-Tarnish Jewellery'
             : category === 'all'
             ? 'All Collections'
             : category.toUpperCase()}
@@ -289,7 +289,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
           {category === 'nightwear'
             ? 'Ultra-soft pure cotton and mulberry silk sets designed for sweet dreams and slow mornings.'
             : category === 'jewellery'
-            ? 'Real 18K gold vacuum PVD plating over medical grade steel. 100% waterproof.'
+            ? 'Anti-tarnish vacuum PVD plating over medical grade steel. 100% waterproof.'
             : 'Explore our complete range of night suits, pyjama sets, waterproof rings, and necklaces.'}
         </p>
       </div>

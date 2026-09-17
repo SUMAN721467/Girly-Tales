@@ -103,7 +103,7 @@ export const EmailService = {
           <div class="content">
             <h2 style="color: #2D2D2D; font-size: 20px; margin-top: 0;">Thank you for your order, ${order.customerName}!</h2>
             <p style="color: #666; font-size: 14px; line-height: 1.6;">
-              We have received your order <strong>#${order.id}</strong>. Our team is already preparing your luxury Mulberry Silk & 18K Anti-Tarnish pieces with care.
+              We have received your order <strong>#${order.id}</strong>. Our team is already preparing your luxury Mulberry Silk & Anti-Tarnish Jewellery pieces with care.
             </p>
 
             <div class="order-box">
@@ -143,7 +143,7 @@ export const EmailService = {
             </p>
           </div>
           <div class="footer">
-            © ${new Date().getFullYear()} Girly Tales India · 18K Anti-Tarnish Jewellery & Mulberry Silk Nightwear
+            © ${new Date().getFullYear()} Girly Tales India · Anti-Tarnish Jewellery & Mulberry Silk Nightwear
           </div>
         </div>
       </body>

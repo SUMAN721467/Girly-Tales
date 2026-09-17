@@ -84,7 +84,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
         {isJewellery ? (
           <div className="absolute top-4 left-4 bg-brand-charcoal/80 backdrop-blur-md text-brand-butter px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-sm">
             <Sparkles className="w-3.5 h-3.5 text-brand-butter" />
-            <span>18K PVD Anti-Tarnish</span>
+            <span>Anti-Tarnish Jewellery</span>
           </div>
         ) : (
           <div className="absolute top-4 left-4 bg-brand-lilac/90 backdrop-blur-md text-white px-3 py-1 rounded-full text-xs font-semibold shadow-sm">
