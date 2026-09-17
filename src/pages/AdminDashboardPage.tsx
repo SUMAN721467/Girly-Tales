@@ -8,7 +8,7 @@ import {
   UploadCloud, Image as ImageIcon, MoveLeft, MoveRight, Star, Loader2,
   MapPin, Send, Mail, Phone, Calendar, MessageSquare,
   Heart, ShoppingCart, User, Ticket, Quote,
-  ChevronDown, ChevronUp, Smartphone
+  ChevronDown, ChevronUp, Smartphone, Feather, HeartHandshake, Gift
 } from 'lucide-react';
 import { Product } from '../types/product';
 import { useCart } from '../context/CartContext';
@@ -79,6 +79,47 @@ const getInitials = (name?: string, email?: string): string => {
     return email.slice(0, 2).toUpperCase();
   }
   return 'GT';
+};
+
+const renderValuePropIcon = (iconStr?: string) => {
+  if (!iconStr) return <Sparkles className="w-5 h-5 text-[#967BB6]" />;
+  const clean = iconStr.trim().toLowerCase();
+
+  switch (clean) {
+    case 'shieldcheck':
+    case 'shield':
+    case 'shield-check':
+      return <ShieldCheck className="w-5 h-5 text-[#967BB6]" />;
+    case 'feather':
+      return <Feather className="w-5 h-5 text-[#967BB6]" />;
+    case 'truck':
+    case 'delivery':
+      return <Truck className="w-5 h-5 text-[#967BB6]" />;
+    case 'rotateccw':
+    case 'rotate-ccw':
+    case 'exchange':
+      return <RotateCcw className="w-5 h-5 text-[#967BB6]" />;
+    case 'refreshcw':
+    case 'refresh':
+      return <RefreshCw className="w-5 h-5 text-[#967BB6]" />;
+    case 'hearthandshake':
+    case 'heart-handshake':
+    case 'returns':
+      return <RotateCcw className="w-5 h-5 text-[#967BB6]" />;
+    case 'gift':
+      return <Gift className="w-5 h-5 text-[#967BB6]" />;
+    case 'checkcircle':
+    case 'check':
+      return <CheckCircle className="w-5 h-5 text-[#967BB6]" />;
+    case 'star':
+      return <Star className="w-5 h-5 text-[#967BB6]" />;
+    case 'heart':
+      return <Heart className="w-5 h-5 text-[#967BB6]" />;
+    case 'clock':
+      return <Clock className="w-5 h-5 text-[#967BB6]" />;
+    default:
+      return <span className="text-lg">{iconStr}</span>;
+  }
 };
 
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNavigate }) => {
@@ -7101,12 +7142,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                       </span>
 
                       <div>
-                        <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">
-                          Icon / Emoji
-                        </label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-[10px] font-bold uppercase text-brand-muted">
+                            Icon / Emoji
+                          </label>
+                          <div className="w-7 h-7 rounded-lg bg-[#967BB6]/15 flex items-center justify-center text-[#967BB6]">
+                            {renderValuePropIcon(vp.icon)}
+                          </div>
+                        </div>
                         <input
                           type="text"
                           value={vp.icon}
+                          placeholder="e.g. ShieldCheck, Feather, Truck, ✨"
                           onChange={(e) => {
                             const val = e.target.value;
                             setHomepageConfig((prev) => ({
@@ -7114,7 +7161,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                               valueProps: prev.valueProps.map((v, i) => (i === idx ? { ...v, icon: val } : v)),
                             }));
                           }}
-                          className="w-full px-3 py-1.5 bg-white border border-[#EAE6DB] rounded-xl text-center text-lg focus:outline-none focus:border-[#967BB6]"
+                          className="w-full px-3 py-1.5 bg-white border border-[#EAE6DB] rounded-xl text-center text-xs font-mono font-bold focus:outline-none focus:border-[#967BB6]"
                         />
                       </div>
 

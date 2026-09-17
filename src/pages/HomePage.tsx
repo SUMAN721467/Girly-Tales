@@ -1,4 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  ShieldCheck, Feather, Truck, HeartHandshake, Sparkles, 
+  Package, RefreshCw, RotateCcw, Gift, CheckCircle, 
+  Star, Heart, Clock, Award, Headphones 
+} from 'lucide-react';
 import { Product } from '../types/product';
 import { ProductCard } from '../components/product/ProductCard';
 import { BannerCarousel } from '../components/home/BannerCarousel';
@@ -12,6 +17,52 @@ import { isSupabaseConfigured } from '../lib/supabase';
 import { MOCK_PRODUCTS } from '../data/products';
 import slide1 from '../assets/slide1.jpg';
 import slide2 from '../assets/slide2.jpg';
+
+const renderValuePropIcon = (iconStr?: string) => {
+  if (!iconStr) return <Sparkles className="w-6 h-6 text-[#967BB6]" />;
+  const clean = iconStr.trim().toLowerCase();
+
+  switch (clean) {
+    case 'shieldcheck':
+    case 'shield':
+    case 'shield-check':
+      return <ShieldCheck className="w-6 h-6 sm:w-7 sm:h-7 text-[#967BB6]" />;
+    case 'feather':
+      return <Feather className="w-6 h-6 sm:w-7 sm:h-7 text-[#967BB6]" />;
+    case 'truck':
+    case 'delivery':
+      return <Truck className="w-6 h-6 sm:w-7 sm:h-7 text-[#967BB6]" />;
+    case 'rotateccw':
+    case 'rotate-ccw':
+    case 'exchange':
+      return <RotateCcw className="w-6 h-6 sm:w-7 sm:h-7 text-[#967BB6]" />;
+    case 'refreshcw':
+    case 'refresh':
+      return <RefreshCw className="w-6 h-6 sm:w-7 sm:h-7 text-[#967BB6]" />;
+    case 'hearthandshake':
+    case 'heart-handshake':
+    case 'returns':
+      return <RotateCcw className="w-6 h-6 sm:w-7 sm:h-7 text-[#967BB6]" />;
+    case 'gift':
+      return <Gift className="w-6 h-6 sm:w-7 sm:h-7 text-[#967BB6]" />;
+    case 'checkcircle':
+    case 'check':
+      return <CheckCircle className="w-6 h-6 sm:w-7 sm:h-7 text-[#967BB6]" />;
+    case 'star':
+      return <Star className="w-6 h-6 sm:w-7 sm:h-7 text-[#967BB6]" />;
+    case 'heart':
+      return <Heart className="w-6 h-6 sm:w-7 sm:h-7 text-[#967BB6]" />;
+    case 'clock':
+      return <Clock className="w-6 h-6 sm:w-7 sm:h-7 text-[#967BB6]" />;
+    case 'award':
+      return <Award className="w-6 h-6 sm:w-7 sm:h-7 text-[#967BB6]" />;
+    case 'headphones':
+    case 'support':
+      return <Headphones className="w-6 h-6 sm:w-7 sm:h-7 text-[#967BB6]" />;
+    default:
+      return <span className="text-xl sm:text-2xl">{iconStr}</span>;
+  }
+};
 
 interface HomePageProps {
   onNavigate: (page: string, category?: string) => void;
@@ -273,19 +324,33 @@ export const HomePage: React.FC<HomePageProps> = ({
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 sm:mt-16">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-4 bg-white border border-[#EAE6DB] p-4 sm:p-6 text-center">
           {(homeConfig.valueProps && homeConfig.valueProps.length > 0 ? homeConfig.valueProps : [
-            { id: '1', icon: '✨', title: '100% Anti-Tarnish', description: 'Real 18K Gold Vacuum Plating' },
-            { id: '2', icon: '🌿', title: 'Pure Breathable Cotton', description: 'Soft, airy & gentle on skin' },
-            { id: '3', icon: '📦', title: 'Fast Pan-India Delivery', description: 'Express 24h dispatch' },
-            { id: '4', icon: '💕', title: 'Designed For Her', description: 'Effortless everyday fit' },
-          ]).map((vp) => (
-            <div key={vp.id} className="space-y-1 p-2">
-              <span className="text-xl sm:text-2xl">{vp.icon}</span>
-              <h4 className="font-bold text-[11px] sm:text-xs uppercase tracking-wider text-brand-charcoal">
-                {vp.title}
-              </h4>
-              <p className="text-[10px] sm:text-[11px] text-brand-muted">{vp.description}</p>
-            </div>
-          ))}
+            { id: '1', icon: 'ShieldCheck', title: '100% Anti-Tarnish', description: 'Real 18K Gold Vacuum Plating' },
+            { id: '2', icon: 'Feather', title: 'Cloud-Soft Fabrics', description: 'Soft, airy & gentle on skin' },
+            { id: '3', icon: 'Truck', title: 'Fast Pan-India Delivery', description: 'Express 24h dispatch' },
+            { id: '4', icon: 'RotateCcw', title: 'Hassle-Free Exchange', description: '7-Day Easy Doorstep Exchange' },
+          ]).map((rawVp) => {
+            const isReturns = /return/i.test(rawVp.title);
+            const vp = isReturns
+              ? {
+                  ...rawVp,
+                  icon: 'RotateCcw',
+                  title: 'Hassle-Free Exchange',
+                  description: !/return/i.test(rawVp.description) ? rawVp.description : '7-Day Easy Doorstep Exchange',
+                }
+              : rawVp;
+
+            return (
+              <div key={vp.id} className="space-y-1.5 p-2 flex flex-col items-center text-center">
+                <div className="w-10 h-10 rounded-2xl bg-[#967BB6]/10 flex items-center justify-center text-[#967BB6] mb-1">
+                  {renderValuePropIcon(vp.icon)}
+                </div>
+                <h4 className="font-bold text-[11px] sm:text-xs uppercase tracking-wider text-brand-charcoal">
+                  {vp.title}
+                </h4>
+                <p className="text-[10px] sm:text-[11px] text-brand-muted">{vp.description}</p>
+              </div>
+            );
+          })}
         </div>
       </section>
     </div>

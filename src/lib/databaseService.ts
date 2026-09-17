@@ -739,27 +739,27 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
   valueProps: [
     {
       id: 'vp-1',
-      icon: '✨',
+      icon: 'ShieldCheck',
       title: '100% Anti-Tarnish',
       description: 'Real 18K Gold Vacuum Plating',
     },
     {
       id: 'vp-2',
-      icon: '🌿',
-      title: 'Pure Breathable Cotton',
+      icon: 'Feather',
+      title: 'Cloud-Soft Fabrics',
       description: 'Soft, airy & gentle on skin',
     },
     {
       id: 'vp-3',
-      icon: '📦',
+      icon: 'Truck',
       title: 'Fast Pan-India Delivery',
       description: 'Express 24h dispatch',
     },
     {
       id: 'vp-4',
-      icon: '💕',
-      title: 'Designed For Her',
-      description: 'Effortless everyday fit',
+      icon: 'RotateCcw',
+      title: 'Hassle-Free Exchange',
+      description: '7-Day Easy Doorstep Exchange',
     },
   ],
 };
@@ -805,6 +805,31 @@ export const ensureFiveCategoryCards = (cards?: any[]): HomeCategoryCard[] => {
   }
 
   return result;
+};
+
+export const sanitizeValueProps = (props?: any[]): HomeValueProp[] => {
+  const defaults = DEFAULT_HOMEPAGE_CONFIG.valueProps;
+  if (!props || !Array.isArray(props) || props.length === 0) {
+    return defaults;
+  }
+  return props.map((vp, idx) => {
+    const title = String(vp?.title || '').trim();
+    const isReturns = /return/i.test(title);
+    if (isReturns) {
+      return {
+        id: vp?.id || `vp-${idx + 1}`,
+        icon: 'RotateCcw',
+        title: 'Hassle-Free Exchange',
+        description: vp?.description && !/return/i.test(vp.description) ? vp.description : '7-Day Easy Doorstep Exchange',
+      };
+    }
+    return {
+      id: vp?.id || `vp-${idx + 1}`,
+      icon: vp?.icon || defaults[idx]?.icon || 'Sparkles',
+      title: title || defaults[idx]?.title || '',
+      description: vp?.description ?? defaults[idx]?.description ?? '',
+    };
+  });
 };
 
 export const SEED_CATEGORIES: RealCategory[] = [
@@ -4721,7 +4746,8 @@ export const DatabaseService = {
           const parsed = JSON.parse(saved);
           if (parsed && typeof parsed === 'object') {
             const cleanCards = ensureFiveCategoryCards(parsed.categoryCards);
-            inMemoryHomepageConfig = { ...DEFAULT_HOMEPAGE_CONFIG, ...parsed, categoryCards: cleanCards };
+            const cleanProps = sanitizeValueProps(parsed.valueProps);
+            inMemoryHomepageConfig = { ...DEFAULT_HOMEPAGE_CONFIG, ...parsed, categoryCards: cleanCards, valueProps: cleanProps };
             return inMemoryHomepageConfig;
           }
         }
@@ -4803,7 +4829,7 @@ export const DatabaseService = {
             influencerTitle: rawData.influencerTitle || DEFAULT_HOMEPAGE_CONFIG.influencerTitle,
             influencerSubtitle: rawData.influencerSubtitle || DEFAULT_HOMEPAGE_CONFIG.influencerSubtitle,
             influencerReels: Array.isArray(rawData.influencerReels) && rawData.influencerReels.length > 0 ? rawData.influencerReels : DEFAULT_HOMEPAGE_CONFIG.influencerReels,
-            valueProps: Array.isArray(rawData.valueProps) && rawData.valueProps.length > 0 ? rawData.valueProps : DEFAULT_HOMEPAGE_CONFIG.valueProps,
+            valueProps: sanitizeValueProps(rawData.valueProps),
           };
 
           inMemoryHomepageConfig = merged;
@@ -4847,6 +4873,7 @@ export const DatabaseService = {
       ...config,
       heroBanners: cleanBanners,
       categoryCards: cleanCards,
+      valueProps: sanitizeValueProps(config.valueProps),
     };
     const payload = {
       key: 'homepage_config',
