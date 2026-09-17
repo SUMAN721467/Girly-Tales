@@ -740,8 +740,8 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
     {
       id: 'vp-1',
       icon: 'ShieldCheck',
-      title: '100% Anti-Tarnish',
-      description: 'Real 18K Gold Vacuum Plating',
+      title: 'Anti-Tarnish Guarantee',
+      description: '316-L Stainless Steel',
     },
     {
       id: 'vp-2',
@@ -821,6 +821,15 @@ export const sanitizeValueProps = (props?: any[]): HomeValueProp[] => {
         icon: 'RotateCcw',
         title: 'Hassle-Free Exchange',
         description: vp?.description && !/return/i.test(vp.description) ? vp.description : '7-Day Easy Doorstep Exchange',
+      };
+    }
+    const isAntiTarnish = /anti[- ]?tarnish/i.test(title) || /vacuum plating/i.test(String(vp?.description || ''));
+    if (isAntiTarnish) {
+      return {
+        id: vp?.id || `vp-${idx + 1}`,
+        icon: 'ShieldCheck',
+        title: title || 'Anti-Tarnish Guarantee',
+        description: '316-L Stainless Steel',
       };
     }
     return {

@@ -324,20 +324,29 @@ export const HomePage: React.FC<HomePageProps> = ({
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 sm:mt-16">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-4 bg-white border border-[#EAE6DB] p-4 sm:p-6 text-center">
           {(homeConfig.valueProps && homeConfig.valueProps.length > 0 ? homeConfig.valueProps : [
-            { id: '1', icon: 'ShieldCheck', title: '100% Anti-Tarnish', description: 'Real 18K Gold Vacuum Plating' },
+            { id: '1', icon: 'ShieldCheck', title: 'Anti-Tarnish Guarantee', description: '316-L Stainless Steel' },
             { id: '2', icon: 'Feather', title: 'Cloud-Soft Fabrics', description: 'Soft, airy & gentle on skin' },
             { id: '3', icon: 'Truck', title: 'Fast Pan-India Delivery', description: 'Express 24h dispatch' },
             { id: '4', icon: 'RotateCcw', title: 'Hassle-Free Exchange', description: '7-Day Easy Doorstep Exchange' },
           ]).map((rawVp) => {
             const isReturns = /return/i.test(rawVp.title);
-            const vp = isReturns
-              ? {
-                  ...rawVp,
-                  icon: 'RotateCcw',
-                  title: 'Hassle-Free Exchange',
-                  description: !/return/i.test(rawVp.description) ? rawVp.description : '7-Day Easy Doorstep Exchange',
-                }
-              : rawVp;
+            const isAntiTarnish = /anti[- ]?tarnish/i.test(rawVp.title) || /vacuum plating/i.test(String(rawVp.description || ''));
+            let vp = rawVp;
+            if (isReturns) {
+              vp = {
+                ...rawVp,
+                icon: 'RotateCcw',
+                title: 'Hassle-Free Exchange',
+                description: !/return/i.test(rawVp.description) ? rawVp.description : '7-Day Easy Doorstep Exchange',
+              };
+            } else if (isAntiTarnish) {
+              vp = {
+                ...rawVp,
+                icon: 'ShieldCheck',
+                title: rawVp.title || 'Anti-Tarnish Guarantee',
+                description: '316-L Stainless Steel',
+              };
+            }
 
             return (
               <div key={vp.id} className="space-y-1.5 p-2 flex flex-col items-center text-center">
