@@ -638,11 +638,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 modal-backdrop animate-fade-in"
       onClick={handleModalClose}
     >
       <div
-        className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl relative max-h-[92vh] overflow-y-auto animate-scale-in"
+        className={`bg-white rounded-3xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto animate-scale-in ${
+          step === 'success' ? 'max-w-md sm:max-w-lg p-4 sm:p-5' : 'max-w-2xl p-6 sm:p-8'
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close button */}
@@ -1167,38 +1169,38 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           </div>
         ) : (
           /* RICH LUXURY ORDER CONFIRMATION SCREEN WITH 5S REDIRECT */
-          <div className="py-4 sm:py-6 space-y-5 animate-scale-in">
+          <div className="py-2 sm:py-3 space-y-3.5 animate-scale-in">
             {/* 1. Header Celebratory Badge */}
-            <div className="text-center space-y-2">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-emerald-50 border-2 border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto shadow-md animate-bounce">
-                <CheckCircle2 className="w-9 h-9 sm:w-11 sm:h-11 stroke-[2.2]" />
+            <div className="text-center space-y-1">
+              <div className="w-12 h-12 rounded-full bg-emerald-50 border-2 border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto shadow-xs animate-bounce">
+                <CheckCircle2 className="w-7 h-7 stroke-[2.2]" />
               </div>
 
-              <span className="font-script text-2xl sm:text-3xl text-[#967BB6] block">
+              <span className="font-script text-xl sm:text-2xl text-[#967BB6] block">
                 Order Confirmed! 💕
               </span>
 
-              <h3 className="font-sans font-black text-xl sm:text-2xl text-brand-charcoal uppercase tracking-tight">
+              <h3 className="font-sans font-black text-base sm:text-lg text-brand-charcoal uppercase tracking-tight">
                 Thank You, {(confirmedOrder?.customerName || formData.name).split(' ')[0]}!
               </h3>
 
-              <p className="text-xs text-brand-muted max-w-md mx-auto leading-relaxed">
+              <p className="text-[11px] sm:text-xs text-brand-muted max-w-sm mx-auto leading-relaxed">
                 Your order has been recorded successfully. Live updates will be sent to <strong>{confirmedOrder?.phone || formData.phone}</strong>.
               </p>
             </div>
 
             {/* 2. Auto-redirect Countdown Notice */}
-            <div className="p-3.5 bg-gradient-to-r from-purple-50 via-[#FAF8F2] to-pink-50 rounded-2xl border border-[#967BB6]/30 text-xs flex flex-col sm:flex-row items-center justify-between gap-2 shadow-2xs">
+            <div className="p-2.5 bg-gradient-to-r from-purple-50 via-[#FAF8F2] to-pink-50 rounded-xl border border-[#967BB6]/30 text-[11px] flex items-center justify-between gap-2 shadow-2xs">
               <div className="flex items-center gap-2 text-brand-charcoal font-bold">
-                <Clock className="w-4 h-4 text-[#967BB6] animate-spin" />
+                <Clock className="w-3.5 h-3.5 text-[#967BB6] animate-spin" />
                 <span>
                   Auto-redirecting to <strong className="text-[#967BB6]">My Orders</strong> in{' '}
-                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#967BB6] text-white text-xs font-black shadow-xs">
+                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#967BB6] text-white text-[10px] font-black shadow-xs">
                     {countdown}s
                   </span>
                 </span>
               </div>
-              <div className="w-full sm:w-32 bg-stone-200 h-1.5 rounded-full overflow-hidden">
+              <div className="w-24 sm:w-28 bg-stone-200 h-1.5 rounded-full overflow-hidden">
                 <div
                   className="bg-[#967BB6] h-full transition-all duration-1000 ease-linear"
                   style={{ width: `${(countdown / 5) * 100}%` }}
@@ -1207,16 +1209,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </div>
 
             {/* 3. Detailed Order Summary Card */}
-            <div className="bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl p-4 sm:p-5 space-y-3.5 text-xs text-left shadow-xs">
-              <div className="flex items-center justify-between border-b border-[#EAE6DB] pb-3">
+            <div className="bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl p-3 sm:p-3.5 space-y-2.5 text-[11px] text-left shadow-xs">
+              <div className="flex items-center justify-between border-b border-[#EAE6DB] pb-2">
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Order ID</span>
-                  <span className="font-mono font-bold text-sm text-brand-charcoal">#{confirmedOrder?.id || orderId}</span>
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-brand-muted block">Order ID</span>
+                  <span className="font-mono font-bold text-xs text-brand-charcoal">#{confirmedOrder?.id || orderId}</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => handleCopyOrderId(confirmedOrder?.id || orderId)}
-                  className="px-2.5 py-1 bg-white hover:bg-stone-50 border border-[#EAE6DB] rounded-lg text-[11px] font-bold text-brand-charcoal flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                  className="px-2 py-0.5 bg-white hover:bg-stone-50 border border-[#EAE6DB] rounded-lg text-[10px] font-bold text-brand-charcoal flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
                 >
                   {isCopiedId ? (
                     <>
@@ -1232,17 +1234,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-0.5">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted flex items-center gap-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
+                <div className="space-y-0.5">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-brand-muted flex items-center gap-1">
                     <UserIcon className="w-3 h-3 text-[#967BB6]" />
                     Customer Name
                   </span>
-                  <p className="font-bold text-brand-charcoal">{confirmedOrder?.customerName || formData.name}</p>
+                  <p className="font-bold text-brand-charcoal truncate">{confirmedOrder?.customerName || formData.name}</p>
                 </div>
 
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted flex items-center gap-1">
+                <div className="space-y-0.5">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-brand-muted flex items-center gap-1">
                     <Phone className="w-3 h-3 text-[#967BB6]" />
                     Mobile Number
                   </span>
@@ -1250,8 +1252,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
               </div>
 
-              <div className="space-y-1 pt-1 border-t border-[#EAE6DB]">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted flex items-center gap-1">
+              <div className="space-y-0.5 pt-1.5 border-t border-[#EAE6DB]">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-brand-muted flex items-center gap-1">
                   <MapPin className="w-3 h-3 text-[#967BB6]" />
                   Shipping Address
                 </span>
@@ -1261,16 +1263,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </p>
               </div>
 
-              <div className="flex items-center justify-between pt-2 border-t border-[#EAE6DB] text-xs">
+              <div className="flex items-center justify-between pt-1.5 border-t border-[#EAE6DB] text-[11px]">
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Payment Method</span>
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-brand-muted block">Payment Method</span>
                   <span className="font-bold text-brand-charcoal">
                     {confirmedOrder?.paymentMethod || (paymentMethod === 'cod' ? 'Cash on Delivery' : 'Online Prepaid (Razorpay)')}
                   </span>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">Total Amount</span>
-                  <span className="font-black text-sm sm:text-base text-[#967BB6]">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-brand-muted block">Total Amount</span>
+                  <span className="font-black text-xs sm:text-sm text-[#967BB6]">
                     ₹{(confirmedOrder?.total ?? finalTotal).toLocaleString('en-IN')}.00
                   </span>
                 </div>
@@ -1281,25 +1283,25 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 const orderItems = normalizeOrderItems(confirmedOrder?.items);
                 if (orderItems.length === 0) return null;
                 return (
-                  <div className="pt-2 border-t border-[#EAE6DB] space-y-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-brand-muted block">
+                  <div className="pt-1.5 border-t border-[#EAE6DB] space-y-1.5">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-brand-muted block">
                       Ordered Items ({orderItems.length})
                     </span>
-                    <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                    <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
                       {orderItems.map((item, idx) => (
                         <div key={idx} className="flex items-center justify-between gap-2 p-1.5 rounded-lg bg-white border border-[#EAE6DB]">
                           <div className="flex items-center gap-2 min-w-0">
                             {item.image && (
-                              <img src={item.image} alt={item.name} className="w-9 h-9 rounded object-cover border border-[#EAE6DB] shrink-0" />
+                              <img src={item.image} alt={item.name} className="w-8 h-8 rounded object-cover border border-[#EAE6DB] shrink-0" />
                             )}
                             <div className="min-w-0">
-                              <p className="font-bold text-brand-charcoal text-[11px] truncate">{item.name}</p>
-                              <p className="text-[10px] text-brand-muted">
+                              <p className="font-bold text-brand-charcoal text-[10px] truncate">{item.name}</p>
+                              <p className="text-[9px] text-brand-muted">
                                 Qty: {item.quantity} {item.size ? `• Size: ${item.size}` : ''}
                               </p>
                             </div>
                           </div>
-                          <span className="font-bold text-xs text-brand-charcoal shrink-0">
+                          <span className="font-bold text-[11px] text-brand-charcoal shrink-0">
                             ₹{(item.price * item.quantity).toLocaleString('en-IN')}
                           </span>
                         </div>
@@ -1309,18 +1311,18 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 );
               })()}
 
-              <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-800 text-[11px] font-medium flex items-center gap-2">
-                <Truck className="w-4 h-4 text-emerald-600 shrink-0" />
+              <div className="p-2 bg-emerald-50 rounded-lg border border-emerald-200 text-emerald-800 text-[10px] font-medium flex items-center gap-1.5">
+                <Truck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 <span>Estimated Delivery: 2 - 4 Business Days • Express Pan-India Dispatch</span>
               </div>
             </div>
 
             {/* 4. Action Buttons */}
-            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
               <button
                 type="button"
                 onClick={handleGoToOrders}
-                className="w-full sm:flex-1 py-3.5 px-5 bg-[#967BB6] hover:bg-[#7F62A1] text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+                className="w-full sm:flex-1 py-2.5 px-4 bg-[#967BB6] hover:bg-[#7F62A1] text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
               >
                 <Package className="w-4 h-4" />
                 <span>Go to My Orders ({countdown}s)</span>
@@ -1329,7 +1331,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <button
                 type="button"
                 onClick={handleContinueShopping}
-                className="w-full sm:flex-1 py-3.5 px-5 bg-[#FAF8F2] hover:bg-[#fffeea] text-brand-charcoal font-bold text-xs uppercase tracking-wider rounded-2xl border border-[#EAE6DB] transition-all cursor-pointer flex items-center justify-center gap-2"
+                className="w-full sm:flex-1 py-2.5 px-4 bg-[#FAF8F2] hover:bg-[#fffeea] text-brand-charcoal font-bold text-xs uppercase tracking-wider rounded-xl border border-[#EAE6DB] transition-all cursor-pointer flex items-center justify-center gap-2"
               >
                 <ShoppingBag className="w-4 h-4 text-brand-muted" />
                 <span>Continue Shopping</span>

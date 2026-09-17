@@ -36,7 +36,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       submessage?: string,
       product?: Product,
       type: 'cart' | 'wishlist' | 'info' | 'success' | 'error' = 'cart',
-      duration = 1500
+      duration = 5000
     ) => {
       const id = Date.now().toString() + Math.random().toString(36).substring(2, 5);
       const newToast: ToastData = { id, message, submessage, product, type };

@@ -8,7 +8,7 @@ export const ToastContainer: React.FC = () => {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed top-4 right-4 sm:top-6 sm:right-6 z-[9999] flex flex-col gap-2.5 max-w-[calc(100vw-2rem)] sm:max-w-sm w-full pointer-events-none">
+    <div className="fixed top-3 right-3 sm:top-5 sm:right-5 z-[9999] flex flex-col gap-2 max-w-[calc(100vw-1.5rem)] sm:max-w-xs w-full pointer-events-none">
       {toasts.map((toast) => {
         const isCart = toast.type === 'cart';
         const isWishlist = toast.type === 'wishlist';
@@ -17,18 +17,18 @@ export const ToastContainer: React.FC = () => {
         return (
           <div
             key={toast.id}
-            className="pointer-events-auto flex items-center gap-3 bg-white/95 backdrop-blur-md p-3.5 rounded-2xl shadow-card border border-brand-lilac/20 animate-toast-in transition-all hover:shadow-lg"
+            className="pointer-events-auto flex items-center gap-2.5 bg-white/95 backdrop-blur-md p-2.5 sm:p-3 rounded-xl shadow-lg border border-[#EAE6DB] animate-toast-in transition-all hover:shadow-xl"
           >
             {/* Image or Icon */}
             {toast.product ? (
               <img
                 src={toast.product.images[0]}
                 alt={toast.product.name}
-                className="w-12 h-12 rounded-xl object-cover border border-brand-border shrink-0"
+                className="w-10 h-10 rounded-lg object-cover border border-brand-border shrink-0"
               />
             ) : (
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
                   isError
                     ? 'bg-rose-50 text-rose-600'
                     : isWishlist
@@ -39,13 +39,13 @@ export const ToastContainer: React.FC = () => {
                 }`}
               >
                 {isError ? (
-                  <AlertCircle className="w-5 h-5 text-rose-600" />
+                  <AlertCircle className="w-4 h-4 text-rose-600" />
                 ) : isWishlist ? (
-                  <Heart className="w-5 h-5 fill-rose-500" />
+                  <Heart className="w-4 h-4 fill-rose-500" />
                 ) : isCart ? (
-                  <ShoppingBag className="w-5 h-5" />
+                  <ShoppingBag className="w-4 h-4" />
                 ) : (
-                  <CheckCircle className="w-5 h-5" />
+                  <CheckCircle className="w-4 h-4" />
                 )}
               </div>
             )}
