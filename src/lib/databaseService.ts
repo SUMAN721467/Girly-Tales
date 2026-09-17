@@ -206,6 +206,13 @@ export const notifyDatabaseChange = (
 ) => {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('gt_db_sync', { detail: { type } }));
+    if ('BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('gt_db_sync_channel');
+        bc.postMessage({ type, timestamp: Date.now() });
+        bc.close();
+      } catch {}
+    }
   }
 };
 
@@ -5167,15 +5174,14 @@ export const DatabaseService = {
       couriers: ['BlueDart Express', 'Delhivery Surface', 'DTDC Prime'],
     };
 
-    let localSaved: ShippingRules | null = null;
+    // Clean up any legacy localStorage so browser storage is never used
     if (typeof window !== 'undefined') {
       try {
-        const raw = localStorage.getItem('girly_tales_shipping_rules_v1');
-        if (raw) localSaved = JSON.parse(raw);
+        localStorage.removeItem('girly_tales_shipping_rules_v1');
       } catch {}
     }
 
-    if (!isSupabaseConfigured) return inMemoryShippingRules || localSaved || defaultRules;
+    if (!isSupabaseConfigured) return inMemoryShippingRules || defaultRules;
 
     try {
       const client = requireSupabase();
@@ -5204,41 +5210,39 @@ export const DatabaseService = {
           ? Boolean(ruleData.is_enabled) 
           : (ruleData.enabled !== undefined 
               ? Boolean(ruleData.enabled) 
-              : (localSaved?.enabled !== undefined ? localSaved.enabled : true));
+              : true);
 
         inMemoryShippingRules = {
           id: ruleData.id || 'default',
           enabled: isEnabled,
-          freeThreshold: Number(ruleData.free_threshold) || 999,
-          standardRate: Number(ruleData.standard_rate) || 99,
-          expressRate: Number(ruleData.express_rate) || 199,
-          codHandlingFee: Number(ruleData.cod_handling_fee) || 49,
+          freeThreshold: Number(ruleData.free_threshold ?? 999),
+          standardRate: Number(ruleData.standard_rate ?? 99),
+          expressRate: Number(ruleData.express_rate ?? 199),
+          codHandlingFee: Number(ruleData.cod_handling_fee ?? 49),
           estimatedDays: ruleData.estimated_days || '2 to 4 Business Days',
           couriers: parsedCouriers,
         };
 
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('girly_tales_shipping_rules_v1', JSON.stringify(inMemoryShippingRules));
-          } catch {}
-        }
-
         return inMemoryShippingRules;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('Failed to fetch shipping rules from database:', e);
+    }
 
-    return inMemoryShippingRules || localSaved || defaultRules;
+    return inMemoryShippingRules || defaultRules;
   },
 
   async updateShippingRules(rules: Partial<ShippingRules>): Promise<void> {
     const current = await this.getShippingRules();
     const merged: ShippingRules = { ...current, ...rules };
 
-    // Persist locally immediately for flawless offline/realtime reactivity
+    // Keep active in-memory state
     inMemoryShippingRules = merged;
+
+    // Purge any local/browser storage key
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('girly_tales_shipping_rules_v1', JSON.stringify(merged));
+        localStorage.removeItem('girly_tales_shipping_rules_v1');
       } catch {}
     }
 
@@ -5250,12 +5254,12 @@ export const DatabaseService = {
         const fullPayload: any = {
           id: 'default',
           is_enabled: merged.enabled !== false,
-          free_threshold: merged.freeThreshold,
-          standard_rate: merged.standardRate,
-          express_rate: merged.expressRate,
-          cod_handling_fee: merged.codHandlingFee,
-          estimated_days: merged.estimatedDays,
-          couriers: merged.couriers,
+          free_threshold: Number(merged.freeThreshold) || 0,
+          standard_rate: Number(merged.standardRate) || 0,
+          express_rate: Number(merged.expressRate) || 0,
+          cod_handling_fee: Number(merged.codHandlingFee) || 0,
+          estimated_days: merged.estimatedDays || '2 to 4 Business Days',
+          couriers: merged.couriers || ['BlueDart Express', 'Delhivery Surface', 'DTDC Prime'],
           updated_at: new Date().toISOString(),
         };
 
@@ -5270,12 +5274,12 @@ export const DatabaseService = {
         )) {
           const legacyPayload: any = {
             id: 'default',
-            free_threshold: merged.freeThreshold,
-            standard_rate: merged.standardRate,
-            express_rate: merged.expressRate,
-            cod_handling_fee: merged.codHandlingFee,
-            estimated_days: merged.estimatedDays,
-            couriers: merged.couriers,
+            free_threshold: Number(merged.freeThreshold) || 0,
+            standard_rate: Number(merged.standardRate) || 0,
+            express_rate: Number(merged.expressRate) || 0,
+            cod_handling_fee: Number(merged.codHandlingFee) || 0,
+            estimated_days: merged.estimatedDays || '2 to 4 Business Days',
+            couriers: merged.couriers || ['BlueDart Express', 'Delhivery Surface', 'DTDC Prime'],
             updated_at: new Date().toISOString(),
           };
           const retryRes = await client.from('shipping_rules').upsert(legacyPayload, { onConflict: 'id' });
@@ -5286,11 +5290,13 @@ export const DatabaseService = {
         if (upsertErr) {
           const ok = await supabaseRestMutation('shipping_rules', 'POST', 'on_conflict=id', fullPayload, 'resolution=merge-duplicates,return=minimal');
           if (!ok) {
-            console.warn('Supabase updateShippingRules warning (changes persisted locally):', upsertErr);
+            console.error('Supabase updateShippingRules error:', upsertErr);
+            throw new Error(upsertErr.message || 'Failed to update shipping rules in database');
           }
         }
       } catch (err) {
-        console.warn('Supabase updateShippingRules error (changes persisted locally):', err);
+        console.error('Supabase updateShippingRules error:', err);
+        throw err;
       }
     }
 
@@ -5655,6 +5661,26 @@ export const DatabaseService = {
       }
     };
     window.addEventListener('gt_db_sync', handler);
-    return () => window.removeEventListener('gt_db_sync', handler);
+
+    let bc: BroadcastChannel | null = null;
+    if ('BroadcastChannel' in window) {
+      try {
+        bc = new BroadcastChannel('gt_db_sync_channel');
+        bc.onmessage = (event) => {
+          if (!event.data?.type || event.data.type === type || event.data.type === 'all') {
+            callback();
+          }
+        };
+      } catch {}
+    }
+
+    return () => {
+      window.removeEventListener('gt_db_sync', handler);
+      if (bc) {
+        try {
+          bc.close();
+        } catch {}
+      }
+    };
   },
 };

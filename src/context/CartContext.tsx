@@ -115,16 +115,47 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   useEffect(() => {
+    // 1. Initial direct load from cloud database
     DatabaseService.getShippingRules().then((rules) => {
       if (rules) setShippingRules(rules);
     }).catch(() => {});
 
+    // 2. Cross-tab and local broadcaster subscription
     const unsub = DatabaseService.subscribeToChanges('shipping', () => {
       DatabaseService.getShippingRules().then((rules) => {
         if (rules) setShippingRules(rules);
       }).catch(() => {});
     });
-    return () => unsub();
+
+    // 3. Supabase Realtime cloud listener (sync across different devices & all users)
+    let shippingChannel: any = null;
+    if (isSupabaseConfigured && supabase) {
+      try {
+        shippingChannel = supabase
+          .channel('shipping_rules_realtime_sync')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'shipping_rules' },
+            () => {
+              DatabaseService.getShippingRules().then((rules) => {
+                if (rules) setShippingRules(rules);
+              }).catch(() => {});
+            }
+          )
+          .subscribe();
+      } catch (e) {
+        console.warn('Realtime subscription on shipping_rules table failed:', e);
+      }
+    }
+
+    return () => {
+      unsub();
+      if (shippingChannel && supabase) {
+        try {
+          supabase.removeChannel(shippingChannel);
+        } catch {}
+      }
+    };
   }, []);
 
   const loadedUserRef = useRef<string | null>(null);
