@@ -2881,60 +2881,15 @@ export const DatabaseService = {
     const products = (allProductsList && allProductsList.length > 0) ? allProductsList : (inMemoryProducts.length > 0 ? inMemoryProducts : await this.getProducts());
     const customers = (allCustomersList && allCustomersList.length > 0) ? allCustomersList : inMemoryCustomers;
 
-    const resolveProduct = (productId: string): Product => {
-      if (!productId) {
-        return {
-          id: 'item',
-          name: 'Girly Tales Item',
-          slug: 'item',
-          category: 'nightwear',
-          subCategory: 'Curated Essentials',
-          price: 1299,
-          originalPrice: 1999,
-          discount: 35,
-          rating: 5,
-          reviewCount: 0,
-          images: ['https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80'],
-          description: '',
-          shortDescription: '',
-          material: 'Cotton / Silk',
-          features: [],
-          careInstructions: [],
-          specs: {},
-          inStock: true,
-          isNewArrival: false,
-          isBestSeller: false,
-        };
-      }
+    const resolveProduct = (productId: string): Product | null => {
+      if (!productId) return null;
       const cleanPid = String(productId).trim().toLowerCase();
       const matched = products.find(
         (p) =>
           String(p.id).trim().toLowerCase() === cleanPid ||
           String(p.slug).trim().toLowerCase() === cleanPid
       );
-      if (matched) return matched;
-      return {
-        id: productId,
-        name: `Product (${productId})`,
-        slug: productId,
-        category: 'nightwear',
-        subCategory: 'Curated Essentials',
-        price: 1299,
-        originalPrice: 1999,
-        discount: 35,
-        rating: 5,
-        reviewCount: 0,
-        images: ['https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80'],
-        description: '',
-        shortDescription: '',
-        material: 'Cotton / Silk',
-        features: [],
-        careInstructions: [],
-        specs: {},
-        inStock: true,
-        isNewArrival: false,
-        isBestSeller: false,
-      };
+      return matched || null;
     };
 
     const resolveCustomer = (rawUserId: string): {
@@ -3069,6 +3024,8 @@ export const DatabaseService = {
       if (!pid) return;
 
       const product = resolveProduct(pid);
+      if (!product) return; // Ignore and skip deleted / nonexistent catalog items
+
       const custInfo = resolveCustomer(uid);
       const qty = Number(row.quantity) || 1;
       const unitPrice = Number(product.price) || 0;
@@ -3157,6 +3114,8 @@ export const DatabaseService = {
       if (!pid) return;
 
       const product = resolveProduct(pid);
+      if (!product) return; // Ignore and skip deleted / nonexistent catalog items
+
       const custInfo = resolveCustomer(uid);
       const unitPrice = Number(product.price) || 0;
       const addedAt = row.created_at || row.createdAt || new Date().toISOString();

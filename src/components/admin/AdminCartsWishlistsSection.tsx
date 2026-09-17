@@ -166,20 +166,26 @@ export const AdminCartsWishlistsSection: React.FC<AdminCartsWishlistsSectionProp
     });
   }, [data, searchQuery, shopperFilter]);
 
-  // Filtered product demand
+  // Filtered product demand (only active products from catalog)
   const filteredProductDemands = useMemo(() => {
     if (!data) return [];
     const query = searchQuery.toLowerCase().trim();
+    const validProductIds = new Set(productsList.map((prod) => String(prod.id).toLowerCase().trim()));
+    const validProductSlugs = new Set(productsList.map((prod) => String(prod.slug).toLowerCase().trim()));
+
     return data.productDemands.filter((p) => {
+      const cleanPid = String(p.productId).toLowerCase().trim();
+      const existsInCatalog = validProductIds.has(cleanPid) || validProductSlugs.has(cleanPid);
+      if (!existsInCatalog) return false;
       if (!query) return true;
       return (
         p.productName.toLowerCase().includes(query) ||
         p.category.toLowerCase().includes(query)
       );
     });
-  }, [data, searchQuery]);
+  }, [data, searchQuery, productsList]);
 
-  const topDemandProduct = data?.productDemands?.[0];
+  const topDemandProduct = filteredProductDemands[0];
 
   return (
     <div className="space-y-6 animate-fade-in font-sans">
@@ -342,7 +348,7 @@ export const AdminCartsWishlistsSection: React.FC<AdminCartsWishlistsSectionProp
             }`}
           >
             <TrendingUp className="w-3.5 h-3.5" />
-            <span>Product Demand ({data?.productDemands.length || 0})</span>
+            <span>Product Demand ({filteredProductDemands.length})</span>
           </button>
         </div>
 
