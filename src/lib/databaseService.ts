@@ -1040,7 +1040,17 @@ try {
     const savedProds = localStorage.getItem(PRODUCTS_CACHE_KEY);
     if (savedProds) {
       const parsed = JSON.parse(savedProds);
-      if (Array.isArray(parsed) && parsed.length > 0) inMemoryProducts = parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        inMemoryProducts = parsed.map((p: any) => {
+          const qty = typeof p.stockQuantity === 'number' ? p.stockQuantity : (p.stock_quantity !== undefined ? Number(p.stock_quantity) : undefined);
+          const isAvail = typeof qty === 'number' ? qty > 0 : p.inStock !== false;
+          return {
+            ...p,
+            inStock: isAvail,
+            stockQuantity: typeof qty === 'number' ? Math.max(0, qty) : (isAvail ? 10 : 0),
+          };
+        });
+      }
     }
     const savedSubCats = localStorage.getItem(SUBCATEGORIES_CACHE_KEY);
     if (savedSubCats) {
@@ -1802,8 +1812,16 @@ export const DatabaseService = {
             description: d.description || '',
             shortDescription: d.short_description || d.shortDescription || '',
             material: d.material || '',
-            inStock: d.in_stock !== false && d.inStock !== false && (d.stock_quantity === undefined && d.stockQuantity === undefined ? true : Number(d.stock_quantity ?? d.stockQuantity) > 0),
-            stockQuantity: Number(d.stock_quantity ?? d.stockQuantity ?? (d.in_stock === false ? 0 : 10)),
+            inStock: (() => {
+              const q = d.stock_quantity !== undefined ? Number(d.stock_quantity) : (d.stockQuantity !== undefined ? Number(d.stockQuantity) : undefined);
+              if (typeof q === 'number') return q > 0;
+              return d.in_stock !== false && d.inStock !== false;
+            })(),
+            stockQuantity: (() => {
+              const q = d.stock_quantity !== undefined ? Number(d.stock_quantity) : (d.stockQuantity !== undefined ? Number(d.stockQuantity) : undefined);
+              if (typeof q === 'number') return Math.max(0, q);
+              return (d.in_stock === false || d.inStock === false) ? 0 : 10;
+            })(),
             sku: d.sku || '',
             dimensions: d.dimensions || '',
             variety: d.variety || '',
@@ -1865,8 +1883,8 @@ export const DatabaseService = {
       description: product.description || '',
       short_description: product.shortDescription || '',
       material: product.material || '',
-      in_stock: product.inStock !== false,
-      stock_quantity: product.stockQuantity ?? 10,
+      in_stock: typeof product.stockQuantity === 'number' ? product.stockQuantity > 0 : product.inStock !== false,
+      stock_quantity: typeof product.stockQuantity === 'number' ? Math.max(0, product.stockQuantity) : (product.inStock !== false ? 10 : 0),
       sku: product.sku || '',
       dimensions: product.dimensions || '',
       variety: product.variety || '',
@@ -1941,8 +1959,16 @@ export const DatabaseService = {
     if (updates.description !== undefined) payload.description = updates.description;
     if (updates.shortDescription !== undefined) payload.short_description = updates.shortDescription;
     if (updates.material !== undefined) payload.material = updates.material;
-    if (updates.inStock !== undefined) payload.in_stock = updates.inStock;
-    if (updates.stockQuantity !== undefined) payload.stock_quantity = updates.stockQuantity;
+    if (updates.stockQuantity !== undefined) {
+      const q = Math.max(0, Number(updates.stockQuantity));
+      payload.stock_quantity = q;
+      payload.in_stock = q > 0;
+    } else if (updates.inStock !== undefined) {
+      payload.in_stock = updates.inStock;
+      if (!updates.inStock) {
+        payload.stock_quantity = 0;
+      }
+    }
     if (updates.sku !== undefined) payload.sku = updates.sku;
     if (updates.dimensions !== undefined) payload.dimensions = updates.dimensions;
     if (updates.variety !== undefined) payload.variety = updates.variety;
@@ -2018,9 +2044,19 @@ export const DatabaseService = {
     return updated;
   },
 
-  async updateProductStock(productId: string, inStock: boolean): Promise<void> {
+  async updateProductStock(productId: string, inStock: boolean, stockQuantity?: number): Promise<void> {
     const client = requireSupabase();
-    const stockPayload = { in_stock: inStock, updated_at: new Date().toISOString() };
+    const existing = inMemoryProducts.find((p) => p.id === productId);
+    const newQty = typeof stockQuantity === 'number'
+      ? Math.max(0, stockQuantity)
+      : (inStock ? (existing?.stockQuantity && existing.stockQuantity > 0 ? existing.stockQuantity : 10) : 0);
+    const isAvail = inStock && newQty > 0;
+
+    const stockPayload = { 
+      in_stock: isAvail, 
+      stock_quantity: newQty, 
+      updated_at: new Date().toISOString() 
+    };
     let stockError: any = null;
     try {
       const { error } = await client.from('products').update(stockPayload).eq('id', productId);
@@ -2044,7 +2080,7 @@ export const DatabaseService = {
       }
     }
 
-    inMemoryProducts = inMemoryProducts.map((p) => (p.id === productId ? { ...p, inStock } : p));
+    inMemoryProducts = inMemoryProducts.map((p) => (p.id === productId ? { ...p, inStock: isAvail, stockQuantity: newQty } : p));
     try {
       if (typeof window !== 'undefined') {
         localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(inMemoryProducts));

@@ -1620,11 +1620,16 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   // Product Handlers
   const handleToggleProductStock = async (id: string, currentStatus: boolean) => {
     try {
-      await DatabaseService.updateProductStock(id, !currentStatus);
+      const targetProd = productsList.find((p) => p.id === id);
+      const isCurrentlyInStock = currentStatus && (targetProd?.stockQuantity === undefined || targetProd.stockQuantity > 0);
+      const newStatus = !isCurrentlyInStock;
+      const newQty = newStatus ? (targetProd?.stockQuantity && targetProd.stockQuantity > 0 ? targetProd.stockQuantity : 10) : 0;
+
+      await DatabaseService.updateProductStock(id, newStatus, newQty);
       setProductsList((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, inStock: !currentStatus } : p))
+        prev.map((p) => (p.id === id ? { ...p, inStock: newStatus, stockQuantity: newQty } : p))
       );
-      triggerToast('Stock Status Updated', 'Saved to database successfully.', undefined, 'info');
+      triggerToast('Stock Status Updated', newStatus ? `Product is now In Stock (${newQty} units).` : 'Product marked Out of Stock (0 units).', undefined, 'info');
     } catch (err: any) {
       triggerToast('Update Failed', err.message || 'Could not update stock.', undefined, 'error');
     }
@@ -1737,6 +1742,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   };
 
   const handleStartEditProduct = (prod: Product) => {
+    const currentQty = typeof prod.stockQuantity === 'number' ? prod.stockQuantity : (prod.inStock ? 10 : 0);
     setEditingProductId(prod.id);
     setProductForm({
       mainCategory: (prod.category === 'jewellery' ? 'jewellery' : 'nightwear') as 'nightwear' | 'jewellery',
@@ -1744,7 +1750,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       sku: prod.sku || '',
       price: String(prod.price),
       originalPrice: prod.originalPrice ? String(prod.originalPrice) : '',
-      stockQuantity: String(prod.stockQuantity ?? 10),
+      stockQuantity: String(currentQty),
       categories: prod.subCategory ? prod.subCategory.split(',').map((s) => s.trim()).filter(Boolean) : [],
       subCategory: prod.subCategory || '',
       badge: prod.tag || prod.badge || '',
@@ -1760,7 +1766,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         : 'Simply wipe clean with a dry cloth',
       deliveryPolicy: prod.deliveryPolicy || 'Dispatched within 24 hours. Delivered across India within 2 to 4 business days. Easy 7-day exchange support available on WhatsApp.',
       images: Array.isArray(prod.images) && prod.images.length > 0 ? [...prod.images] : [],
-      inStock: prod.inStock,
+      inStock: currentQty > 0,
     });
     setIsCreatingProduct(true);
   };
@@ -1824,8 +1830,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           variety: productForm.variety,
           tag: productForm.badge.trim(),
           badge: productForm.badge.trim(),
-          stockQuantity: Number(productForm.stockQuantity) || 10,
-          inStock: productForm.inStock,
+          stockQuantity: (() => {
+            const n = Number(productForm.stockQuantity);
+            return isNaN(n) ? 10 : Math.max(0, n);
+          })(),
+          inStock: (() => {
+            const n = Number(productForm.stockQuantity);
+            return isNaN(n) ? true : n > 0;
+          })(),
           highlights: highlightsArray.length > 0 ? highlightsArray : [
             'Free Delivery on all prepaid orders',
             '7-Day Hassle-Free Size Exchange',
@@ -1877,8 +1889,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         variety: productForm.variety,
         tag: productForm.badge.trim(),
         badge: productForm.badge.trim(),
-        stockQuantity: Number(productForm.stockQuantity) || 10,
-        inStock: productForm.inStock,
+        stockQuantity: (() => {
+          const n = Number(productForm.stockQuantity);
+          return isNaN(n) ? 10 : Math.max(0, n);
+        })(),
+        inStock: (() => {
+          const n = Number(productForm.stockQuantity);
+          return isNaN(n) ? true : n > 0;
+        })(),
         highlights: highlightsArray.length > 0 ? highlightsArray : [
           'Free Delivery on all prepaid orders',
           '7-Day Hassle-Free Size Exchange',
@@ -3444,18 +3462,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                             <span className="text-[10px] text-brand-muted line-through ml-1.5 font-normal">₹{prod.originalPrice}</span>
                           </td>
                           <td className="py-3.5 px-4 font-bold text-brand-charcoal">
-                            {prod.stockQuantity !== undefined ? `${prod.stockQuantity} units` : 'In Stock'}
+                            {typeof prod.stockQuantity === 'number' ? `${prod.stockQuantity} units` : (prod.inStock ? '10 units' : '0 units')}
                           </td>
                           <td className="py-3.5 px-4">
                             <button
                               onClick={() => handleToggleProductStock(prod.id, prod.inStock)}
                               className={`text-[10px] font-bold px-2.5 py-1 rounded-full cursor-pointer transition-all ${
-                                prod.inStock
+                                prod.inStock && (prod.stockQuantity === undefined || prod.stockQuantity > 0)
                                   ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
                                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                               }`}
                             >
-                              {prod.inStock ? '● In Stock' : '○ Out of Stock'}
+                              {prod.inStock && (prod.stockQuantity === undefined || prod.stockQuantity > 0) ? '● In Stock' : '○ Out of Stock'}
                             </button>
                           </td>
                           <td className="py-3.5 px-4 text-right">

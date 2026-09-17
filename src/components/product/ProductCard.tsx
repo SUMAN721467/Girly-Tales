@@ -25,7 +25,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   const isFavorited = isInWishlist(product.id);
   const isProductInCart = items.some((item) => item.product.id === product.id);
-  const isOutOfStock = product.inStock === false || (product.stockQuantity !== undefined && product.stockQuantity <= 0);
+  const isOutOfStock = typeof product.stockQuantity === 'number' ? product.stockQuantity <= 0 : product.inStock === false;
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.stopPropagation();

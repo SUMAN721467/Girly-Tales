@@ -11,7 +11,7 @@ interface CartItemRowProps {
 export const CartItemRow: React.FC<CartItemRowProps> = ({ item, compact = false }) => {
   const { updateQuantity, removeFromCart } = useCart();
   const { product, quantity, selectedSize, selectedColor } = item;
-  const isOutOfStock = product.inStock === false || (product.stockQuantity !== undefined && product.stockQuantity <= 0);
+  const isOutOfStock = typeof product.stockQuantity === 'number' ? product.stockQuantity <= 0 : product.inStock === false;
   const maxStock = typeof product.stockQuantity === 'number' ? product.stockQuantity : 999;
 
   return (

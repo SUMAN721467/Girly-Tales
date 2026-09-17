@@ -392,7 +392,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     selectedSize?: string,
     selectedColor?: string
   ) => {
-    const isOutOfStock = product.inStock === false || (product.stockQuantity !== undefined && product.stockQuantity <= 0);
+    const isOutOfStock = typeof product.stockQuantity === 'number' ? product.stockQuantity <= 0 : product.inStock === false;
     if (isOutOfStock) {
       triggerToast('Out of Stock', `${product.name} is currently out of stock.`, product, 'error');
       return;

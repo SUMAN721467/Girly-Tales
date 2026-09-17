@@ -32,7 +32,7 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
 
   const isFavorited = isInWishlist(product.id);
   const isProductInCart = items.some((item) => item.product.id === product.id);
-  const isOutOfStock = product.inStock === false || (product.stockQuantity !== undefined && product.stockQuantity <= 0);
+  const isOutOfStock = typeof product.stockQuantity === 'number' ? product.stockQuantity <= 0 : product.inStock === false;
 
   const handleAddToCart = () => {
     if (isOutOfStock) return;

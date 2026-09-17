@@ -347,7 +347,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
       ? (visibleReviews.reduce((sum, r) => sum + (r.rating || 5), 0) / reviewCount).toFixed(1)
       : null;
 
-  const isOutOfStock = product.inStock === false || (product.stockQuantity !== undefined && product.stockQuantity <= 0);
+  const isOutOfStock = typeof product.stockQuantity === 'number' ? product.stockQuantity <= 0 : product.inStock === false;
 
   return (
     <div className="max-w-6xl xl:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-6 space-y-6 sm:space-y-8 bg-[#fffeea] w-full">
