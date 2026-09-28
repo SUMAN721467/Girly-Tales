@@ -202,6 +202,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     careInstructionsText: 'Simply wipe clean with a dry cloth',
     deliveryPolicy: 'Dispatched within 24 hours. Delivered across India within 2 to 4 business days. Easy 7-day exchange support available on WhatsApp.',
     images: [] as string[],
+    sizes: [] as string[],
     inStock: true,
   };
 
@@ -1475,6 +1476,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     });
   };
 
+  const toggleSizeTag = (size: string) => {
+    setProductForm((prev) => {
+      const exists = prev.sizes.includes(size);
+      return {
+        ...prev,
+        sizes: exists
+          ? prev.sizes.filter((s) => s !== size)
+          : [...prev.sizes, size],
+      };
+    });
+  };
+
   const handleAddCustomCategory = async () => {
     const trimmed = customTagInput.trim();
     if (!trimmed) return;
@@ -1779,6 +1792,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         : 'Simply wipe clean with a dry cloth',
       deliveryPolicy: prod.deliveryPolicy || 'Dispatched within 24 hours. Delivered across India within 2 to 4 business days. Easy 7-day exchange support available on WhatsApp.',
       images: Array.isArray(prod.images) && prod.images.length > 0 ? [...prod.images] : [],
+      sizes: Array.isArray(prod.sizes) && prod.sizes.length > 0 ? [...prod.sizes] : [],
       inStock: currentQty > 0,
     });
     setIsCreatingProduct(true);
@@ -1835,6 +1849,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           rating: existing?.rating || 5.0,
           reviewCount: existing?.reviewCount || 1,
           images: finalImages,
+          sizes: productForm.sizes,
           description: productForm.description || 'Luxurious craftsmanship designed for everyday glamour.',
           shortDescription: productForm.description.slice(0, 90) || 'Premium curated collection item.',
           material: productForm.materials || 'Premium Cotton / Silk / Gold Finish',
@@ -1894,6 +1909,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         rating: 5.0,
         reviewCount: 1,
         images: finalImages,
+        sizes: productForm.sizes,
         description: productForm.description || 'Luxurious craftsmanship designed for everyday glamour.',
         shortDescription: productForm.description.slice(0, 90) || 'Premium curated collection item.',
         material: productForm.materials || 'Premium Cotton / Silk / Gold Finish',
@@ -2845,6 +2861,34 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                             + New Category
                           </button>
                         )}
+                      </div>
+                    </div>
+
+                    {/* Row 3: Sizes * (Select one or more) */}
+                    <div className="space-y-2.5 pt-2">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-bold text-brand-charcoal">
+                          Available Sizes (Select one or more)
+                        </label>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {['FREE SIZE', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'].map((size) => {
+                          const isSelected = productForm.sizes.includes(size);
+                          return (
+                            <button
+                              key={size}
+                              type="button"
+                              onClick={() => toggleSizeTag(size)}
+                              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                                isSelected
+                                  ? 'bg-brand-charcoal text-white shadow-xs border border-brand-charcoal'
+                                  : 'bg-[#FAF8F2] text-brand-charcoal border border-[#EAE6DB] hover:bg-[#fffeea]'
+                              }`}
+                            >
+                              {size}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
 

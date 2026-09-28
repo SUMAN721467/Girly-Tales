@@ -5250,45 +5250,34 @@ export const DatabaseService = {
       try {
         const client = requireSupabase();
 
-        // 1. Full payload with is_enabled
-        const fullPayload: any = {
+        // Exact schema columns in Supabase
+        const isEnabled = merged.enabled !== false;
+        const standardRateVal = isEnabled ? (Number(merged.standardRate) || 0) : 0;
+        const freeThresholdVal = Number(merged.freeThreshold) || 0;
+
+        const cleanPayload: any = {
           id: 'default',
-          is_enabled: merged.enabled !== false,
-          free_threshold: Number(merged.freeThreshold) || 0,
-          standard_rate: Number(merged.standardRate) || 0,
-          express_rate: Number(merged.expressRate) || 0,
-          cod_handling_fee: Number(merged.codHandlingFee) || 0,
+          free_threshold: freeThresholdVal,
+          standard_rate: standardRateVal,
+          express_rate: Number(merged.expressRate) || 199,
+          cod_handling_fee: Number(merged.codHandlingFee) || 49,
           estimated_days: merged.estimatedDays || '2 to 4 Business Days',
           couriers: merged.couriers || ['BlueDart Express', 'Delhivery Surface', 'DTDC Prime'],
           updated_at: new Date().toISOString(),
         };
 
-        let { error: upsertErr } = await client.from('shipping_rules').upsert(fullPayload, { onConflict: 'id' });
+        const { error: upsertErr } = await client
+          .from('shipping_rules')
+          .upsert(cleanPayload, { onConflict: 'id' });
 
-        // If is_enabled column doesn't exist in user's Supabase table yet, retry without is_enabled
-        if (upsertErr && (
-          String(upsertErr.message || '').includes('is_enabled') || 
-          String(upsertErr.message || '').includes('column') || 
-          upsertErr.code === '42703' || 
-          upsertErr.code === 'PGRST204'
-        )) {
-          const legacyPayload: any = {
-            id: 'default',
-            free_threshold: Number(merged.freeThreshold) || 0,
-            standard_rate: Number(merged.standardRate) || 0,
-            express_rate: Number(merged.expressRate) || 0,
-            cod_handling_fee: Number(merged.codHandlingFee) || 0,
-            estimated_days: merged.estimatedDays || '2 to 4 Business Days',
-            couriers: merged.couriers || ['BlueDart Express', 'Delhivery Surface', 'DTDC Prime'],
-            updated_at: new Date().toISOString(),
-          };
-          const retryRes = await client.from('shipping_rules').upsert(legacyPayload, { onConflict: 'id' });
-          upsertErr = retryRes.error;
-        }
-
-        // 2. If client library had issues, try REST mutation fallback
         if (upsertErr) {
-          const ok = await supabaseRestMutation('shipping_rules', 'POST', 'on_conflict=id', fullPayload, 'resolution=merge-duplicates,return=minimal');
+          const ok = await supabaseRestMutation(
+            'shipping_rules',
+            'POST',
+            'on_conflict=id',
+            cleanPayload,
+            'resolution=merge-duplicates,return=representation'
+          );
           if (!ok) {
             console.error('Supabase updateShippingRules error:', upsertErr);
             throw new Error(upsertErr.message || 'Failed to update shipping rules in database');

@@ -14,7 +14,7 @@ export interface Product {
   images: string[];
   description: string;
   shortDescription: string;
-  sizes?: ('XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL')[];
+  sizes?: string[];
   material: string;
   antiTarnishGuarantee?: string;
   waterproof?: boolean;
