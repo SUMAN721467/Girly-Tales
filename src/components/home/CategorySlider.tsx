@@ -240,7 +240,7 @@ export const CategorySlider: React.FC<CategorySliderProps> = ({
                 <img
                   src={item.image}
                   alt={item.name}
-                  className={`w-full h-full object-cover object-center transition-transform duration-1000 ease-out ${
+                  className={`absolute inset-0 w-full h-full object-cover object-center transition-transform duration-1000 ease-out ${
                     isCenter ? 'group-hover:scale-105' : 'filter brightness-95'
                   }`}
                   loading="lazy"

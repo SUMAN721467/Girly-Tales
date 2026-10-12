@@ -36,23 +36,37 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   const touchStartData = useRef<{ x: number; y: number; isHorizontal?: boolean } | null>(null);
   const mouseStartData = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const thumbnailRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const thumbnailContainerRef = useRef<HTMLDivElement>(null);
+  const isFirstRender = useRef(true);
 
   const imagesList = product.images && product.images.length > 0
     ? product.images
     : ['https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80'];
 
-  // Reset active image when product changes
+  // Scroll to top immediately when product loads or changes
   useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     setActiveImage(0);
+    isFirstRender.current = true;
   }, [product.id]);
 
-  // Keep active thumbnail in view
+  // Keep active thumbnail in view horizontally within the thumbnail container only (never scroll window)
   useEffect(() => {
-    thumbnailRefs.current[activeImage]?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'nearest',
-      inline: 'center',
-    });
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    const targetThumb = thumbnailRefs.current[activeImage];
+    const container = thumbnailContainerRef.current;
+    if (targetThumb && container) {
+      const thumbLeft = targetThumb.offsetLeft;
+      const thumbWidth = targetThumb.offsetWidth;
+      const containerWidth = container.offsetWidth;
+      container.scrollTo({
+        left: thumbLeft - (containerWidth / 2) + (thumbWidth / 2),
+        behavior: 'smooth',
+      });
+    }
   }, [activeImage]);
 
   // Reviews State
@@ -378,11 +392,11 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
-                className="relative w-full aspect-[4/5] bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl overflow-hidden shadow-2xs flex items-center justify-center cursor-grab active:cursor-grabbing select-none touch-pan-y"
+                className="relative w-full aspect-[4/5] bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl overflow-hidden shadow-2xs cursor-grab active:cursor-grabbing select-none touch-pan-y"
               >
                 {/* Real-Time Sliding Carousel Track */}
                 <div
-                  className="flex h-full w-full select-none"
+                  className="absolute inset-0 flex h-full w-full select-none"
                   style={{
                     transform: `translateX(calc(-${activeImage * 100}% + ${dragOffset}px))`,
                     transition: isDragging ? 'none' : 'transform 0.35s cubic-bezier(0.22, 1, 0.36, 1)',
@@ -391,12 +405,12 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                   {imagesList.map((img, idx) => (
                     <div
                       key={idx}
-                      className="min-w-full h-full shrink-0 relative flex items-center justify-center overflow-hidden"
+                      className="w-full h-full min-w-full min-h-0 shrink-0 relative overflow-hidden"
                     >
                       <img
                         src={normalizeStorageUrl(img)}
                         alt={`${product.name} - view ${idx + 1}`}
-                        className="w-full h-full object-cover object-center pointer-events-none select-none"
+                        className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none select-none"
                         draggable={false}
                         onError={(e) => {
                           (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80';
@@ -506,13 +520,16 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
 
             {/* Thumbnail Strip */}
             {imagesList.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto pb-1 justify-center w-full scrollbar-none">
+              <div
+                ref={thumbnailContainerRef}
+                className="flex gap-2 overflow-x-auto pb-1 justify-center w-full scrollbar-none"
+              >
                 {imagesList.map((img, idx) => (
                   <button
                     key={idx}
                     ref={(el) => { thumbnailRefs.current[idx] = el; }}
                     onClick={() => setActiveImage(idx)}
-                    className={`w-12 sm:w-14 aspect-[4/5] rounded-lg border-2 overflow-hidden shrink-0 transition-all cursor-pointer ${
+                    className={`w-12 sm:w-14 aspect-[4/5] rounded-lg border-2 overflow-hidden shrink-0 transition-all cursor-pointer relative ${
                       activeImage === idx
                         ? 'border-[#967BB6] ring-2 ring-[#967BB6]/25 scale-95'
                         : 'border-[#EAE6DB] opacity-70 hover:opacity-100 hover:border-[#967BB6]/50'
@@ -521,7 +538,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
                     <img
                       src={normalizeStorageUrl(img)}
                       alt=""
-                      className="w-full h-full object-cover object-center"
+                      className="absolute inset-0 w-full h-full object-cover object-center"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=400&q=80';
                       }}

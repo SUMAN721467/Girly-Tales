@@ -68,11 +68,11 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
           {/* Gallery side */}
           <div>
-            <div className="aspect-[4/5] max-w-[280px] sm:max-w-[320px] mx-auto rounded-xl overflow-hidden bg-brand-ivory border border-brand-border mb-3">
+            <div className="relative aspect-[4/5] max-w-[280px] sm:max-w-[320px] mx-auto rounded-xl overflow-hidden bg-brand-ivory border border-brand-border mb-3">
               <img
                 src={product.images[selectedImage]}
                 alt={product.name}
-                className="w-full h-full object-cover"
+                className="absolute inset-0 w-full h-full object-cover object-center"
               />
             </div>
             {product.images.length > 1 && (
@@ -81,13 +81,13 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
                   <button
                     key={idx}
                     onClick={() => setSelectedImage(idx)}
-                    className={`w-14 h-16 rounded-lg overflow-hidden border-2 transition-all ${
+                    className={`relative w-14 h-16 rounded-lg overflow-hidden border-2 transition-all ${
                       selectedImage === idx
                         ? 'border-brand-lilac'
                         : 'border-transparent opacity-60 hover:opacity-100'
                     }`}
                   >
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    <img src={img} alt="" className="absolute inset-0 w-full h-full object-cover object-center" />
                   </button>
                 ))}
               </div>

@@ -61,7 +61,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <img
           src={currentImage}
           alt={product.name}
-          className={`w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105 rounded-lg ${
+          className={`absolute inset-0 w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105 rounded-lg ${
             isOutOfStock ? 'grayscale-[35%] opacity-85' : ''
           }`}
           loading="lazy"
