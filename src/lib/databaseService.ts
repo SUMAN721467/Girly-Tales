@@ -549,6 +549,7 @@ export interface HomeCategoryCard {
 export interface HomeInfluencerReel {
   id: string;
   image: string;
+  videoUrl?: string;
   tagText: string;
   subTag: string;
   views: string;
@@ -584,12 +585,21 @@ export interface HomepageConfig {
   trendingTitle: string;
   trendingCtaText: string;
 
+  // 6. Best Sellers Section
+  bestSellerTitle?: string;
+  bestSellerCtaText?: string;
+
   // 6. Influencer-Approved Comfort Reels
   influencerTitle: string;
   influencerSubtitle: string;
   influencerReels: HomeInfluencerReel[];
 
-  // 7. Value Propositions
+  // 7. Customer Reviews / Testimonials Header
+  reviewsTitle?: string;
+  reviewsRatingText?: string;
+  reviewsSubtitle?: string;
+
+  // 8. Value Propositions
   valueProps: HomeValueProp[];
 }
 
@@ -700,12 +710,15 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
   ],
   trendingTitle: 'TRENDING THIS SEASON',
   trendingCtaText: 'SHOP ALL TRENDING',
+  bestSellerTitle: 'BESTSELLERS',
+  bestSellerCtaText: 'SHOP ALL BESTSELLERS',
   influencerTitle: 'Influencer-Approved Comfort',
   influencerSubtitle: 'Discover how influencers style our nightwear & jewellery and shop their curated picks.',
   influencerReels: [
     {
       id: 'inf-1',
-      image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=600&q=80',
+      image: '',
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
       tagText: 'Cute & comfy',
       subTag: "PJ's ft. Girly Tales",
       views: '8.4k',
@@ -715,7 +728,8 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
     },
     {
       id: 'inf-2',
-      image: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=600&q=80',
+      image: '',
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyBlazes.mp4',
       tagText: 'Pinteresty',
       subTag: 'Jewellery ✨',
       views: '12.1k',
@@ -725,7 +739,8 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
     },
     {
       id: 'inf-3',
-      image: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&w=600&q=80',
+      image: '',
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4',
       tagText: 'Cloud-soft',
       subTag: 'Cotton Pyjamas',
       views: '6.5k',
@@ -735,7 +750,8 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
     },
     {
       id: 'inf-4',
-      image: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=600&q=80',
+      image: '',
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4',
       tagText: '100% Waterproof',
       subTag: 'Never Green Skin 💧',
       views: '15.2k',
@@ -744,6 +760,9 @@ export const DEFAULT_HOMEPAGE_CONFIG: HomepageConfig = {
       active: true,
     },
   ],
+  reviewsTitle: 'WHAT OUR CUSTOMERS SAY',
+  reviewsRatingText: '4.9 / 5.0',
+  reviewsSubtitle: 'Over 3,800+ happy buyers across India',
   valueProps: [
     {
       id: 'vp-1',
@@ -4944,9 +4963,28 @@ export const DatabaseService = {
             categoryCards: ensureFiveCategoryCards(rawData.categoryCards),
             trendingTitle: rawData.trendingTitle || DEFAULT_HOMEPAGE_CONFIG.trendingTitle,
             trendingCtaText: rawData.trendingCtaText || DEFAULT_HOMEPAGE_CONFIG.trendingCtaText,
+            bestSellerTitle: rawData.bestSellerTitle || DEFAULT_HOMEPAGE_CONFIG.bestSellerTitle,
+            bestSellerCtaText: rawData.bestSellerCtaText || DEFAULT_HOMEPAGE_CONFIG.bestSellerCtaText,
             influencerTitle: rawData.influencerTitle || DEFAULT_HOMEPAGE_CONFIG.influencerTitle,
             influencerSubtitle: rawData.influencerSubtitle || DEFAULT_HOMEPAGE_CONFIG.influencerSubtitle,
-            influencerReels: Array.isArray(rawData.influencerReels) && rawData.influencerReels.length > 0 ? rawData.influencerReels : DEFAULT_HOMEPAGE_CONFIG.influencerReels,
+            reviewsTitle: rawData.reviewsTitle || DEFAULT_HOMEPAGE_CONFIG.reviewsTitle,
+            reviewsRatingText: rawData.reviewsRatingText || DEFAULT_HOMEPAGE_CONFIG.reviewsRatingText,
+            reviewsSubtitle: rawData.reviewsSubtitle || DEFAULT_HOMEPAGE_CONFIG.reviewsSubtitle,
+            influencerReels: Array.isArray(rawData.influencerReels)
+              ? rawData.influencerReels.slice(0, 10).map((r: any, idx: number) => ({
+                  id: r.id || `inf-${idx + 1}`,
+                  image: '', // Reels do not use thumbnail images
+                  videoUrl: r.videoUrl && String(r.videoUrl).trim()
+                    ? String(r.videoUrl).trim()
+                    : (DEFAULT_HOMEPAGE_CONFIG.influencerReels[idx % DEFAULT_HOMEPAGE_CONFIG.influencerReels.length]?.videoUrl || ''),
+                  tagText: r.tagText || 'Cute & comfy',
+                  subTag: r.subTag || "PJ's ft. Girly Tales",
+                  views: r.views || '10.5k',
+                  productId: r.productId || '',
+                  orderIndex: typeof r.orderIndex === 'number' ? r.orderIndex : idx,
+                  active: r.active !== false,
+                }))
+              : DEFAULT_HOMEPAGE_CONFIG.influencerReels,
             valueProps: sanitizeValueProps(rawData.valueProps),
           };
 
@@ -4987,10 +5025,18 @@ export const DatabaseService = {
       orderIndex: typeof c.orderIndex === 'number' ? c.orderIndex : idx,
       active: c.active !== false,
     }));
+    const cleanReels = (config.influencerReels || []).slice(0, 10).map((r, idx) => ({
+      ...r,
+      image: '', // Reels do not use thumbnail images
+      videoUrl: (r.videoUrl || '').trim(),
+      orderIndex: typeof r.orderIndex === 'number' ? r.orderIndex : idx,
+      active: r.active !== false,
+    }));
     const cleanConfig: HomepageConfig = {
       ...config,
       heroBanners: cleanBanners,
       categoryCards: cleanCards,
+      influencerReels: cleanReels,
       valueProps: sanitizeValueProps(config.valueProps),
     };
     const payload = {

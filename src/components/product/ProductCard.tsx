@@ -81,7 +81,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         ) : (product.tag || product.badge || product.isNewArrival || product.isBestSeller) ? (
           <div className="absolute top-2.5 left-2.5 z-10 flex items-center">
             <span className="bg-[#967BB6] text-white text-[9px] sm:text-[10px] font-bold px-2.5 py-0.5 rounded-md tracking-wide shadow-xs uppercase">
-              {product.tag || product.badge || (product.isNewArrival ? 'New Arrival' : 'Back in Stock')}
+              {product.tag || product.badge || (product.isBestSeller ? 'Bestseller' : product.isNewArrival ? 'New Arrival' : 'Back in Stock')}
             </span>
           </div>
         ) : null}

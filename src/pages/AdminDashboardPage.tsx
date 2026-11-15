@@ -8,7 +8,7 @@ import {
   UploadCloud, Image as ImageIcon, MoveLeft, MoveRight, Star, Loader2,
   MapPin, Send, Mail, Phone, Calendar, MessageSquare,
   Heart, ShoppingCart, User, Ticket, Quote,
-  ChevronDown, ChevronUp, Smartphone, Feather, HeartHandshake, Gift, Settings
+  ChevronDown, ChevronUp, Smartphone, Feather, HeartHandshake, Gift, Settings, Video
 } from 'lucide-react';
 import { Product } from '../types/product';
 import { useCart } from '../context/CartContext';
@@ -331,7 +331,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
   // Complete Homepage Visual Content Editor State
   const [homepageConfig, setHomepageConfig] = useState<HomepageConfig>(() => DatabaseService.getCachedHomepageConfig());
-  const [activeHomeSubTab, setActiveHomeSubTab] = useState<'banners' | 'categories' | 'marquee' | 'reels' | 'features'>('banners');
+  const [activeHomeSubTab, setActiveHomeSubTab] = useState<'banners' | 'categories' | 'marquee' | 'reels' | 'reviews' | 'features'>('banners');
   const [isSavingHomepage, setIsSavingHomepage] = useState(false);
   const [isUploadingBannerImg, setIsUploadingBannerImg] = useState(false);
   const [isUploadingCatCardImg, setIsUploadingCatCardImg] = useState<string | null>(null);
@@ -354,11 +354,25 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   });
 
   // Reel Modal State
+  const MAX_INFLUENCER_REELS = 10;
+  const parseVideoSource = (url?: string): { type: 'youtube' | 'instagram' | 'googledrive' | 'direct'; id?: string; url: string } | null => {
+    if (!url) return null;
+    const raw = url.trim();
+    if (!raw) return null;
+    const ytMatch = raw.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([a-zA-Z0-9_-]{11})/i);
+    if (ytMatch && ytMatch[1]) return { type: 'youtube', id: ytMatch[1], url: raw };
+    const igMatch = raw.match(/instagram\.com\/(?:reel|p|tv)\/([A-Za-z0-9_-]+)/i);
+    if (igMatch && igMatch[1]) return { type: 'instagram', id: igMatch[1], url: raw };
+    const driveMatch = raw.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i);
+    if (driveMatch && driveMatch[1]) return { type: 'googledrive', id: driveMatch[1], url: raw };
+    return { type: 'direct', url: raw };
+  };
   const [isReelModalOpen, setIsReelModalOpen] = useState(false);
   const [editingReelId, setEditingReelId] = useState<string | null>(null);
   const [reelForm, setReelForm] = useState<HomeInfluencerReel>({
     id: '',
     image: '',
+    videoUrl: '',
     tagText: 'Cute & comfy',
     subTag: "PJ's ft. Girly Tales",
     views: '10.5k',
@@ -1317,10 +1331,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   };
 
   const handleOpenAddReel = () => {
+    if (homepageConfig.influencerReels.length >= MAX_INFLUENCER_REELS) {
+      triggerToast('Limit Reached', `Maximum ${MAX_INFLUENCER_REELS} video reels allowed. Delete or edit an existing reel.`, undefined, 'info');
+      return;
+    }
     setEditingReelId(null);
     setReelForm({
       id: `reel-${Date.now()}`,
       image: '',
+      videoUrl: '',
       tagText: 'Cute & comfy',
       subTag: "PJ's ft. Girly Tales",
       views: '10.5k',
@@ -1331,40 +1350,102 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     setIsReelModalOpen(true);
   };
 
-  const handleSaveReelModal = (e: React.FormEvent) => {
+  const handleOpenEditReel = (reel: HomeInfluencerReel) => {
+    setEditingReelId(reel.id);
+    setReelForm({
+      id: reel.id,
+      image: reel.image || '',
+      videoUrl: reel.videoUrl || '',
+      tagText: reel.tagText || 'Cute & comfy',
+      subTag: reel.subTag || "PJ's ft. Girly Tales",
+      views: reel.views || '10.5k',
+      productId: reel.productId || '',
+      orderIndex: typeof reel.orderIndex === 'number' ? reel.orderIndex : 0,
+      active: reel.active !== false,
+    });
+    setIsReelModalOpen(true);
+  };
+
+  const handleMoveReel = async (index: number, direction: 'left' | 'right') => {
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= homepageConfig.influencerReels.length) return;
+    const updated = [...homepageConfig.influencerReels];
+    const [moved] = updated.splice(index, 1);
+    updated.splice(targetIndex, 0, moved);
+    const reindexed = updated.map((r, i) => ({ ...r, orderIndex: i }));
+    const updatedConfig: HomepageConfig = {
+      ...homepageConfig,
+      influencerReels: reindexed,
+    };
+    setHomepageConfig(updatedConfig);
+    try {
+      await DatabaseService.updateHomepageConfig(updatedConfig);
+    } catch {}
+  };
+
+  const handleSaveReelModal = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reelForm.image.trim()) {
-      triggerToast('Image Required', 'Please upload or paste an image URL for the reel.', undefined, 'error');
+    const vid = (reelForm.videoUrl || '').trim();
+
+    if (!vid) {
+      triggerToast('Video Link Required', 'Please enter a video link (MP4, YouTube, or Shorts) for the reel.', undefined, 'error');
       return;
     }
 
+    if (!editingReelId && homepageConfig.influencerReels.length >= MAX_INFLUENCER_REELS) {
+      triggerToast('Limit Reached', `Maximum ${MAX_INFLUENCER_REELS} video reels allowed.`, undefined, 'error');
+      return;
+    }
+
+    const payload: HomeInfluencerReel = {
+      ...reelForm,
+      videoUrl: vid,
+      image: '', // Reels do not use thumbnail images
+    };
+
+    let updatedReels: HomeInfluencerReel[];
     if (editingReelId) {
-      setHomepageConfig((prev) => ({
-        ...prev,
-        influencerReels: prev.influencerReels.map((r) => (r.id === editingReelId ? { ...reelForm } : r)),
-      }));
-      triggerToast('Reel Updated', 'Changes saved to reel card.', undefined, 'success');
+      updatedReels = homepageConfig.influencerReels.map((r) => (r.id === editingReelId ? payload : r));
     } else {
       const newReel: HomeInfluencerReel = {
-        ...reelForm,
+        ...payload,
         id: reelForm.id || `reel-${Date.now()}`,
         orderIndex: homepageConfig.influencerReels.length,
       };
-      setHomepageConfig((prev) => ({
-        ...prev,
-        influencerReels: [...prev.influencerReels, newReel],
-      }));
-      triggerToast('Reel Added', 'Added new influencer reel card.', undefined, 'success');
+      updatedReels = [...homepageConfig.influencerReels, newReel].slice(0, MAX_INFLUENCER_REELS);
     }
+
+    const updatedConfig: HomepageConfig = {
+      ...homepageConfig,
+      influencerReels: updatedReels,
+    };
+
+    setHomepageConfig(updatedConfig);
     setIsReelModalOpen(false);
+
+    try {
+      await DatabaseService.updateHomepageConfig(updatedConfig);
+      triggerToast(editingReelId ? 'Reel Updated ✨' : 'Reel Added 🚀', 'Saved permanently to live database.', undefined, 'success');
+    } catch (err) {
+      triggerToast(editingReelId ? 'Reel Updated' : 'Reel Added', 'Changes saved locally.', undefined, 'info');
+    }
   };
 
-  const handleDeleteReel = (id: string) => {
-    setHomepageConfig((prev) => ({
-      ...prev,
-      influencerReels: prev.influencerReels.filter((r) => r.id !== id),
-    }));
-    triggerToast('Reel Deleted', 'Removed from homepage.', undefined, 'info');
+  const handleDeleteReel = async (id: string) => {
+    const updatedReels = homepageConfig.influencerReels.filter((r) => r.id !== id);
+    const updatedConfig: HomepageConfig = {
+      ...homepageConfig,
+      influencerReels: updatedReels,
+    };
+    setHomepageConfig(updatedConfig);
+
+    try {
+      await DatabaseService.updateHomepageConfig(updatedConfig);
+      triggerToast('Reel Deleted Permanently', 'Removed from live store and database.', undefined, 'info');
+    } catch (err: any) {
+      console.warn('Delete reel save note:', err);
+      triggerToast('Reel Deleted', 'Removed from current session.', undefined, 'info');
+    }
   };
 
   const handleSeedCatalog = async () => {
@@ -5379,6 +5460,93 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                 </div>
               </div>
 
+              {/* Section Header Controls ("WHAT OUR CUSTOMERS SAY") */}
+              <div className="bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl p-4 sm:p-5 space-y-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <h4 className="font-bold text-xs uppercase tracking-wider text-brand-charcoal flex items-center gap-1.5">
+                      <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                      <span>Homepage Section Header Settings</span>
+                    </h4>
+                    <p className="text-[11px] text-brand-muted">
+                      Edit the headline, rating score, and buyer count badge displayed on the homepage.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSaveHomepageConfig}
+                    disabled={isSavingHomepage}
+                    className="px-4 py-2 bg-[#967BB6] hover:bg-[#856aa5] text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingHomepage ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Check className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isSavingHomepage ? 'Saving...' : 'Save Header Changes'}</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">
+                      Section Title
+                    </label>
+                    <input
+                      type="text"
+                      value={homepageConfig.reviewsTitle ?? 'WHAT OUR CUSTOMERS SAY'}
+                      onChange={(e) => setHomepageConfig({ ...homepageConfig, reviewsTitle: e.target.value })}
+                      placeholder="WHAT OUR CUSTOMERS SAY"
+                      className="w-full px-3 py-2 bg-white border border-[#EAE6DB] rounded-xl text-xs font-bold focus:outline-none focus:border-[#967BB6]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">
+                      Rating Score
+                    </label>
+                    <input
+                      type="text"
+                      value={homepageConfig.reviewsRatingText ?? '4.9 / 5.0'}
+                      onChange={(e) => setHomepageConfig({ ...homepageConfig, reviewsRatingText: e.target.value })}
+                      placeholder="4.9 / 5.0"
+                      className="w-full px-3 py-2 bg-white border border-[#EAE6DB] rounded-xl text-xs font-bold focus:outline-none focus:border-[#967BB6]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">
+                      Subtitle / Proof Badge
+                    </label>
+                    <input
+                      type="text"
+                      value={homepageConfig.reviewsSubtitle ?? 'Over 3,800+ happy buyers across India'}
+                      onChange={(e) => setHomepageConfig({ ...homepageConfig, reviewsSubtitle: e.target.value })}
+                      placeholder="Over 3,800+ happy buyers across India"
+                      className="w-full px-3 py-2 bg-white border border-[#EAE6DB] rounded-xl text-xs font-bold focus:outline-none focus:border-[#967BB6]"
+                    />
+                  </div>
+                </div>
+
+                {/* Live Preview Box */}
+                <div className="bg-white border border-[#EAE6DB] rounded-xl p-3.5 text-center space-y-1">
+                  <span className="text-[9px] font-bold text-brand-muted uppercase tracking-wider block">Live Homepage Preview</span>
+                  <p className="font-sans font-black text-sm sm:text-base text-brand-charcoal uppercase tracking-tight">
+                    {homepageConfig.reviewsTitle || 'WHAT OUR CUSTOMERS SAY'}
+                  </p>
+                  <div className="flex items-center justify-center gap-1.5 text-[11px] text-brand-muted">
+                    <div className="flex text-amber-400">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star key={s} className="w-3 h-3 fill-amber-400 text-amber-400" />
+                      ))}
+                    </div>
+                    <span className="font-bold text-brand-charcoal">{homepageConfig.reviewsRatingText || '4.9 / 5.0'}</span>
+                    <span>•</span>
+                    <span>{homepageConfig.reviewsSubtitle || 'Over 3,800+ happy buyers across India'}</span>
+                  </div>
+                </div>
+              </div>
+
               {/* KPI Summary Cards */}
               {(() => {
                 const liveTestimonials = testimonials.filter((r) => r.status === 'Approved' || r.status === 'Featured');
@@ -6189,6 +6357,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                 { id: 'categories', label: `Category Cards (${homepageConfig.categoryCards.length})`, icon: Layers },
                 { id: 'marquee', label: 'Announcement & Marquee', icon: MessageSquare },
                 { id: 'reels', label: `Influencer Reels (${homepageConfig.influencerReels.length})`, icon: Eye },
+                { id: 'reviews', label: 'Customer Reviews Header', icon: Star },
                 { id: 'features', label: `Value Propositions (${homepageConfig.valueProps.length})`, icon: ShieldCheck },
               ].map((sub) => {
                 const Icon = sub.icon;
@@ -7016,20 +7185,51 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                 <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                      <h4 className="font-serif text-lg font-bold text-brand-charcoal">Influencer-Approved Comfort Reels</h4>
+                      <div className="flex items-center gap-2.5 mb-1">
+                        <h4 className="font-serif text-lg font-bold text-brand-charcoal">Influencer Video Reels</h4>
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#F3EEF9] text-[#967BB6] border border-[#967BB6]/20">
+                          {homepageConfig.influencerReels.length} / {MAX_INFLUENCER_REELS} Videos
+                        </span>
+                      </div>
                       <p className="text-xs text-brand-muted">
-                        Vertical reel cards with stickers, view counters, and direct product buy buttons.
+                        Upload up to 10 video links (MP4, YouTube, Shorts) or photos with direct shop buttons. This section scrolls horizontally on the homepage.
                       </p>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={handleOpenAddReel}
-                      className="px-4 py-2 bg-[#1A1821] hover:bg-[#967BB6] text-white text-xs font-bold rounded-2xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Add New Reel</span>
-                    </button>
+                    <div className="flex items-center gap-2.5 self-start sm:self-auto flex-wrap">
+                      <button
+                        type="button"
+                        onClick={handleSaveHomepageConfig}
+                        disabled={isSavingHomepage}
+                        className="px-4 py-2 bg-[#967BB6] hover:bg-[#856aa5] text-white text-xs font-bold rounded-2xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        {isSavingHomepage ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Saving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Save Changes</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleOpenAddReel}
+                        disabled={homepageConfig.influencerReels.length >= MAX_INFLUENCER_REELS}
+                        className={`px-4 py-2 text-xs font-bold rounded-2xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer ${
+                          homepageConfig.influencerReels.length >= MAX_INFLUENCER_REELS
+                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-70'
+                            : 'bg-[#1A1821] hover:bg-[#967BB6] text-white'
+                        }`}
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>{homepageConfig.influencerReels.length >= MAX_INFLUENCER_REELS ? 'Max 10 Reels Reached' : 'Add New Video Reel'}</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Section Title / Subtitle Inputs */}
@@ -7064,19 +7264,60 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                     {homepageConfig.influencerReels.map((reel, idx) => (
                       <div
                         key={reel.id || idx}
-                        className="bg-[#FAF8F2] rounded-2xl border border-[#EAE6DB] overflow-hidden flex flex-col justify-between"
+                        className="bg-[#FAF8F2] rounded-2xl border border-[#EAE6DB] overflow-hidden flex flex-col justify-between shadow-2xs hover:shadow-xs transition-shadow"
                       >
                         {/* Reel Aspect Ratio Preview */}
                         <div className="relative aspect-[9/14] bg-black overflow-hidden group">
-                          {reel.image ? (
-                            <img src={reel.image} alt={reel.tagText} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-white/40 text-xs">
-                              No Poster Photo
-                            </div>
-                          )}
+                          {(() => {
+                            const parsed = parseVideoSource(reel.videoUrl);
+                            if (parsed?.type === 'youtube') {
+                              return (
+                                <iframe
+                                  src={`https://www.youtube-nocookie.com/embed/${parsed.id}?autoplay=1&mute=1&loop=1&playlist=${parsed.id}&controls=0`}
+                                  title={reel.tagText}
+                                  className="w-full h-full object-cover border-0 pointer-events-none"
+                                />
+                              );
+                            }
+                            if (parsed?.type === 'instagram') {
+                              return (
+                                <iframe
+                                  src={`https://www.instagram.com/reel/${parsed.id}/embed/`}
+                                  title={reel.tagText}
+                                  className="w-full h-full object-cover border-0 pointer-events-none"
+                                />
+                              );
+                            }
+                            if (parsed?.type === 'googledrive') {
+                              return (
+                                <iframe
+                                  src={`https://drive.google.com/file/d/${parsed.id}/preview`}
+                                  title={reel.tagText}
+                                  className="w-full h-full object-cover border-0 pointer-events-none"
+                                />
+                              );
+                            }
+                            if (parsed?.type === 'direct') {
+                              return (
+                                <video
+                                  src={parsed.url}
+                                  playsInline
+                                  loop
+                                  autoPlay
+                                  muted
+                                  className="w-full h-full object-cover"
+                                />
+                              );
+                            }
+                            return (
+                              <div className="w-full h-full flex flex-col items-center justify-center text-white/40 text-xs gap-1">
+                                <Video className="w-6 h-6 text-[#967BB6]" />
+                                <span>No Video Link</span>
+                              </div>
+                            );
+                          })()}
 
-                          {/* Overlay Sticker */}
+                          {/* Top Badges */}
                           <div className="absolute top-3 left-3 text-white drop-shadow">
                             <span className="font-handwritten text-lg text-[#fffeea] block font-bold leading-tight">
                               {reel.tagText}
@@ -7086,28 +7327,53 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                             </span>
                           </div>
 
-                          <div className="absolute top-3 right-3 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                          <div className="absolute top-3 right-3 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1">
                             👁️ {reel.views}
                           </div>
 
-                          {/* Hover Overlay to Replace Photo */}
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          {/* Media Type Badge in Bottom Left */}
+                          <div className="absolute bottom-3 left-3 z-10">
+                            <span className="bg-[#967BB6] text-white text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+                              <Video className="w-2.5 h-2.5" />
+                              <span>Auto-play Video</span>
+                            </span>
+                          </div>
+
+                          {/* Hover Overlay to Edit Video Reel */}
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-3">
                             <button
                               type="button"
-                              onClick={() => {
-                                setUploadingTargetReelId(reel.id);
-                                if (reelFileInputRef.current) reelFileInputRef.current.click();
-                              }}
-                              className="px-3 py-1.5 bg-white text-brand-charcoal hover:bg-[#F3EEF9] rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1 cursor-pointer"
+                              onClick={() => handleOpenEditReel(reel)}
+                              className="px-3 py-2 bg-[#967BB6] hover:bg-[#856aa5] text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer w-full justify-center"
                             >
-                              <UploadCloud className="w-3.5 h-3.5 text-[#967BB6]" />
-                              <span>Upload Photo</span>
+                              <Edit3 className="w-3.5 h-3.5" />
+                              <span>Edit Video Reel</span>
                             </button>
                           </div>
                         </div>
 
                         {/* Controls */}
                         <div className="p-3 bg-white space-y-2 border-t border-[#EAE6DB]">
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-brand-muted flex items-center gap-1 mb-0.5">
+                              <Video className="w-3 h-3 text-[#967BB6]" />
+                              <span>Video Link (URL)</span>
+                            </label>
+                            <input
+                              type="url"
+                              value={reel.videoUrl || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setHomepageConfig((prev) => ({
+                                  ...prev,
+                                  influencerReels: prev.influencerReels.map((r) => (r.id === reel.id ? { ...r, videoUrl: val } : r)),
+                                }));
+                              }}
+                              placeholder="https://... (MP4, YouTube, or Video Link)"
+                              className="w-full px-2 py-1 bg-[#FAF8F2] border border-[#EAE6DB] rounded-lg text-xs font-mono focus:outline-none focus:border-[#967BB6]"
+                            />
+                          </div>
+
                           <div>
                             <label className="block text-[10px] font-bold uppercase text-brand-muted">
                               Handwritten Tag Sticker
@@ -7186,39 +7452,214 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                             </select>
                           </div>
 
-                          <div className="flex items-center justify-between pt-1 border-t border-[#EAE6DB]">
-                            <label className="flex items-center gap-1.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={reel.active !== false}
-                                onChange={() => {
-                                  setHomepageConfig((prev) => ({
-                                    ...prev,
-                                    influencerReels: prev.influencerReels.map((r) => (r.id === reel.id ? { ...r, active: !r.active } : r)),
-                                  }));
-                                }}
-                                className="rounded text-[#967BB6] focus:ring-[#967BB6] cursor-pointer"
-                              />
-                              <span className="text-[11px] font-bold text-brand-charcoal">Active</span>
-                            </label>
+                          {/* Reorder and Delete Row */}
+                          <div className="flex items-center justify-between pt-2 border-t border-[#EAE6DB]">
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={() => handleMoveReel(idx, 'left')}
+                                title="Move Earlier in Scroll"
+                                className="p-1 rounded bg-[#FAF8F2] hover:bg-[#F3EEF9] text-brand-charcoal disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                              >
+                                <MoveLeft className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={idx === homepageConfig.influencerReels.length - 1}
+                                onClick={() => handleMoveReel(idx, 'right')}
+                                title="Move Later in Scroll"
+                                className="p-1 rounded bg-[#FAF8F2] hover:bg-[#F3EEF9] text-brand-charcoal disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                              >
+                                <MoveRight className="w-3.5 h-3.5" />
+                              </button>
+                              <span className="text-[10px] font-mono text-brand-muted ml-1">#{idx + 1}</span>
+                            </div>
 
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteReel(reel.id)}
-                              className="text-rose-500 hover:text-rose-700 text-[11px] font-bold cursor-pointer"
-                            >
-                              Delete
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <label className="flex items-center gap-1 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={reel.active !== false}
+                                  onChange={() => {
+                                    const updated = homepageConfig.influencerReels.map((r) => (r.id === reel.id ? { ...r, active: !r.active } : r));
+                                    const newConfig = { ...homepageConfig, influencerReels: updated };
+                                    setHomepageConfig(newConfig);
+                                    DatabaseService.updateHomepageConfig(newConfig).catch(() => {});
+                                  }}
+                                  className="rounded text-[#967BB6] focus:ring-[#967BB6] cursor-pointer"
+                                />
+                                <span className="text-[10px] font-bold text-brand-charcoal">Active</span>
+                              </label>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteReel(reel.id)}
+                                className="text-rose-500 hover:text-rose-700 text-[11px] font-bold cursor-pointer"
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
                     ))}
                   </div>
+
+                  {/* Empty state when 0 reels */}
+                  {homepageConfig.influencerReels.length === 0 && (
+                    <div className="text-center py-12 px-4 border-2 border-dashed border-[#EAE6DB] rounded-3xl space-y-3 bg-[#FAF8F2]">
+                      <div className="w-12 h-12 rounded-2xl bg-[#967BB6]/15 flex items-center justify-center text-[#967BB6] mx-auto">
+                        <Video className="w-6 h-6" />
+                      </div>
+                      <h5 className="font-bold text-sm text-brand-charcoal">No Influencer Video Reels Added Yet</h5>
+                      <p className="text-xs text-brand-muted max-w-sm mx-auto">
+                        Add up to 10 video links (MP4, YouTube, or Shorts) to showcase influencer styling on your homepage.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleOpenAddReel}
+                        className="px-4 py-2 bg-[#1A1821] hover:bg-[#967BB6] text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add First Video Reel</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Bottom Save Bar */}
+                  {homepageConfig.influencerReels.length > 0 && (
+                    <div className="flex items-center justify-between pt-4 border-t border-[#EAE6DB] flex-wrap gap-3">
+                      <p className="text-xs text-brand-muted">
+                        All reel edits, reordering, and deletions are saved permanently to the database.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleSaveHomepageConfig}
+                        disabled={isSavingHomepage}
+                        className="px-6 py-2.5 bg-[#967BB6] hover:bg-[#856aa5] text-white text-xs font-bold uppercase rounded-2xl transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                      >
+                        {isSavingHomepage ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>Saving Changes...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-4 h-4" />
+                            <span>Save Influencer Reels</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* ================= SUB-TAB 5: BRAND FEATURES ================= */}
+            {/* ================= SUB-TAB 5: CUSTOMER REVIEWS HEADER ================= */}
+            {activeHomeSubTab === 'reviews' && (
+              <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
+                      <h4 className="font-serif text-lg font-bold text-brand-charcoal">
+                        "What Our Customers Say" Section Header
+                      </h4>
+                    </div>
+                    <p className="text-xs text-brand-muted">
+                      Customize the headline, star rating text, and happy buyer proof line shown above the auto-scrolling reviews.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('testimonials')}
+                      className="px-4 py-2 bg-[#FAF8F2] hover:bg-[#F2EDE2] border border-[#EAE6DB] text-brand-charcoal text-xs font-bold rounded-xl transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Quote className="w-3.5 h-3.5 text-[#967BB6]" />
+                      <span>Manage Testimonials</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveHomepageConfig}
+                      disabled={isSavingHomepage}
+                      className="px-5 py-2.5 bg-[#967BB6] hover:bg-[#856aa5] text-white text-xs font-bold uppercase rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      {isSavingHomepage ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Check className="w-3.5 h-3.5" />
+                      )}
+                      <span>Save Header Changes</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-5 bg-[#FAF8F2] rounded-2xl border border-[#EAE6DB]">
+                  <div>
+                    <label className="block text-xs font-bold text-brand-charcoal mb-1">
+                      Section Title / Headline
+                    </label>
+                    <input
+                      type="text"
+                      value={homepageConfig.reviewsTitle ?? 'WHAT OUR CUSTOMERS SAY'}
+                      onChange={(e) => setHomepageConfig({ ...homepageConfig, reviewsTitle: e.target.value })}
+                      placeholder="WHAT OUR CUSTOMERS SAY"
+                      className="w-full px-3 py-2.5 bg-white border border-[#EAE6DB] rounded-xl text-xs font-bold text-brand-charcoal focus:outline-none focus:border-[#967BB6]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-brand-charcoal mb-1">
+                      Rating Score
+                    </label>
+                    <input
+                      type="text"
+                      value={homepageConfig.reviewsRatingText ?? '4.9 / 5.0'}
+                      onChange={(e) => setHomepageConfig({ ...homepageConfig, reviewsRatingText: e.target.value })}
+                      placeholder="4.9 / 5.0"
+                      className="w-full px-3 py-2.5 bg-white border border-[#EAE6DB] rounded-xl text-xs font-bold text-brand-charcoal focus:outline-none focus:border-[#967BB6]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-brand-charcoal mb-1">
+                      Buyer Count / Subtitle
+                    </label>
+                    <input
+                      type="text"
+                      value={homepageConfig.reviewsSubtitle ?? 'Over 3,800+ happy buyers across India'}
+                      onChange={(e) => setHomepageConfig({ ...homepageConfig, reviewsSubtitle: e.target.value })}
+                      placeholder="Over 3,800+ happy buyers across India"
+                      className="w-full px-3 py-2.5 bg-white border border-[#EAE6DB] rounded-xl text-xs font-bold text-brand-charcoal focus:outline-none focus:border-[#967BB6]"
+                    />
+                  </div>
+                </div>
+
+                {/* Live Preview Box */}
+                <div className="bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl p-6 text-center space-y-1.5">
+                  <span className="text-[10px] font-bold text-brand-muted uppercase tracking-wider block mb-1">Live Homepage Header Preview</span>
+                  <h3 className="font-sans font-black text-xl sm:text-2xl text-brand-charcoal uppercase tracking-tight">
+                    {homepageConfig.reviewsTitle || 'WHAT OUR CUSTOMERS SAY'}
+                  </h3>
+                  <div className="flex items-center justify-center gap-1.5 text-xs text-brand-muted">
+                    <div className="flex text-amber-400">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star key={s} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                      ))}
+                    </div>
+                    <span className="font-bold text-brand-charcoal">{homepageConfig.reviewsRatingText || '4.9 / 5.0'}</span>
+                    <span>•</span>
+                    <span>{homepageConfig.reviewsSubtitle || 'Over 3,800+ happy buyers across India'}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ================= SUB-TAB 6: BRAND FEATURES ================= */}
             {activeHomeSubTab === 'features' && (
               <div className="bg-white rounded-3xl border border-[#EAE6DB] p-6 shadow-xs space-y-6">
                 <div>
@@ -7414,12 +7855,19 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
               </div>
             )}
 
-            {/* ================= MODAL: ADD INFLUENCER REEL ================= */}
+            {/* ================= MODAL: ADD / EDIT INFLUENCER REEL ================= */}
             {isReelModalOpen && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
-                <div className="bg-white rounded-3xl border border-[#EAE6DB] max-w-lg w-full p-6 sm:p-8 space-y-5 shadow-2xl relative">
+                <div className="bg-white rounded-3xl border border-[#EAE6DB] max-w-lg w-full p-6 sm:p-8 space-y-5 shadow-2xl relative max-h-[90vh] overflow-y-auto">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-serif text-xl font-bold text-brand-charcoal">Add Influencer Reel Card</h3>
+                    <div>
+                      <h3 className="font-serif text-xl font-bold text-brand-charcoal">
+                        {editingReelId ? 'Edit Influencer Video Reel' : 'Add Influencer Video Reel'}
+                      </h3>
+                      <p className="text-xs text-brand-muted mt-0.5">
+                        Add a video link (MP4, YouTube, Shorts) or photo card to display on your homepage.
+                      </p>
+                    </div>
                     <button
                       type="button"
                       onClick={() => setIsReelModalOpen(false)}
@@ -7431,30 +7879,72 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
                   <form onSubmit={handleSaveReelModal} className="space-y-4">
                     <div>
-                      <label className="block text-xs font-bold text-brand-charcoal mb-1">
-                        Reel Photo (Upload or URL) *
+                      <label className="block text-xs font-bold text-brand-charcoal mb-1 flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <Video className="w-3.5 h-3.5 text-[#967BB6]" />
+                          <span>Video Link (URL) *</span>
+                        </span>
+                        <span className="text-[11px] font-normal text-brand-muted">MP4, YouTube, Shorts, CDN</span>
                       </label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          required
-                          value={reelForm.image}
-                          onChange={(e) => setReelForm({ ...reelForm, image: e.target.value })}
-                          placeholder="https://... or click Upload"
-                          className="flex-1 px-3.5 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs focus:bg-white focus:outline-none focus:border-[#967BB6]"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setUploadingTargetReelId(null);
-                            if (reelFileInputRef.current) reelFileInputRef.current.click();
-                          }}
-                          className="px-4 py-2.5 bg-[#F3EEF9] hover:bg-[#967BB6] text-[#967BB6] hover:text-white border border-[#967BB6]/30 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
-                        >
-                          <UploadCloud className="w-4 h-4" />
-                          <span>Upload File</span>
-                        </button>
-                      </div>
+                      <input
+                        type="url"
+                        required
+                        value={reelForm.videoUrl || ''}
+                        onChange={(e) => setReelForm({ ...reelForm, videoUrl: e.target.value })}
+                        placeholder="https://... (e.g. YouTube Shorts or .mp4 video link)"
+                        className="w-full px-3.5 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl text-xs focus:bg-white focus:outline-none focus:border-[#967BB6]"
+                      />
+                      <p className="text-[11px] text-brand-muted mt-1">
+                        Supports MP4, WebM, YouTube Shorts, YouTube, Instagram Reels, and Google Drive. Autoplays muted with audio controls.
+                      </p>
+
+                      {reelForm.videoUrl && (
+                        <div className="mt-2.5 relative aspect-[9/10] max-h-44 rounded-xl overflow-hidden bg-black border border-[#EAE6DB]">
+                          {(() => {
+                            const parsed = parseVideoSource(reelForm.videoUrl);
+                            if (parsed?.type === 'youtube') {
+                              return (
+                                <iframe
+                                  src={`https://www.youtube-nocookie.com/embed/${parsed.id}?autoplay=1&mute=1&loop=1&playlist=${parsed.id}&controls=0`}
+                                  title="Preview"
+                                  className="w-full h-full object-cover border-0 pointer-events-none"
+                                />
+                              );
+                            }
+                            if (parsed?.type === 'instagram') {
+                              return (
+                                <iframe
+                                  src={`https://www.instagram.com/reel/${parsed.id}/embed/`}
+                                  title="Preview"
+                                  className="w-full h-full object-cover border-0 pointer-events-none"
+                                />
+                              );
+                            }
+                            if (parsed?.type === 'googledrive') {
+                              return (
+                                <iframe
+                                  src={`https://drive.google.com/file/d/${parsed.id}/preview`}
+                                  title="Preview"
+                                  className="w-full h-full object-cover border-0 pointer-events-none"
+                                />
+                              );
+                            }
+                            if (parsed?.type === 'direct') {
+                              return (
+                                <video
+                                  src={parsed.url}
+                                  playsInline
+                                  loop
+                                  autoPlay
+                                  muted
+                                  className="w-full h-full object-cover"
+                                />
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -7532,7 +8022,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                         type="submit"
                         className="px-6 py-2.5 bg-[#1A1821] hover:bg-[#967BB6] text-white text-xs font-bold uppercase rounded-xl transition-all shadow-xs cursor-pointer"
                       >
-                        Add Reel Card
+                        {editingReelId ? 'Update Reel Card' : 'Add Reel Card'}
                       </button>
                     </div>
                   </form>
