@@ -18,73 +18,6 @@ interface TestimonialsSectionProps {
   homeConfig?: HomepageConfig;
 }
 
-const CURATED_REVIEWS: TestimonialItem[] = [
-  {
-    id: 'cr-1',
-    author: 'Ananya S.',
-    location: 'Mumbai',
-    rating: 5,
-    comment: 'Wore my necklace daily to the gym and in hot showers for 3 months — still 100% shiny gold with zero tarnish!',
-    productName: '18K Gold Clover Necklace',
-  },
-  {
-    id: 'cr-2',
-    author: 'Priya M.',
-    location: 'Kolkata',
-    rating: 5,
-    comment: 'The softest pure cotton nightwear I have ever worn. Breathable, airy, and the floral ruffle trim is so aesthetic.',
-    productName: 'Fine Blue Ruffle Nightsuit',
-  },
-  {
-    id: 'cr-3',
-    author: 'Rhea S.',
-    location: 'Bengaluru',
-    rating: 5,
-    comment: 'Luxury boutique unboxing with velvet pouch. Arrived in 2 days and looks just like solid luxury gold jewellery.',
-    productName: 'Anti-Tarnish Tennis Bracelet',
-  },
-  {
-    id: 'cr-4',
-    author: 'Tanvi K.',
-    location: 'Delhi NCR',
-    rating: 5,
-    comment: 'Obsessed with the mulberry silk robe set. The fit is elegant, silky smooth, and feels truly opulent.',
-    productName: 'Mulberry Silk Satin Robe Set',
-  },
-  {
-    id: 'cr-5',
-    author: 'Sneha R.',
-    location: 'Pune',
-    rating: 5,
-    comment: 'Wash after wash, the fabric remains cloud-soft and color has not faded even a bit. Girly Tales is my go-to!',
-    productName: 'Pink Bow & Heart Cotton PJ',
-  },
-  {
-    id: 'cr-6',
-    author: 'Ishita P.',
-    location: 'Jaipur',
-    rating: 5,
-    comment: 'Finally jewellery that doesn’t turn my sensitive skin green! 100% waterproof and sweatproof gold.',
-    productName: 'Waterproof Chunky Gold Hoops',
-  },
-  {
-    id: 'cr-7',
-    author: 'Meera N.',
-    location: 'Hyderabad',
-    rating: 5,
-    comment: 'Ordered the Hello Kitty set for my sister and myself. The cutest matching PJs and premium stitching!',
-    productName: 'Hello Kitty Nightsuit',
-  },
-  {
-    id: 'cr-8',
-    author: 'Kavya D.',
-    location: 'Chandigarh',
-    rating: 5,
-    comment: 'Super fast pan-India delivery and packaging was adorable. Perfect gift for birthdays and bridesmaid hampers!',
-    productName: 'Dainty Pearl Charm Anklet',
-  },
-];
-
 export const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({
   products = [],
   onSelectProduct,
@@ -144,22 +77,13 @@ export const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({
     };
   }, []);
 
-  // Merge database reviews with curated reviews so there is always a rich list to scroll smoothly
-  const mergedReviews = useMemo(() => {
-    const list: TestimonialItem[] = [...dbReviews];
-    CURATED_REVIEWS.forEach((c) => {
-      if (!list.some((d) => d.author.toLowerCase() === c.author.toLowerCase() || d.comment === c.comment)) {
-        list.push(c);
-      }
-    });
-    return list;
-  }, [dbReviews]);
-
   // Duplicate items for a continuous, seamless infinite loop
   const duplicatedReviews = useMemo(() => {
-    if (mergedReviews.length === 0) return [];
-    return [...mergedReviews, ...mergedReviews];
-  }, [mergedReviews]);
+    if (dbReviews.length === 0) return [];
+    if (dbReviews.length === 1) return Array(6).fill(dbReviews[0]);
+    if (dbReviews.length < 5) return [...dbReviews, ...dbReviews, ...dbReviews];
+    return [...dbReviews, ...dbReviews];
+  }, [dbReviews]);
 
   // Buttery-smooth automatic horizontal scrolling using requestAnimationFrame
   useEffect(() => {
@@ -189,7 +113,7 @@ export const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({
     return () => cancelAnimationFrame(animationFrameId);
   }, [isPaused, duplicatedReviews.length]);
 
-  if (!mergedReviews || mergedReviews.length === 0) {
+  if (!dbReviews || dbReviews.length === 0) {
     return null;
   }
 

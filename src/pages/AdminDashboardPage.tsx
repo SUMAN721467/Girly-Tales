@@ -2580,7 +2580,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             }`}
           >
             <Quote className="w-3.5 h-3.5 text-[#967BB6]" />
-            <span>Testimonials ({reviews.filter((r) => r.status === 'Approved' || r.status === 'Featured').length})</span>
+            <span>Testimonials ({testimonials.length})</span>
           </button>
 
           <button
@@ -5562,7 +5562,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                         <span className="text-2xl font-black text-brand-charcoal">{liveTestimonials.length}</span>
                         <span className="text-[10px] text-emerald-700 font-bold">Active</span>
                       </div>
-                      <span className="text-[10px] text-brand-muted">First 4 shown on homepage</span>
+                      <span className="text-[10px] text-brand-muted">Auto-scrolling marquee on homepage</span>
                     </div>
 
                     <div className="p-4 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl">
@@ -5607,21 +5607,21 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
               {/* Homepage Title Preview */}
               <div className="text-center py-2 space-y-1">
                 <h4 className="font-sans font-black text-xl sm:text-2xl text-brand-charcoal uppercase tracking-tight">
-                  WHAT OUR CUSTOMERS SAY
+                  {homepageConfig.reviewsTitle || 'WHAT OUR CUSTOMERS SAY'}
                 </h4>
                 <div className="flex items-center justify-center gap-1.5 text-xs text-brand-muted">
                   <div className="flex text-amber-500 text-xs">★★★★★</div>
-                  <span className="font-bold text-brand-charcoal">4.9 / 5.0</span>
+                  <span className="font-bold text-brand-charcoal">{homepageConfig.reviewsRatingText || '4.9 / 5.0'}</span>
                   <span>•</span>
-                  <span>Over 3,800+ happy buyers across India</span>
+                  <span>{homepageConfig.reviewsSubtitle || 'Over 3,800+ happy buyers across India'}</span>
                 </div>
               </div>
 
-              {/* 4 Preview Cards */}
+              {/* Preview Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
                 {(() => {
                   const live = testimonials.filter((r) => r.status === 'Approved' || r.status === 'Featured');
-                  const displayList = live.slice(0, 4);
+                  const displayList = live;
 
                   if (displayList.length === 0) {
                     return (

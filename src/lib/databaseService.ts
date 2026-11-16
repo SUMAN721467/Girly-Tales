@@ -930,52 +930,100 @@ const CUSTOMERS_CACHE_KEY = 'gt_cached_customers_v3';
 
 export const DEFAULT_TESTIMONIALS: RealTestimonial[] = [
   {
-    id: 't-1',
+    id: 'testi-1',
     author: 'Ananya S.',
     location: 'Mumbai',
     rating: 5,
     comment: 'Wore my necklace daily to the gym and in hot showers for 3 months — still 100% shiny gold with zero tarnish!',
-    productName: 'Anti-Tarnish Necklace',
+    productName: '18K Gold Clover Necklace',
     verified: true,
     status: 'Approved',
     orderIndex: 0,
     createdAt: new Date(Date.now() - 7 * 86400000).toISOString(),
   },
   {
-    id: 't-2',
+    id: 'testi-2',
     author: 'Priya M.',
     location: 'Kolkata',
     rating: 5,
-    comment: 'The softest pure cotton nightwear I have ever worn. Breathable, airy, and the floral print is so aesthetic.',
-    productName: 'Blossom Pure Cotton PJ Set',
+    comment: 'The softest pure cotton nightwear I have ever worn. Breathable, airy, and the floral ruffle trim is so aesthetic.',
+    productName: 'Fine Blue Ruffle Nightsuit',
     verified: true,
     status: 'Approved',
     orderIndex: 1,
-    createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
+    createdAt: new Date(Date.now() - 6 * 86400000).toISOString(),
   },
   {
-    id: 't-3',
+    id: 'testi-3',
     author: 'Rhea S.',
     location: 'Bengaluru',
     rating: 5,
-    comment: 'Luxury boutique unboxing with velvet pouch. Arrived in 2 days and looks just like solid luxury jewellery.',
-    productName: 'Clover Anti-Tarnish Bracelet',
+    comment: 'Luxury boutique unboxing with velvet pouch. Arrived in 2 days and looks just like solid luxury gold jewellery.',
+    productName: 'Anti-Tarnish Tennis Bracelet',
     verified: true,
     status: 'Approved',
     orderIndex: 2,
-    createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
+    createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
   },
   {
-    id: 't-4',
+    id: 'testi-4',
     author: 'Tanvi K.',
     location: 'Delhi NCR',
     rating: 5,
     comment: 'Obsessed with the mulberry silk robe set. The fit is elegant, silky smooth, and feels truly opulent.',
-    productName: 'Silk Satin Robe Set',
+    productName: 'Mulberry Silk Satin Robe Set',
     verified: true,
     status: 'Approved',
     orderIndex: 3,
+    createdAt: new Date(Date.now() - 4 * 86400000).toISOString(),
+  },
+  {
+    id: 'testi-5',
+    author: 'Sneha R.',
+    location: 'Pune',
+    rating: 5,
+    comment: 'Wash after wash, the fabric remains cloud-soft and color has not faded even a bit. Girly Tales is my go-to!',
+    productName: 'Pink Bow & Heart Cotton PJ',
+    verified: true,
+    status: 'Approved',
+    orderIndex: 4,
+    createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
+  },
+  {
+    id: 'testi-6',
+    author: 'Ishita P.',
+    location: 'Jaipur',
+    rating: 5,
+    comment: 'Finally jewellery that doesn’t turn my sensitive skin green! 100% waterproof and sweatproof gold.',
+    productName: 'Waterproof Chunky Gold Hoops',
+    verified: true,
+    status: 'Approved',
+    orderIndex: 5,
+    createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+  },
+  {
+    id: 'testi-7',
+    author: 'Meera N.',
+    location: 'Hyderabad',
+    rating: 5,
+    comment: 'Ordered the Hello Kitty set for my sister and myself. The cutest matching PJs and premium stitching!',
+    productName: 'Hello Kitty Nightsuit',
+    verified: true,
+    status: 'Approved',
+    orderIndex: 6,
     createdAt: new Date(Date.now() - 1 * 86400000).toISOString(),
+  },
+  {
+    id: 'testi-8',
+    author: 'Kavya D.',
+    location: 'Chandigarh',
+    rating: 5,
+    comment: 'Super fast pan-India delivery and packaging was adorable. Perfect gift for birthdays and bridesmaid hampers!',
+    productName: 'Dainty Pearl Charm Anklet',
+    verified: true,
+    status: 'Approved',
+    orderIndex: 7,
+    createdAt: new Date().toISOString(),
   },
 ];
 
@@ -1127,6 +1175,8 @@ try {
         const parsed = JSON.parse(savedTestimonials);
         if (Array.isArray(parsed)) inMemoryTestimonials = parsed;
       } catch {}
+    } else {
+      inMemoryTestimonials = [...DEFAULT_TESTIMONIALS];
     }
     const savedHomepage = localStorage.getItem(HOMEPAGE_CACHE_KEY);
     if (savedHomepage) {
@@ -3628,7 +3678,7 @@ export const DatabaseService = {
 
   // ==================== 4.1 TESTIMONIALS ====================
   getCachedTestimonials(): RealTestimonial[] {
-    return inMemoryTestimonials;
+    return inMemoryTestimonials.length > 0 ? inMemoryTestimonials : DEFAULT_TESTIMONIALS;
   },
 
   async getTestimonials(forceFresh = false): Promise<RealTestimonial[]> {
@@ -3687,7 +3737,6 @@ export const DatabaseService = {
               testimonialsTableExists = false;
             }
           } else if (Array.isArray(data)) {
-            // Even if data is [] (all testimonials deleted in DB), treat as valid DB response
             rawData = data;
           }
         } catch {
@@ -3704,8 +3753,8 @@ export const DatabaseService = {
           } catch {}
         }
 
-        // 3. If dedicated table exists in DB, respect the exact rows (including 0 rows)
-        if (testimonialsTableExists && Array.isArray(rawData)) {
+        // 3. If dedicated table exists in DB and has rows, map and use them
+        if (testimonialsTableExists && Array.isArray(rawData) && rawData.length > 0) {
           const mapped: RealTestimonial[] = rawData.map((d: any, idx: number) => ({
             id: String(d.id),
             author: d.author || 'Verified Customer',
@@ -3730,39 +3779,50 @@ export const DatabaseService = {
           return mapped;
         }
 
-        // 4. Fallback ONLY if testimonials table does not exist at all in DB schema
-        if (!testimonialsTableExists) {
-          try {
-            const revs = await this.getReviews();
-            if (Array.isArray(revs)) {
-              const approved = revs.filter((r) => r.status === 'Approved' || r.status === 'Featured');
-              const fallbackMapped: RealTestimonial[] = approved.slice(0, 8).map((r, idx) => ({
-                id: r.id,
-                author: r.author || 'Verified Customer',
-                rating: r.rating || 5,
-                comment: r.comment,
-                productName: r.productName || 'Anti-Tarnish Jewellery',
-                productId: r.productId || '',
-                location: 'Verified Buyer',
-                verified: r.verified !== false,
-                status: (r.status as any) || 'Approved',
-                orderIndex: idx,
-                createdAt: r.createdAt,
-              }));
-              inMemoryTestimonials = fallbackMapped;
-              try {
-                if (typeof window !== 'undefined') {
-                  localStorage.setItem(TESTIMONIALS_CACHE_KEY, JSON.stringify(fallbackMapped));
-                }
-              } catch {}
-              return fallbackMapped;
-            }
-          } catch {}
+        // 4. Fallback: Query store_settings for 'homepage_testimonials'
+        try {
+          const { data } = await withTimeout(
+            client.from('store_settings').select('*').eq('key', 'homepage_testimonials').maybeSingle(),
+            4000,
+            { data: null }
+          );
+          if (data?.value && Array.isArray(data.value) && data.value.length > 0) {
+            inMemoryTestimonials = data.value;
+            lastTestimonialsFetchTime = Date.now();
+            try {
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(TESTIMONIALS_CACHE_KEY, JSON.stringify(data.value));
+              }
+            } catch {}
+            return data.value;
+          }
+        } catch {}
+
+        try {
+          const rest = await fetchSupabaseRestFallback<any[]>('store_settings?select=*&key=eq.homepage_testimonials');
+          if (Array.isArray(rest) && rest.length > 0 && Array.isArray(rest[0]?.value) && rest[0].value.length > 0) {
+            inMemoryTestimonials = rest[0].value;
+            lastTestimonialsFetchTime = Date.now();
+            try {
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(TESTIMONIALS_CACHE_KEY, JSON.stringify(rest[0].value));
+              }
+            } catch {}
+            return rest[0].value;
+          }
+        } catch {}
+
+        // 5. If still empty, return in-memory or defaults
+        if (inMemoryTestimonials.length === 0) {
+          inMemoryTestimonials = [...DEFAULT_TESTIMONIALS];
         }
 
         return inMemoryTestimonials;
       } catch (e) {
         console.warn('fetchFreshTestimonials note:', e);
+        if (inMemoryTestimonials.length === 0) {
+          inMemoryTestimonials = [...DEFAULT_TESTIMONIALS];
+        }
         return inMemoryTestimonials;
       } finally {
         activeTestimonialsPromise = null;
@@ -3813,55 +3873,35 @@ export const DatabaseService = {
       created_at: newTestimonial.createdAt,
     };
 
-    // 1. Write to testimonials table
-    let insertError: any = null;
+    // 1. Write to testimonials table if available
     try {
-      const { error } = await client.from('testimonials').insert(payload);
-      insertError = error;
-    } catch (err) {
-      insertError = err;
-    }
-
-    if (insertError) {
-      const ok = await supabaseRestMutation('testimonials', 'POST', '', payload);
-      if (!ok) {
-        // Fallback write to reviews table so it is persisted even before SQL migration
-        await this.addReview({
-          author: newTestimonial.author,
-          productName: newTestimonial.productName,
-          rating: newTestimonial.rating,
-          comment: newTestimonial.comment,
-          verified: newTestimonial.verified,
-          status: newTestimonial.status as any,
-        }).catch(() => {});
-      }
-    } else {
-      // Dual write to reviews table as safety backup
-      try {
-        await client
-          .from('reviews')
-          .upsert({
-            id: newTestimonial.id,
-            author: newTestimonial.author,
-            product_name: newTestimonial.productName,
-            rating: newTestimonial.rating,
-            comment: newTestimonial.comment,
-            verified: newTestimonial.verified,
-            status: newTestimonial.status,
-            created_at: newTestimonial.createdAt,
-          });
-      } catch {}
-    }
+      await client.from('testimonials').insert(payload);
+    } catch {}
 
     inMemoryTestimonials = [newTestimonial, ...inMemoryTestimonials.filter((t) => t.id !== newTestimonial.id)];
+    
     try {
       if (typeof window !== 'undefined') {
         localStorage.setItem(TESTIMONIALS_CACHE_KEY, JSON.stringify(inMemoryTestimonials));
       }
     } catch {}
 
+    // Cloud backup to store_settings
+    try {
+      await client.from('store_settings').upsert(
+        { key: 'homepage_testimonials', value: inMemoryTestimonials, updated_at: new Date().toISOString() },
+        { onConflict: 'key' }
+      );
+    } catch {}
+    supabaseRestMutation(
+      'store_settings',
+      'POST',
+      'on_conflict=key',
+      { key: 'homepage_testimonials', value: inMemoryTestimonials, updated_at: new Date().toISOString() },
+      'resolution=merge-duplicates,return=minimal'
+    ).catch(() => {});
+
     notifyDatabaseChange('testimonials');
-    notifyDatabaseChange('reviews');
     return newTestimonial;
   },
 
@@ -3881,40 +3921,9 @@ export const DatabaseService = {
     if (updates.status !== undefined) payload.status = updates.status;
     if (updates.orderIndex !== undefined) payload.order_index = updates.orderIndex;
 
-    let updateError: any = null;
     try {
-      const { error } = await client.from('testimonials').update(payload).eq('id', id);
-      updateError = error;
-    } catch (err) {
-      updateError = err;
-    }
-
-    if (updateError) {
-      const ok = await supabaseRestMutation('testimonials', 'PATCH', `id=eq.${encodeURIComponent(id)}`, payload);
-      if (!ok) {
-        await this.updateReview(id, {
-          author: updates.author,
-          productName: updates.productName,
-          rating: updates.rating,
-          comment: updates.comment,
-          verified: updates.verified,
-          status: updates.status as any,
-        }).catch(() => {});
-      }
-    } else {
-      try {
-        await client
-          .from('reviews')
-          .update({
-            author: updates.author,
-            product_name: updates.productName,
-            rating: updates.rating,
-            comment: updates.comment,
-            status: updates.status,
-          })
-          .eq('id', id);
-      } catch {}
-    }
+      await client.from('testimonials').update(payload).eq('id', id);
+    } catch {}
 
     let updatedTestimonial: RealTestimonial | null = null;
     const cleanId = String(id).trim().toLowerCase();
@@ -3953,39 +3962,54 @@ export const DatabaseService = {
       }
     } catch {}
 
+    // Cloud backup to store_settings
+    try {
+      await client.from('store_settings').upsert(
+        { key: 'homepage_testimonials', value: inMemoryTestimonials, updated_at: new Date().toISOString() },
+        { onConflict: 'key' }
+      );
+    } catch {}
+    supabaseRestMutation(
+      'store_settings',
+      'POST',
+      'on_conflict=key',
+      { key: 'homepage_testimonials', value: inMemoryTestimonials, updated_at: new Date().toISOString() },
+      'resolution=merge-duplicates,return=minimal'
+    ).catch(() => {});
+
     notifyDatabaseChange('testimonials');
-    notifyDatabaseChange('reviews');
     return updatedTestimonial;
   },
 
   async deleteTestimonial(id: string): Promise<void> {
     const client = requireSupabase();
-    let delError: any = null;
     try {
-      const { error } = await client.from('testimonials').delete().eq('id', id);
-      delError = error;
-    } catch (err) {
-      delError = err;
-    }
-
-    if (delError) {
-      const ok = await supabaseRestMutation('testimonials', 'DELETE', `id=eq.${encodeURIComponent(id)}`);
-      if (!ok) {
-        await this.deleteReview(id).catch(() => {});
-      }
-    } else {
-      try {
-        await client.from('reviews').delete().eq('id', id);
-      } catch {}
-    }
+      await client.from('testimonials').delete().eq('id', id);
+    } catch {}
 
     const cleanId = String(id).trim().toLowerCase();
     inMemoryTestimonials = inMemoryTestimonials.filter((t) => String(t.id).trim().toLowerCase() !== cleanId);
+    
     try {
       if (typeof window !== 'undefined') {
         localStorage.setItem(TESTIMONIALS_CACHE_KEY, JSON.stringify(inMemoryTestimonials));
       }
     } catch {}
+
+    // Cloud backup to store_settings
+    try {
+      await client.from('store_settings').upsert(
+        { key: 'homepage_testimonials', value: inMemoryTestimonials, updated_at: new Date().toISOString() },
+        { onConflict: 'key' }
+      );
+    } catch {}
+    supabaseRestMutation(
+      'store_settings',
+      'POST',
+      'on_conflict=key',
+      { key: 'homepage_testimonials', value: inMemoryTestimonials, updated_at: new Date().toISOString() },
+      'resolution=merge-duplicates,return=minimal'
+    ).catch(() => {});
 
     notifyDatabaseChange('testimonials');
     notifyDatabaseChange('reviews');
