@@ -225,6 +225,7 @@ export interface RealOrderItem {
   price: number;
   quantity: number;
   size?: string;
+  color?: string;
   variant?: string;
   image?: string;
 }
@@ -269,6 +270,7 @@ export function normalizeOrderItems(items: (string | RealOrderItem)[] | undefine
         price: Number((it as RealOrderItem).price) || 0,
         quantity: Number((it as RealOrderItem).quantity) || 1,
         size: (it as RealOrderItem).size || '',
+        color: (it as any).color || (it as any).selectedColor || '',
         variant: (it as RealOrderItem).variant || '',
         image: img || (allProducts?.[0]?.images?.[0] || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80'),
       };
@@ -1975,6 +1977,7 @@ export const DatabaseService = {
             careInstructions: d.care_instructions || d.careInstructions || [],
             deliveryPolicy: d.delivery_policy || d.deliveryPolicy || '',
             specs: d.specs || {},
+            primaryColor: d.primary_color || d.primaryColor || d.specs?.['Primary Colour'] || d.specs?.['Colour'] || '',
             colors: d.colors || [],
             antiTarnishGuarantee: d.anti_tarnish_guarantee || '',
             waterproof: Boolean(d.waterproof),
@@ -2036,7 +2039,10 @@ export const DatabaseService = {
       highlights: product.highlights || [],
       care_instructions: product.careInstructions || [],
       delivery_policy: product.deliveryPolicy || '',
-      specs: product.specs || {},
+      specs: {
+        ...(product.specs || {}),
+        ...(product.primaryColor ? { 'Primary Colour': product.primaryColor, 'Colour': product.primaryColor } : {}),
+      },
       colors: product.colors || [],
       anti_tarnish_guarantee: product.antiTarnishGuarantee || '',
       waterproof: Boolean(product.waterproof),
@@ -2053,6 +2059,25 @@ export const DatabaseService = {
       saveError = error;
     } catch (err) {
       saveError = err;
+    }
+
+    if (saveError) {
+      const errStr = JSON.stringify(saveError);
+      const match = errStr.match(/'([^']+)' column/) || errStr.match(/column "([^"]+)"/);
+      if (match && match[1] && (fullPayload as any)[match[1]] !== undefined) {
+        console.warn(`Stripping unknown column '${match[1]}' from addProduct payload and retrying...`);
+        delete (fullPayload as any)[match[1]];
+        try {
+          const { error: retryErr } = await client.from('products').upsert(fullPayload, { onConflict: 'id' });
+          if (!retryErr) {
+            saveError = null;
+          } else {
+            saveError = retryErr;
+          }
+        } catch (e) {
+          saveError = e;
+        }
+      }
     }
 
     if (saveError) {
@@ -2120,7 +2145,15 @@ export const DatabaseService = {
     if (updates.highlights !== undefined) payload.highlights = updates.highlights;
     if (updates.careInstructions !== undefined) payload.care_instructions = updates.careInstructions;
     if (updates.deliveryPolicy !== undefined) payload.delivery_policy = updates.deliveryPolicy;
-    if (updates.specs !== undefined) payload.specs = updates.specs;
+    if (updates.specs !== undefined || updates.primaryColor !== undefined) {
+      const existingProduct = inMemoryProducts.find((p) => p.id === id);
+      const baseSpecs = updates.specs || existingProduct?.specs || {};
+      const primaryColorVal = updates.primaryColor !== undefined ? updates.primaryColor : existingProduct?.primaryColor;
+      payload.specs = {
+        ...baseSpecs,
+        ...(primaryColorVal ? { 'Primary Colour': primaryColorVal, 'Colour': primaryColorVal } : {}),
+      };
+    }
     if (updates.colors !== undefined) payload.colors = updates.colors;
     if (updates.antiTarnishGuarantee !== undefined) payload.anti_tarnish_guarantee = updates.antiTarnishGuarantee;
     if (updates.waterproof !== undefined) payload.waterproof = Boolean(updates.waterproof);
@@ -2155,6 +2188,25 @@ export const DatabaseService = {
       updateError = error;
     } catch (err) {
       updateError = err;
+    }
+
+    if (updateError) {
+      const errStr = JSON.stringify(updateError);
+      const match = errStr.match(/'([^']+)' column/) || errStr.match(/column "([^"]+)"/);
+      if (match && match[1] && payload[match[1]] !== undefined) {
+        console.warn(`Stripping unknown column '${match[1]}' from updateProduct payload and retrying...`);
+        delete payload[match[1]];
+        try {
+          const { error: retryErr } = await client.from('products').update(payload).eq('id', id);
+          if (!retryErr) {
+            updateError = null;
+          } else {
+            updateError = retryErr;
+          }
+        } catch (e) {
+          updateError = e;
+        }
+      }
     }
 
     if (updateError) {
@@ -4517,70 +4569,34 @@ export const DatabaseService = {
   },
 
   async addCategory(categoryData: { name: string; isActive?: boolean; subCategories?: string[] }): Promise<RealCategory> {
-    const client = requireSupabase();
+    const trimmedName = (categoryData.name || '').trim();
+    if (!trimmedName) {
+      throw new Error('Category name cannot be empty');
+    }
+
     const current = await this.getCategories();
     const nextOrderIndex = current.length > 0 ? Math.max(...current.map((c) => c.orderIndex ?? 0)) + 1 : 0;
     const initialSubs = categoryData.subCategories && categoryData.subCategories.length > 0
       ? categoryData.subCategories
-      : getSubCategoriesForCat(undefined, undefined, categoryData.name, inMemoryCategorySubcategories);
+      : getSubCategoriesForCat(undefined, undefined, trimmedName, inMemoryCategorySubcategories);
 
     const newCategory: RealCategory = {
-      id: `cat-${Date.now()}`,
-      name: categoryData.name.trim(),
-      slug: categoryData.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
+      id: `cat-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      name: trimmedName,
+      slug: trimmedName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
       isActive: categoryData.isActive !== false,
       orderIndex: nextOrderIndex,
       subCategories: initialSubs,
       createdAt: new Date().toISOString(),
     };
 
-    let insertError = null;
+    // 1. Instantly update in-memory and local cache so the category is immediately active and preserved
+    inMemoryCategories = [...current.filter((c) => c.id !== newCategory.id), newCategory];
     try {
-      const { error } = await client.from('categories').insert({
-        id: newCategory.id,
-        name: newCategory.name,
-        slug: newCategory.slug,
-        is_active: newCategory.isActive,
-        order_index: newCategory.orderIndex,
-        created_at: newCategory.createdAt,
-      });
-      insertError = error;
-    } catch (err) {
-      insertError = err;
-    }
-
-    if (insertError) {
-      // Direct REST fallback with clean Anon API key
-      try {
-        const baseUrl = getEffectiveSupabaseUrl().replace(/\/+$/, '');
-        const apiKey = getSupabaseAnonKey();
-        const postRes = await fetch(`${baseUrl}/rest/v1/categories`, {
-          method: 'POST',
-          headers: {
-            apikey: apiKey,
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-            Prefer: 'return=minimal',
-          },
-          body: JSON.stringify({
-            id: newCategory.id,
-            name: newCategory.name,
-            slug: newCategory.slug,
-            is_active: newCategory.isActive,
-            order_index: newCategory.orderIndex,
-            created_at: newCategory.createdAt,
-          }),
-        });
-        if (!postRes.ok) {
-          const errBody = await postRes.text().catch(() => '');
-          throw new Error(errBody || `HTTP ${postRes.status}`);
-        }
-        insertError = null;
-      } catch (restErr: any) {
-        console.error('Supabase addCategory REST fallback error:', restErr);
-        throw new Error(`Failed to create category: ${formatQueryError(restErr || insertError)}`);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(CATEGORIES_CACHE_KEY, JSON.stringify(inMemoryCategories));
       }
-    }
+    } catch {}
 
     if (initialSubs && initialSubs.length > 0) {
       inMemoryCategorySubcategories[newCategory.id] = initialSubs;
@@ -4590,23 +4606,62 @@ export const DatabaseService = {
         if (typeof window !== 'undefined') {
           localStorage.setItem(SUBCATEGORIES_CACHE_KEY, JSON.stringify(inMemoryCategorySubcategories));
         }
-        const payload = {
-          key: 'category_subcategories',
-          value: inMemoryCategorySubcategories,
-          updated_at: new Date().toISOString(),
-        };
-        client.from('store_settings').upsert(payload, { onConflict: 'key' }).then(() => {}, () => {});
-        supabaseRestMutation('store_settings', 'POST', 'on_conflict=key', payload, 'resolution=merge-duplicates,return=minimal').catch(() => {});
       } catch {}
     }
 
-    inMemoryCategories = [...current.filter((c) => c.id !== newCategory.id), newCategory];
-    try {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(CATEGORIES_CACHE_KEY, JSON.stringify(inMemoryCategories));
-      }
-    } catch {}
+    // 2. Broadcast local update immediately
     notifyDatabaseChange('categories');
+
+    // 3. Attempt cloud persistence in Supabase (with multi-layer fallback; never throws on network failure)
+    if (isSupabaseConfigured) {
+      try {
+        const client = requireSupabase();
+        let insertOk = false;
+        try {
+          const { error } = await client.from('categories').insert({
+            id: newCategory.id,
+            name: newCategory.name,
+            slug: newCategory.slug,
+            is_active: newCategory.isActive,
+            order_index: newCategory.orderIndex,
+            created_at: newCategory.createdAt,
+          });
+          if (!error) insertOk = true;
+        } catch {}
+
+        if (!insertOk) {
+          try {
+            const ok = await supabaseRestMutation('categories', 'POST', '', {
+              id: newCategory.id,
+              name: newCategory.name,
+              slug: newCategory.slug,
+              is_active: newCategory.isActive,
+              order_index: newCategory.orderIndex,
+              created_at: newCategory.createdAt,
+            });
+            if (ok) insertOk = true;
+          } catch {}
+        }
+
+        // Dual backup to store_settings
+        try {
+          await client.from('store_settings').upsert({
+            key: 'store_categories',
+            value: inMemoryCategories,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'key' });
+        } catch {}
+
+        supabaseRestMutation('store_settings', 'POST', 'on_conflict=key', {
+          key: 'store_categories',
+          value: inMemoryCategories,
+          updated_at: new Date().toISOString(),
+        }, 'resolution=merge-duplicates,return=minimal').catch(() => {});
+      } catch (cloudErr) {
+        console.warn('Cloud sync note for addCategory (persisted locally):', cloudErr);
+      }
+    }
+
     return newCategory;
   },
 
@@ -4662,7 +4717,6 @@ export const DatabaseService = {
   },
 
   async updateCategory(id: string, updates: Partial<RealCategory>): Promise<RealCategory> {
-    const client = requireSupabase();
     const payload: any = {};
     if (updates.name !== undefined) {
       payload.name = updates.name.trim();
@@ -4670,22 +4724,6 @@ export const DatabaseService = {
     }
     if (updates.isActive !== undefined) payload.is_active = updates.isActive;
     if (updates.orderIndex !== undefined) payload.order_index = updates.orderIndex;
-
-    let updateError: any = null;
-    try {
-      const { error } = await client.from('categories').update(payload).eq('id', id);
-      updateError = error;
-    } catch (err) {
-      updateError = err;
-    }
-
-    if (updateError) {
-      const ok = await supabaseRestMutation('categories', 'PATCH', `id=eq.${encodeURIComponent(id)}`, payload);
-      if (!ok) {
-        console.error('Supabase updateCategory failed:', updateError);
-        throw new Error(`Failed to update category: ${formatQueryError(updateError)}`);
-      }
-    }
 
     let updatedCat: RealCategory | null = null;
     inMemoryCategories = inMemoryCategories.map((c) => {
@@ -4706,29 +4744,48 @@ export const DatabaseService = {
         localStorage.setItem(CATEGORIES_CACHE_KEY, JSON.stringify(inMemoryCategories));
       }
     } catch {}
+
     notifyDatabaseChange('categories');
+
+    if (isSupabaseConfigured) {
+      try {
+        const client = requireSupabase();
+        let updateOk = false;
+        try {
+          const { error } = await client.from('categories').update(payload).eq('id', id);
+          if (!error) updateOk = true;
+        } catch {}
+
+        if (!updateOk) {
+          try {
+            await supabaseRestMutation('categories', 'PATCH', `id=eq.${encodeURIComponent(id)}`, payload);
+          } catch {}
+        }
+
+        // Dual backup to store_settings
+        try {
+          await client.from('store_settings').upsert({
+            key: 'store_categories',
+            value: inMemoryCategories,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'key' });
+        } catch {}
+
+        supabaseRestMutation('store_settings', 'POST', 'on_conflict=key', {
+          key: 'store_categories',
+          value: inMemoryCategories,
+          updated_at: new Date().toISOString(),
+        }, 'resolution=merge-duplicates,return=minimal').catch(() => {});
+      } catch (cloudErr) {
+        console.warn('Cloud sync note for updateCategory (persisted locally):', cloudErr);
+      }
+    }
+
     if (!updatedCat) throw new Error('Category not found after update');
     return updatedCat;
   },
 
   async deleteCategory(id: string): Promise<void> {
-    const client = requireSupabase();
-    let delError: any = null;
-    try {
-      const { error } = await client.from('categories').delete().eq('id', id);
-      delError = error;
-    } catch (err) {
-      delError = err;
-    }
-
-    if (delError) {
-      const ok = await supabaseRestMutation('categories', 'DELETE', `id=eq.${encodeURIComponent(id)}`);
-      if (!ok) {
-        console.error('Supabase deleteCategory failed:', delError);
-        throw new Error(`Failed to delete category: ${formatQueryError(delError)}`);
-      }
-    }
-
     inMemoryCategories = inMemoryCategories.filter((c) => c.id !== id);
     try {
       if (typeof window !== 'undefined') {
@@ -4736,32 +4793,44 @@ export const DatabaseService = {
       }
     } catch {}
     notifyDatabaseChange('categories');
+
+    if (isSupabaseConfigured) {
+      try {
+        const client = requireSupabase();
+        let delOk = false;
+        try {
+          const { error } = await client.from('categories').delete().eq('id', id);
+          if (!error) delOk = true;
+        } catch {}
+
+        if (!delOk) {
+          try {
+            await supabaseRestMutation('categories', 'DELETE', `id=eq.${encodeURIComponent(id)}`);
+          } catch {}
+        }
+
+        // Dual backup to store_settings
+        try {
+          await client.from('store_settings').upsert({
+            key: 'store_categories',
+            value: inMemoryCategories,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'key' });
+        } catch {}
+
+        supabaseRestMutation('store_settings', 'POST', 'on_conflict=key', {
+          key: 'store_categories',
+          value: inMemoryCategories,
+          updated_at: new Date().toISOString(),
+        }, 'resolution=merge-duplicates,return=minimal').catch(() => {});
+      } catch (cloudErr) {
+        console.warn('Cloud sync note for deleteCategory (persisted locally):', cloudErr);
+      }
+    }
   },
 
   async reorderCategories(reorderedList: RealCategory[]): Promise<void> {
-    const client = requireSupabase();
     const indexed = reorderedList.map((cat, idx) => ({ ...cat, orderIndex: idx }));
-
-    for (const cat of indexed) {
-      let updateError: any = null;
-      try {
-        const { error } = await client.from('categories').update({ order_index: cat.orderIndex }).eq('id', cat.id);
-        updateError = error;
-      } catch (err) {
-        updateError = err;
-      }
-
-      if (updateError) {
-        const ok = await supabaseRestMutation('categories', 'PATCH', `id=eq.${encodeURIComponent(cat.id)}`, {
-          order_index: cat.orderIndex,
-        });
-        if (!ok) {
-          console.error('Supabase reorderCategories error:', updateError);
-          throw new Error(`Failed to reorder category ${cat.name}: ${formatQueryError(updateError)}`);
-        }
-      }
-    }
-
     inMemoryCategories = indexed;
     try {
       if (typeof window !== 'undefined') {
@@ -4769,6 +4838,39 @@ export const DatabaseService = {
       }
     } catch {}
     notifyDatabaseChange('categories');
+
+    if (isSupabaseConfigured) {
+      try {
+        const client = requireSupabase();
+        for (const cat of indexed) {
+          try {
+            const { error } = await client.from('categories').update({ order_index: cat.orderIndex }).eq('id', cat.id);
+            if (error) {
+              await supabaseRestMutation('categories', 'PATCH', `id=eq.${encodeURIComponent(cat.id)}`, {
+                order_index: cat.orderIndex,
+              });
+            }
+          } catch {}
+        }
+
+        // Dual backup to store_settings
+        try {
+          await client.from('store_settings').upsert({
+            key: 'store_categories',
+            value: inMemoryCategories,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'key' });
+        } catch {}
+
+        supabaseRestMutation('store_settings', 'POST', 'on_conflict=key', {
+          key: 'store_categories',
+          value: inMemoryCategories,
+          updated_at: new Date().toISOString(),
+        }, 'resolution=merge-duplicates,return=minimal').catch(() => {});
+      } catch (cloudErr) {
+        console.warn('Cloud sync note for reorderCategories (persisted locally):', cloudErr);
+      }
+    }
   },
 
   async resetDefaultCategories(): Promise<RealCategory[]> {

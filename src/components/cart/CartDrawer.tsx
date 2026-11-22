@@ -176,10 +176,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               </button>
             </div>
           ) : (
-            items.map((item) => (
+            items.map((item) => {
+              const itemImage = (item.product.colors?.find(c => (typeof c === 'object' ? c.name : c)?.toLowerCase().trim() === item.selectedColor?.toLowerCase().trim())?.images?.[0]) || item.product.images[0] || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80';
+              return (
               <div key={item.id} className="flex gap-3 pt-3">
                 <img
-                  src={item.product.images[0]}
+                  src={itemImage}
                   alt={item.product.name}
                   className="w-16 h-20 object-cover rounded-lg border border-[#EAE6DB] shrink-0"
                 />
@@ -196,11 +198,18 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                    {item.selectedSize && (
-                      <span className="text-[10px] text-brand-muted block">
-                        Size: {item.selectedSize}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      {item.selectedSize && (
+                        <span className="text-[10px] text-brand-muted block">
+                          Size: {item.selectedSize}
+                        </span>
+                      )}
+                      {item.selectedColor && (
+                        <span className="text-[10px] text-brand-muted block">
+                          • Colour: {item.selectedColor}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex justify-between items-center mt-2">
@@ -225,7 +234,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   </div>
                 </div>
               </div>
-            ))
+            );
+          })
           )}
         </div>
 

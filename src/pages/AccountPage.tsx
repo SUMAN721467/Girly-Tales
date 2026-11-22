@@ -2271,7 +2271,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                 {selectedOrderForDetail.items.map((it, idx) => (
                   <div key={idx} className="flex items-center justify-between text-brand-muted">
                     <span className="truncate max-w-[240px]">
-                      • {typeof it === 'string' ? it : it.name} {typeof it === 'object' && it.size ? `(${it.size})` : ''}
+                      • {typeof it === 'string' ? it : it.name} {typeof it === 'object' && ((it as any).color || (it as any).selectedColor) ? `• ${(it as any).color || (it as any).selectedColor} ` : ''}{typeof it === 'object' && it.size ? `(${it.size})` : ''}
                     </span>
                     <span className="font-bold text-brand-charcoal">
                       {typeof it === 'object' ? `Qty: ${it.quantity || 1} • ₹${it.price || 0}` : ''}

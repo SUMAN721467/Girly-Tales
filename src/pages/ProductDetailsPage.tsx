@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Heart, Sparkles, Truck, RefreshCw, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Ruler, ArrowLeft, ZoomIn, CheckCircle, Camera, Image as ImageIcon, Plus, Trash2, X, Loader2, Star, ShoppingBag, ArrowRight, Share2, Check } from 'lucide-react';
-import { Product } from '../types/product';
+import { Heart, Sparkles, Truck, RefreshCw, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Ruler, ArrowLeft, ZoomIn, CheckCircle, Camera, Image as ImageIcon, Plus, Trash2, X, Loader2, Star, ShoppingBag, ArrowRight, Share2, Check, Palette } from 'lucide-react';
+import { Product, ProductColorVariant } from '../types/product';
 import { ProductCard } from '../components/product/ProductCard';
 import { SizeGuideModal } from '../components/common/SizeGuideModal';
 import { useCart } from '../context/CartContext';
@@ -8,6 +8,66 @@ import { useWishlist } from '../context/WishlistContext';
 import { useAuth } from '../context/AuthContext';
 import { DatabaseService, RealReview } from '../lib/databaseService';
 import { normalizeStorageUrl } from '../lib/supabase';
+
+export const COMMON_COLOR_KEYWORDS = [
+  'cream', 'white', 'black', 'blue', 'pink', 'red', 'lavender', 'sage', 'mint',
+  'beige', 'grey', 'gray', 'yellow', 'gold', 'silver', 'green', 'purple',
+  'brown', 'peach', 'coral', 'mauve', 'navy', 'champagne', 'emerald', 'rose', 'sky blue'
+];
+
+export function detectPrimaryColorName(productName: string, explicitPrimary?: string): string {
+  if (explicitPrimary && explicitPrimary.trim()) return explicitPrimary.trim();
+  const lower = (productName || '').toLowerCase();
+  for (const kw of COMMON_COLOR_KEYWORDS) {
+    if (new RegExp(`\\b${kw}\\b`, 'i').test(lower)) {
+      return kw.charAt(0).toUpperCase() + kw.slice(1);
+    }
+  }
+  return 'Original';
+}
+
+export function resolveProductColorOptions(product: Product): ProductColorVariant[] {
+  const hasVariants = Array.isArray(product.colors) && product.colors.length > 0;
+  const mainImages = Array.isArray(product.images) && product.images.length > 0 ? product.images : [];
+  if (!hasVariants && mainImages.length === 0) return [];
+
+  const primaryName = detectPrimaryColorName(product.name, product.primaryColor || product.specs?.['Primary Colour'] || product.specs?.['Colour']);
+  const primaryOption: ProductColorVariant = {
+    name: primaryName,
+    images: mainImages,
+    inStock: typeof product.stockQuantity === 'number' ? product.stockQuantity > 0 : product.inStock !== false,
+  };
+
+  if (!hasVariants) {
+    return [primaryOption];
+  }
+
+  const normalizedColors: ProductColorVariant[] = (product.colors || [])
+    .map((c) =>
+      typeof c === 'string'
+        ? { name: c, inStock: true, images: [] }
+        : {
+            name: c.name || '',
+            hex: c.hex,
+            inStock: c.inStock !== false,
+            images: Array.isArray(c.images) ? c.images : [],
+          }
+    )
+    .filter((c) => c.name.trim() !== '');
+
+  const alreadyHasPrimary = normalizedColors.some(
+    (c) =>
+      c.name.toLowerCase().trim() === primaryName.toLowerCase().trim() ||
+      (c.images && c.images.length > 0 && mainImages.length > 0 && c.images[0] === mainImages[0])
+  );
+
+  if (alreadyHasPrimary) {
+    return normalizedColors;
+  }
+
+  // Primary cover image is always the FIRST / PRIMARY colour option
+  return [primaryOption, ...normalizedColors];
+}
 
 interface ProductDetailsPageProps {
   product: Product;
@@ -27,6 +87,13 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   const [selectedSize, setSelectedSize] = useState<string | undefined>(
     product.sizes && product.sizes.length > 0 ? product.sizes[0] : undefined
   );
+
+  // Resolved list of colors: Option #1 is always the primary cover photo & main gallery
+  const availableColors = resolveProductColorOptions(product);
+
+  const [selectedColor, setSelectedColor] = useState<string | undefined>(() => {
+    return availableColors[0]?.name;
+  });
   const [quantity, setQuantity] = useState(1);
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
 
@@ -39,14 +106,25 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   const thumbnailContainerRef = useRef<HTMLDivElement>(null);
   const isFirstRender = useRef(true);
 
-  const imagesList = product.images && product.images.length > 0
-    ? product.images
-    : ['https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80'];
+  // Dynamically resolve image gallery: if a colour variant with photos is selected, use its gallery
+  const activeColorVariant = availableColors.find(
+    (c) => c.name.toLowerCase().trim() === selectedColor?.toLowerCase().trim()
+  );
+  const colorImages = (activeColorVariant?.images && activeColorVariant.images.length > 0)
+    ? activeColorVariant.images
+    : null;
 
-  // Scroll to top immediately when product loads or changes
+  const imagesList = colorImages || (product.images && product.images.length > 0
+    ? product.images
+    : ['https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80']);
+
+  // Scroll to top immediately when product loads or changes & synchronize selections
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     setActiveImage(0);
+    setSelectedSize(product.sizes && product.sizes.length > 0 ? product.sizes[0] : undefined);
+    const resolved = resolveProductColorOptions(product);
+    setSelectedColor(resolved[0]?.name);
     isFirstRender.current = true;
   }, [product.id]);
 
@@ -302,7 +380,17 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   const { user, isLoggedIn, openAuthModal } = useAuth();
 
   const isFavorited = isInWishlist(product.id);
-  const isProductInCart = items.some((item) => item.product.id === product.id);
+  const isProductInCart = items.some(
+    (item) =>
+      item.product.id === product.id &&
+      (!selectedSize || item.selectedSize === selectedSize) &&
+      (!selectedColor || item.selectedColor === selectedColor)
+  );
+
+  const handleColorSelect = (colorName: string) => {
+    setSelectedColor(colorName);
+    setActiveImage(0); // dynamically switch gallery and reset to first photo of this colour
+  };
 
   const handleShareProduct = async () => {
     const shareUrl = window.location.href;
@@ -334,12 +422,12 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   };
 
   const handleAddToCart = () => {
-    addToCart(product, quantity, selectedSize);
+    addToCart(product, quantity, selectedSize, selectedColor);
     openCart();
   };
 
   const handleBuyNow = () => {
-    addToCart(product, quantity, selectedSize);
+    addToCart(product, quantity, selectedSize, selectedColor);
     onOpenCheckout();
   };
 
@@ -361,7 +449,9 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
       ? (visibleReviews.reduce((sum, r) => sum + (r.rating || 5), 0) / reviewCount).toFixed(1)
       : null;
 
-  const isOutOfStock = typeof product.stockQuantity === 'number' ? product.stockQuantity <= 0 : product.inStock === false;
+  const isOutOfStock =
+    (typeof product.stockQuantity === 'number' ? product.stockQuantity <= 0 : product.inStock === false) ||
+    (activeColorVariant?.inStock === false);
 
   return (
     <div className="max-w-6xl xl:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-6 space-y-6 sm:space-y-8 bg-[#fffeea] w-full">
@@ -617,36 +707,104 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
               </p>
             </div>
 
-          {/* Sizes */}
+          {/* Colour Variants (Matching Reference Design - Main/Primary Image is Option #1) */}
+          {availableColors.length > 0 && (availableColors.length > 1 || Boolean(product.primaryColor) || (Array.isArray(product.colors) && product.colors.length > 0)) && (
+            <div className="space-y-2 pt-1">
+              <div className="text-sm font-extrabold text-black uppercase tracking-wider font-sans">
+                COLOR: <span className="text-[#967BB6] font-extrabold">{selectedColor || availableColors[0]?.name}</span>
+              </div>
+
+              <div className="flex items-center gap-3 flex-wrap pt-0.5">
+                {availableColors.map((col, idx) => {
+                  const colorName = col.name;
+                  const colorHex = col.hex;
+                  const colorImagesArr = Array.isArray(col.images) ? col.images : [];
+                  const colorThumb = colorImagesArr.length > 0 ? colorImagesArr[0] : (product.images?.[0] || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80');
+                  const isSelected = (selectedColor || availableColors[0]?.name)?.toLowerCase().trim() === colorName.toLowerCase().trim();
+                  const isColorOutOfStock = col.inStock === false;
+
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleColorSelect(colorName)}
+                      className={`group relative w-14 h-18 sm:w-16 sm:h-20 rounded-2xl p-0.5 border-2 transition-all cursor-pointer flex items-center justify-center bg-white shrink-0 ${
+                        isSelected
+                          ? 'border-brand-charcoal ring-1 ring-brand-charcoal shadow-xs scale-102'
+                          : 'border-[#EAE6DB] hover:border-brand-charcoal/50'
+                      }`}
+                      title={colorName}
+                    >
+                      <div className="w-full h-full rounded-xl overflow-hidden relative bg-[#F7F7F7]">
+                        {colorThumb ? (
+                          <img
+                            src={normalizeStorageUrl(colorThumb)}
+                            alt={colorName}
+                            className={`w-full h-full object-cover object-top transition-transform duration-200 group-hover:scale-105 ${
+                              isColorOutOfStock ? 'grayscale-[30%] opacity-70' : ''
+                            }`}
+                          />
+                        ) : colorHex ? (
+                          <div
+                            className="w-full h-full"
+                            style={{ backgroundColor: colorHex }}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-brand-muted bg-stone-100">
+                            {colorName.slice(0, 3)}
+                          </div>
+                        )}
+
+                        {/* Out of stock overlay matching screenshot */}
+                        {isColorOutOfStock && (
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                            <span className="w-full bg-white/90 backdrop-blur-xs text-[#E53E3E] text-[9px] font-medium py-0.5 text-center leading-tight">
+                              Out of stock
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Sizes (Matching Reference Design: SIZE: XXL [XXL] [XXXL]) */}
           {product.sizes && product.sizes.length > 0 && (
-            <div className="space-y-2">
+            <div className="space-y-2 pt-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-brand-charcoal">
-                  Size: <strong className="text-brand-lavender">{selectedSize}</strong>
-                </span>
+                <div className="text-sm font-extrabold text-black uppercase tracking-wider font-sans">
+                  SIZE: <span className="text-[#967BB6] font-extrabold">{selectedSize || product.sizes[0]}</span>
+                </div>
                 <button
+                  type="button"
                   onClick={() => setIsSizeGuideOpen(true)}
-                  className="text-xs text-brand-lavender font-bold underline flex items-center gap-1"
+                  className="text-xs sm:text-sm font-semibold text-blue-600 hover:text-blue-700 underline transition-colors cursor-pointer"
                 >
-                  <Ruler className="w-3.5 h-3.5" />
-                  <span>Size Chart</span>
+                  Size Chart
                 </button>
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                {product.sizes.map((size) => (
-                  <button
-                    key={size}
-                    onClick={() => setSelectedSize(size)}
-                    className={`w-11 sm:w-12 h-10 text-xs font-bold border transition-all ${
-                      selectedSize === size
-                        ? 'bg-[#967BB6] text-white border-[#967BB6]'
-                        : 'bg-white text-brand-charcoal border-[#EAE6DB] hover:border-brand-lavender'
-                    }`}
-                  >
-                    {size}
-                  </button>
-                ))}
+              <div className="flex flex-wrap gap-2.5 pt-0.5">
+                {product.sizes.map((size) => {
+                  const isSelected = selectedSize === size;
+                  return (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => setSelectedSize(size)}
+                      className={`min-w-[50px] sm:min-w-[56px] h-11 sm:h-12 px-3.5 rounded-xs border text-xs sm:text-sm font-extrabold uppercase tracking-wider font-sans transition-all cursor-pointer flex items-center justify-center shadow-2xs ${
+                        isSelected
+                          ? 'bg-[#967BB6] border-[#967BB6] text-white'
+                          : 'bg-white border-[#EAE6DB] text-brand-charcoal hover:border-[#967BB6]/60'
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

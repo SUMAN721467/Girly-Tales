@@ -1,4 +1,11 @@
-export type CategoryType = 'nightwear' | 'jewellery';
+export type CategoryType = 'nightwear' | 'jewellery' | string;
+
+export interface ProductColorVariant {
+  name: string;
+  hex?: string;
+  images?: string[];
+  inStock?: boolean;
+}
 
 export interface Product {
   id: string;
@@ -33,7 +40,8 @@ export interface Product {
   isBestSeller?: boolean;
   tag?: string;
   badge?: string;
-  colors?: { name: string; hex: string }[];
+  primaryColor?: string;
+  colors?: ProductColorVariant[];
 }
 
 export interface CartItem {

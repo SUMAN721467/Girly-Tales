@@ -458,15 +458,21 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
 
     const generatedId = 'GT-' + Math.floor(100000 + Math.random() * 900000);
-    const structuredOrderItems = items.map((item) => ({
-      productId: item.product.id,
-      name: item.product.name,
-      price: item.product.price,
-      quantity: item.quantity,
-      size: item.selectedSize || '',
-      variant: item.product.category === 'jewellery' ? 'Jewellery' : 'Standard',
-      image: item.product.images?.[0] || '',
-    }));
+    const structuredOrderItems = items.map((item) => {
+      const colorImg = item.product.colors?.find(c => (typeof c === 'object' ? c.name : c)?.toLowerCase().trim() === item.selectedColor?.toLowerCase().trim())?.images?.[0];
+      const variantDesc = [item.selectedColor ? `Colour: ${item.selectedColor}` : '', item.selectedSize ? `Size: ${item.selectedSize}` : ''].filter(Boolean).join(' • ');
+
+      return {
+        productId: item.product.id,
+        name: item.product.name,
+        price: item.product.price,
+        quantity: item.quantity,
+        size: item.selectedSize || '',
+        color: item.selectedColor || '',
+        variant: variantDesc || (item.product.category === 'jewellery' ? 'Jewellery' : 'Standard'),
+        image: colorImg || item.product.images?.[0] || '',
+      };
+    });
 
     const isCod = paymentMethod === 'cod';
 
@@ -1297,7 +1303,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                             <div className="min-w-0">
                               <p className="font-bold text-brand-charcoal text-[10px] truncate">{item.name}</p>
                               <p className="text-[9px] text-brand-muted">
-                                Qty: {item.quantity} {item.size ? `• Size: ${item.size}` : ''}
+                                Qty: {item.quantity} {item.color ? `• Colour: ${item.color}` : ''} {item.size ? `• Size: ${item.size}` : ''}
                               </p>
                             </div>
                           </div>

@@ -90,6 +90,7 @@ ALTER TABLE public.products ADD COLUMN IF NOT EXISTS care_instructions JSONB DEF
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS delivery_policy TEXT DEFAULT '';
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS specs JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS colors JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS primary_color TEXT DEFAULT '';
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS anti_tarnish_guarantee TEXT DEFAULT '';
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS waterproof BOOLEAN DEFAULT FALSE;
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS hypoallergenic BOOLEAN DEFAULT FALSE;

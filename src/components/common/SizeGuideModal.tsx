@@ -4,7 +4,7 @@ import { X, Ruler, Sparkles } from 'lucide-react';
 interface SizeGuideModalProps {
   isOpen: boolean;
   onClose: () => void;
-  category?: 'nightwear' | 'jewellery';
+  category?: string;
 }
 
 export const SizeGuideModal: React.FC<SizeGuideModalProps> = ({
@@ -13,6 +13,7 @@ export const SizeGuideModal: React.FC<SizeGuideModalProps> = ({
   category = 'nightwear',
 }) => {
   const [unit, setUnit] = useState<'inches' | 'cm'>('inches');
+  const isJewellery = (category || '').toLowerCase().includes('jewel') || (category || '').toLowerCase().includes('ring');
 
   if (!isOpen) return null;
 
@@ -37,13 +38,13 @@ export const SizeGuideModal: React.FC<SizeGuideModalProps> = ({
           </div>
           <div>
             <h3 className="font-serif text-2xl font-medium text-brand-charcoal">
-              {category === 'nightwear' ? 'Nightwear Size Chart' : 'Ring & Jewellery Sizing'}
+              {!isJewellery ? 'Nightwear Size Chart' : 'Ring & Jewellery Sizing'}
             </h3>
             <p className="text-xs text-brand-muted">Accurate Indian standard sizing</p>
           </div>
         </div>
 
-        {category === 'nightwear' ? (
+        {!isJewellery ? (
           <div>
             {/* Unit Toggle */}
             <div className="flex justify-end mb-3">

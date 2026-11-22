@@ -13,13 +13,14 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({ item, compact = false 
   const { product, quantity, selectedSize, selectedColor } = item;
   const isOutOfStock = typeof product.stockQuantity === 'number' ? product.stockQuantity <= 0 : product.inStock === false;
   const maxStock = typeof product.stockQuantity === 'number' ? product.stockQuantity : 999;
+  const itemImage = (product.colors?.find(c => (typeof c === 'object' ? c.name : c)?.toLowerCase().trim() === selectedColor?.toLowerCase().trim())?.images?.[0]) || product.images[0] || 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80';
 
   return (
     <div className={`flex gap-3 ${compact ? 'py-2' : 'py-3'} border-b border-brand-border/60 group animate-fade-in`}>
       {/* Thumbnail */}
       <div className={`${compact ? 'w-12 h-14' : 'w-16 h-20 sm:w-20 sm:h-24'} rounded-lg overflow-hidden bg-brand-ivory border border-brand-border shrink-0 relative`}>
         <img
-          src={product.images[0]}
+          src={itemImage}
           alt={product.name}
           className={`w-full h-full object-cover ${isOutOfStock ? 'grayscale-[40%] opacity-80' : ''}`}
         />
@@ -56,7 +57,9 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({ item, compact = false 
               </span>
             )}
             {selectedColor && (
-              <span className="text-brand-muted font-medium">{selectedColor}</span>
+              <span className="bg-brand-ivory px-1.5 py-0.5 rounded border border-brand-border font-medium">
+                Colour: {selectedColor}
+              </span>
             )}
             {product.category === 'jewellery' && (
               <span className="text-amber-700 flex items-center gap-0.5 text-[10px]">

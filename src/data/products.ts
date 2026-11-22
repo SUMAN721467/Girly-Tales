@@ -46,9 +46,31 @@ export const MOCK_PRODUCTS: Product[] = [
     isBestSeller: true,
     tag: 'Bestseller',
     colors: [
-      { name: 'Soft Lavender', hex: '#8A70AB' },
-      { name: 'Champagne Blush', hex: '#FCEEF1' },
-      { name: 'Sage Mint', hex: '#B8CDB8' }
+      {
+        name: 'Soft Lavender',
+        hex: '#8A70AB',
+        images: [
+          'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80',
+          'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1000&q=80'
+        ]
+      },
+      {
+        name: 'Champagne Blush',
+        hex: '#FCEEF1',
+        images: [
+          'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&w=1000&q=80',
+          'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1000&q=80'
+        ]
+      },
+      {
+        name: 'Sage Mint',
+        hex: '#B8CDB8',
+        inStock: false,
+        images: [
+          'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=1000&q=80',
+          'https://images.unsplash.com/photo-1485968579580-b6d095142e6e?auto=format&fit=crop&w=1000&q=80'
+        ]
+      }
     ]
   },
   {

@@ -346,11 +346,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   <div className="space-y-2 pt-2 text-xs">
                     {ord.items.map((item, idx) => {
                       const itemName = typeof item === 'string' ? item : item.name;
-                      const itemSize = typeof item === 'object' && item.size ? ` (${item.size})` : '';
+                      const itemColor = typeof item === 'object' && ((item as any).color || (item as any).selectedColor) ? ` • Colour: ${(item as any).color || (item as any).selectedColor}` : '';
+                      const itemSize = typeof item === 'object' && item.size ? ` • Size: ${item.size}` : '';
                       const itemQty = typeof item === 'object' && item.quantity ? ` x ${item.quantity}` : '';
                       return (
                         <div key={idx} className="flex items-center justify-between py-1 border-b border-[#FAF8F2]">
-                          <span className="font-medium text-brand-charcoal">{itemName}{itemSize}{itemQty}</span>
+                          <span className="font-medium text-brand-charcoal">{itemName}{itemColor}{itemSize}{itemQty}</span>
                         </div>
                       );
                     })}

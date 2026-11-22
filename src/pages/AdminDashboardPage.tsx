@@ -8,9 +8,9 @@ import {
   UploadCloud, Image as ImageIcon, MoveLeft, MoveRight, Star, Loader2,
   MapPin, Send, Mail, Phone, Calendar, MessageSquare,
   Heart, ShoppingCart, User, Ticket, Quote,
-  ChevronDown, ChevronUp, Smartphone, Feather, HeartHandshake, Gift, Settings, Video
+  ChevronDown, ChevronUp, Smartphone, Feather, HeartHandshake, Gift, Settings, Video, Palette
 } from 'lucide-react';
-import { Product } from '../types/product';
+import { Product, ProductColorVariant } from '../types/product';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useAuth } from '../context/AuthContext';
@@ -31,6 +31,7 @@ import {
   DEFAULT_TESTIMONIALS,
   RealCoupon,
   RealCategory,
+  SEED_CATEGORIES,
   PromotionItem,
   ShippingRules,
   FAQItem,
@@ -45,6 +46,7 @@ import {
 import { supabase, isSupabaseConfigured, testSupabaseConnection, SupabaseConnectivityStatus, normalizeStorageUrl } from '../lib/supabase';
 import { SUPABASE_SCHEMA_SQL } from '../lib/supabaseSchemaSql';
 import { AdminCartsWishlistsSection } from '../components/admin/AdminCartsWishlistsSection';
+import { detectPrimaryColorName } from './ProductDetailsPage';
 
 interface AdminDashboardPageProps {
   onNavigate: (page: string, category?: string) => void;
@@ -170,7 +172,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
   // Products filters
   const [productSearch, setProductSearch] = useState('');
-  const [productCategoryFilter, setProductCategoryFilter] = useState<'all' | 'nightwear' | 'jewellery'>('all');
+  const [productCategoryFilter, setProductCategoryFilter] = useState<string>('all');
 
   // Add/Edit Product Form State matching exact user requirements
   const [isAddingCustomTag, setIsAddingCustomTag] = useState(false);
@@ -185,7 +187,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   const replaceFileInputRef = useRef<HTMLInputElement>(null);
 
   const DEFAULT_PRODUCT_FORM = {
-    mainCategory: 'nightwear' as 'nightwear' | 'jewellery',
+    mainCategory: 'nightwear' as string,
     name: '',
     sku: '',
     price: '',
@@ -203,6 +205,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     deliveryPolicy: 'Dispatched within 24 hours. Delivered across India within 2 to 4 business days. Easy 7-day exchange support available on WhatsApp.',
     images: [] as string[],
     sizes: [] as string[],
+    primaryColor: '',
+    colors: [] as ProductColorVariant[],
     inStock: true,
   };
 
@@ -1577,7 +1581,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       setCategoriesList((prev) => [...prev, created]);
       setProductForm((prev) => ({
         ...prev,
-        categories: [...prev.categories, created.name],
+        mainCategory: created.slug,
+        categories: prev.categories.includes(created.name) ? prev.categories : [...prev.categories, created.name],
       }));
       setCustomTagInput('');
       setIsAddingCustomTag(false);
@@ -1848,11 +1853,105 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     triggerToast('Cover Photo Set ✦', 'This image is now the main cover photo.', undefined, 'success');
   };
 
+  // Colour Variant Management Handlers
+  const handleAddColorOption = () => {
+    setProductForm((prev) => ({
+      ...prev,
+      colors: [
+        ...(prev.colors || []),
+        { name: '', hex: '#967BB6', images: [], inStock: true },
+      ],
+    }));
+  };
+
+  const handleRemoveColorOption = (colorIndex: number) => {
+    setProductForm((prev) => ({
+      ...prev,
+      colors: (prev.colors || []).filter((_, i) => i !== colorIndex),
+    }));
+    triggerToast('Colour Removed', 'Colour option removed from product.', undefined, 'info');
+  };
+
+  const handleUpdateColorOption = (colorIndex: number, field: 'name' | 'hex' | 'inStock', value: any) => {
+    setProductForm((prev) => {
+      const updated = [...(prev.colors || [])];
+      if (updated[colorIndex]) {
+        updated[colorIndex] = { ...updated[colorIndex], [field]: value };
+      }
+      return { ...prev, colors: updated };
+    });
+  };
+
+  const handleUploadColorImages = async (colorIndex: number, files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const fileArray = Array.from(files);
+
+    setIsUploadingMedia(true);
+    setUploadProgressText(`Uploading ${fileArray.length} photo(s) for colour variant...`);
+    const uploadedUrls: string[] = [];
+
+    try {
+      for (let i = 0; i < fileArray.length; i++) {
+        const file = fileArray[i];
+        setUploadProgressText(`Uploading image ${i + 1} of ${fileArray.length} for colour...`);
+        const url = await DatabaseService.uploadProductImage(file);
+        if (url) uploadedUrls.push(url);
+      }
+
+      setProductForm((prev) => {
+        const updated = [...(prev.colors || [])];
+        if (updated[colorIndex]) {
+          updated[colorIndex] = {
+            ...updated[colorIndex],
+            images: [...(updated[colorIndex].images || []), ...uploadedUrls],
+          };
+        }
+        return { ...prev, colors: updated };
+      });
+
+      triggerToast('Photos Uploaded! 🎨', `Added ${uploadedUrls.length} photo(s) to colour variant.`, undefined, 'success');
+    } catch (err: any) {
+      triggerToast('Upload Failed', err?.message || 'Could not upload photos for colour.', undefined, 'error');
+    } finally {
+      setIsUploadingMedia(false);
+      setUploadProgressText('');
+    }
+  };
+
+  const handleRemoveColorImage = (colorIndex: number, imageIndex: number) => {
+    setProductForm((prev) => {
+      const updated = [...(prev.colors || [])];
+      if (updated[colorIndex]) {
+        updated[colorIndex] = {
+          ...updated[colorIndex],
+          images: (updated[colorIndex].images || []).filter((_, i) => i !== imageIndex),
+        };
+      }
+      return { ...prev, colors: updated };
+    });
+  };
+
+  const handleMoveColorImage = (colorIndex: number, imageIndex: number, direction: 'left' | 'right') => {
+    setProductForm((prev) => {
+      const updated = [...(prev.colors || [])];
+      const variant = updated[colorIndex];
+      if (!variant || !variant.images) return prev;
+      const targetIndex = direction === 'left' ? imageIndex - 1 : imageIndex + 1;
+      if (targetIndex < 0 || targetIndex >= variant.images.length) return prev;
+      const imagesCopy = [...variant.images];
+      const temp = imagesCopy[imageIndex];
+      imagesCopy[imageIndex] = imagesCopy[targetIndex];
+      imagesCopy[targetIndex] = temp;
+      updated[colorIndex] = { ...variant, images: imagesCopy };
+      return { ...prev, colors: updated };
+    });
+  };
+
   const handleStartEditProduct = (prod: Product) => {
     const currentQty = typeof prod.stockQuantity === 'number' ? prod.stockQuantity : (prod.inStock ? 10 : 0);
     setEditingProductId(prod.id);
     setProductForm({
-      mainCategory: (prod.category === 'jewellery' ? 'jewellery' : 'nightwear') as 'nightwear' | 'jewellery',
+      mainCategory: prod.category || 'nightwear',
       name: prod.name,
       sku: prod.sku || '',
       price: String(prod.price),
@@ -1874,6 +1973,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       deliveryPolicy: prod.deliveryPolicy || 'Dispatched within 24 hours. Delivered across India within 2 to 4 business days. Easy 7-day exchange support available on WhatsApp.',
       images: Array.isArray(prod.images) && prod.images.length > 0 ? [...prod.images] : [],
       sizes: Array.isArray(prod.sizes) && prod.sizes.length > 0 ? [...prod.sizes] : [],
+      primaryColor: prod.primaryColor || (detectPrimaryColorName(prod.name, '') !== 'Original' ? detectPrimaryColorName(prod.name, '') : ''),
+      colors: Array.isArray(prod.colors)
+        ? prod.colors.map((c: any) => ({
+            name: typeof c === 'string' ? c : (c.name || ''),
+            hex: typeof c === 'object' ? (c.hex || '') : '',
+            inStock: typeof c === 'object' ? c.inStock !== false : true,
+            images: typeof c === 'object' && Array.isArray(c.images) ? [...c.images] : [],
+          }))
+        : [],
       inStock: currentQty > 0,
     });
     setIsCreatingProduct(true);
@@ -1894,8 +2002,19 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
     const originalPriceNum = productForm.originalPrice ? Number(productForm.originalPrice) : priceNum;
     const discountCalc = originalPriceNum > priceNum ? Math.round(((originalPriceNum - priceNum) / originalPriceNum) * 100) : 0;
 
-    // Use explicit admin selected department radio: 'nightwear' | 'jewellery'
-    const mainCategory = productForm.mainCategory;
+    // Use explicit admin selected department / category from categoriesList
+    const mainCategory = productForm.mainCategory || 'nightwear';
+    const selectedCatObj = categoriesList.find(
+      (c) =>
+        c.slug.toLowerCase() === mainCategory.toLowerCase() ||
+        c.name.toLowerCase() === mainCategory.toLowerCase()
+    );
+    const categoryDisplayName = selectedCatObj
+      ? selectedCatObj.name
+      : mainCategory.charAt(0).toUpperCase() + mainCategory.slice(1);
+    const categorySlug = selectedCatObj
+      ? selectedCatObj.slug
+      : mainCategory.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
     const highlightsArray = productForm.highlights
       .split('\n')
@@ -1909,11 +2028,24 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
     const deliveryPolicyText = productForm.deliveryPolicy.trim() || 'Dispatched within 24 hours. Delivered across India within 2 to 4 business days. Easy 7-day exchange support available on WhatsApp.';
 
+    const validColors: ProductColorVariant[] = (productForm.colors || [])
+      .filter((c) => c && c.name && c.name.trim() !== '')
+      .map((c) => ({
+        name: c.name.trim(),
+        hex: c.hex?.trim() || undefined,
+        inStock: c.inStock !== false,
+        images: Array.isArray(c.images) ? c.images.filter(Boolean) : [],
+      }));
+
+    const allVariantImages = validColors.flatMap((c) => c.images || []);
     const finalImages = (productForm.images.length > 0
       ? productForm.images
-      : ['https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80']).map(normalizeStorageUrl);
+      : (allVariantImages.length > 0
+        ? allVariantImages
+        : ['https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80'])).map(normalizeStorageUrl);
 
-    const finalSubCategory = productForm.subCategory.trim() || productForm.categories.join(', ') || (mainCategory === 'nightwear' ? 'Nightwear Set' : 'Jewellery');
+    const finalSubCategory = productForm.subCategory.trim() || productForm.categories.join(', ') || categoryDisplayName;
+    const resolvedPrimaryColor = productForm.primaryColor?.trim() || (detectPrimaryColorName(productForm.name, '') !== 'Original' ? detectPrimaryColorName(productForm.name, '') : undefined);
 
     try {
       if (editingProductId) {
@@ -1922,7 +2054,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           id: editingProductId,
           name: productForm.name.trim(),
           slug: existing?.slug || productForm.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-          category: mainCategory,
+          category: categorySlug,
           subCategory: finalSubCategory,
           price: priceNum,
           originalPrice: originalPriceNum,
@@ -1931,6 +2063,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           reviewCount: existing?.reviewCount || 1,
           images: finalImages,
           sizes: productForm.sizes,
+          primaryColor: resolvedPrimaryColor,
+          colors: validColors,
           description: productForm.description || 'Luxurious craftsmanship designed for everyday glamour.',
           shortDescription: productForm.description.slice(0, 90) || 'Premium curated collection item.',
           material: productForm.materials || 'Premium Cotton / Silk / Gold Finish',
@@ -1964,8 +2098,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             'Materials': productForm.materials || 'Premium Satin / Silk',
             'Dimensions': productForm.dimensions || 'Standard',
             'SKU': productForm.sku || 'GT-01',
-            'Category': mainCategory === 'nightwear' ? 'Nightwear' : 'Jewellery',
+            'Category': categoryDisplayName,
             'Sub-Category': finalSubCategory,
+            ...(resolvedPrimaryColor ? { 'Primary Colour': resolvedPrimaryColor, 'Colour': resolvedPrimaryColor } : {}),
           },
         };
 
@@ -1982,7 +2117,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         id: `gt-prod-${Date.now()}`,
         name: productForm.name.trim(),
         slug: productForm.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-        category: mainCategory,
+        category: categorySlug,
         subCategory: finalSubCategory,
         price: priceNum,
         originalPrice: originalPriceNum,
@@ -1991,6 +2126,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         reviewCount: 1,
         images: finalImages,
         sizes: productForm.sizes,
+        primaryColor: resolvedPrimaryColor,
+        colors: validColors,
         description: productForm.description || 'Luxurious craftsmanship designed for everyday glamour.',
         shortDescription: productForm.description.slice(0, 90) || 'Premium curated collection item.',
         material: productForm.materials || 'Premium Cotton / Silk / Gold Finish',
@@ -2024,8 +2161,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
           'Materials': productForm.materials || 'Premium Satin / Silk',
           'Dimensions': productForm.dimensions || 'Standard',
           'SKU': productForm.sku || 'GT-01',
-          'Category': mainCategory === 'nightwear' ? 'Nightwear' : 'Jewellery',
+          'Category': categoryDisplayName,
           'Sub-Category': finalSubCategory,
+          ...(resolvedPrimaryColor ? { 'Primary Colour': resolvedPrimaryColor, 'Colour': resolvedPrimaryColor } : {}),
         },
       };
 
@@ -2309,7 +2447,25 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   };
 
   const filteredProducts = productsList.filter((p) => {
-    const matchesCategory = productCategoryFilter === 'all' || p.category === productCategoryFilter;
+    let matchesCategory = true;
+    if (productCategoryFilter !== 'all') {
+      const filterLower = productCategoryFilter.toLowerCase().trim();
+      const matchedCategoryObj = categoriesList.find(
+        (c) => c.slug.toLowerCase() === filterLower || c.name.toLowerCase() === filterLower
+      );
+      const validKeys = matchedCategoryObj
+        ? [matchedCategoryObj.slug.toLowerCase(), matchedCategoryObj.name.toLowerCase()]
+        : [filterLower];
+
+      const prodCatLower = (p.category || '').toLowerCase().trim();
+      const prodSpecCat = (p.specs?.['Category'] || '').toLowerCase().trim();
+      const prodSubCat = (p.subCategory || '').toLowerCase().trim();
+
+      matchesCategory =
+        validKeys.includes(prodCatLower) ||
+        validKeys.includes(prodSpecCat) ||
+        validKeys.some((k) => prodSubCat.includes(k));
+    }
     const matchesSearch = p.name.toLowerCase().includes(productSearch.toLowerCase());
     return matchesCategory && matchesSearch;
   });
@@ -2733,69 +2889,90 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                       1. BASIC INFORMATION
                     </h3>
 
-                    {/* Admin Main Store Classification (Radio: NIGHTWEAR or JEWELLERY) */}
+                    {/* Admin Main Store Classification / Category Selection (Dynamically sourced from Category Section) */}
                     <div className="p-4 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl space-y-2.5">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div>
                           <label className="block text-xs font-black uppercase tracking-wider text-brand-charcoal">
-                            Product Department / Main Type *
+                            Product Department / Main Category *
                           </label>
                           <p className="text-[11px] text-brand-muted">
-                            Admin-only classification. Controls whether this product reflects under <strong className="text-brand-charcoal">NIGHTWEAR</strong> or <strong className="text-brand-charcoal">JEWELLERY</strong> in the product table filter.
+                            Select which shop category this product belongs to. Dynamically loaded from your <strong className="text-brand-charcoal">Manage Categories</strong> section.
                           </p>
                         </div>
-                        <span className="text-[11px] text-[#967BB6] font-bold shrink-0">
-                          ✦ Filter: {productForm.mainCategory.toUpperCase()}
-                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[11px] text-[#967BB6] font-bold">
+                            ✦ Selected: {(() => {
+                              const match = categoriesList.find(
+                                (c) =>
+                                  c.slug.toLowerCase() === productForm.mainCategory.toLowerCase() ||
+                                  c.name.toLowerCase() === productForm.mainCategory.toLowerCase()
+                              );
+                              return (match ? match.name : productForm.mainCategory).toUpperCase();
+                            })()}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTab('categories');
+                              setIsCreatingProduct(false);
+                            }}
+                            className="text-[11px] font-bold text-[#967BB6] hover:text-[#7F62A1] hover:underline cursor-pointer"
+                          >
+                            + Manage Categories →
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                        <label
-                          className={`flex items-center gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
-                            productForm.mainCategory === 'nightwear'
-                              ? 'bg-white border-[#967BB6] shadow-xs text-brand-charcoal ring-2 ring-[#967BB6]/15'
-                              : 'bg-white/60 border-[#EAE6DB] text-brand-muted hover:border-[#967BB6]/50 hover:bg-white'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="adminMainDepartment"
-                            value="nightwear"
-                            checked={productForm.mainCategory === 'nightwear'}
-                            onChange={() => setProductForm({ ...productForm, mainCategory: 'nightwear' })}
-                            className="w-4 h-4 text-[#967BB6] accent-[#967BB6] focus:ring-[#967BB6]"
-                          />
-                          <div>
-                            <div className="text-xs font-black uppercase tracking-wide text-brand-charcoal">NIGHTWEAR</div>
-                            <div className="text-[11px] text-brand-muted">Mulberry Silk, Modal Sets, Satin Robes & Pajamas</div>
-                          </div>
-                        </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-1">
+                        {(categoriesList.length > 0 ? categoriesList : SEED_CATEGORIES).map((cat) => {
+                          const isSelected =
+                            productForm.mainCategory.toLowerCase() === cat.slug.toLowerCase() ||
+                            productForm.mainCategory.toLowerCase() === cat.name.toLowerCase();
 
-                        <label
-                          className={`flex items-center gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
-                            productForm.mainCategory === 'jewellery'
-                              ? 'bg-white border-[#967BB6] shadow-xs text-brand-charcoal ring-2 ring-[#967BB6]/15'
-                              : 'bg-white/60 border-[#EAE6DB] text-brand-muted hover:border-[#967BB6]/50 hover:bg-white'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="adminMainDepartment"
-                            value="jewellery"
-                            checked={productForm.mainCategory === 'jewellery'}
-                            onChange={() => setProductForm({ ...productForm, mainCategory: 'jewellery' })}
-                            className="w-4 h-4 text-[#967BB6] accent-[#967BB6] focus:ring-[#967BB6]"
-                          />
-                          <div>
-                            <div className="text-xs font-black uppercase tracking-wide text-brand-charcoal">JEWELLERY</div>
-                            <div className="text-[11px] text-brand-muted">Anti-Tarnish Necklaces, Earrings, Bracelets & Rings</div>
-                          </div>
-                        </label>
+                          return (
+                            <label
+                              key={cat.id}
+                              className={`flex items-start gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+                                isSelected
+                                  ? 'bg-white border-[#967BB6] shadow-xs text-brand-charcoal ring-2 ring-[#967BB6]/15'
+                                  : 'bg-white/60 border-[#EAE6DB] text-brand-muted hover:border-[#967BB6]/50 hover:bg-white'
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="adminMainDepartment"
+                                value={cat.slug}
+                                checked={isSelected}
+                                onChange={() => {
+                                  setProductForm({
+                                    ...productForm,
+                                    mainCategory: cat.slug,
+                                    categories: productForm.categories.includes(cat.name)
+                                      ? productForm.categories
+                                      : [cat.name, ...productForm.categories],
+                                  });
+                                }}
+                                className="w-4 h-4 mt-0.5 text-[#967BB6] accent-[#967BB6] focus:ring-[#967BB6]"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="text-xs font-black uppercase tracking-wide text-brand-charcoal truncate">
+                                  {cat.name}
+                                </div>
+                                <div className="text-[11px] text-brand-muted line-clamp-1">
+                                  {cat.subCategories && cat.subCategories.length > 0
+                                    ? cat.subCategories.join(', ')
+                                    : `Category slug: ${cat.slug}`}
+                                </div>
+                              </div>
+                            </label>
+                          );
+                        })}
                       </div>
                     </div>
 
-                    {/* Row 1: 5 Input Fields */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    {/* Row 1: Basic Product Information & Primary Colour */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                       <div>
                         <label className="block text-xs font-bold text-brand-charcoal mb-1.5">
                           Product Name *
@@ -2807,6 +2984,24 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
                           placeholder="e.g. Mulberry Silk Satin Set"
                           className="w-full px-4 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-brand-charcoal mb-1.5 flex items-center justify-between">
+                          <span>Colour Name</span>
+                          <span className="text-[10px] text-[#967BB6] font-bold">Option #1</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={productForm.primaryColor}
+                          onChange={(e) => setProductForm({ ...productForm, primaryColor: e.target.value })}
+                          placeholder={
+                            productForm.name
+                              ? (detectPrimaryColorName(productForm.name, '') !== 'Original' ? detectPrimaryColorName(productForm.name, '') : 'e.g. Cream, White')
+                              : 'e.g. Cream, White'
+                          }
+                          className="w-full px-4 py-2.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-2xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all font-medium"
                         />
                       </div>
 
@@ -3045,11 +3240,16 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           type="text"
                           value={productForm.subCategory}
                           onChange={(e) => setProductForm({ ...productForm, subCategory: e.target.value })}
-                          placeholder={
-                            productForm.mainCategory === 'nightwear'
-                              ? 'Click a preset above (Padded / Non-Padded) or type custom sub-category...'
-                              : 'Click a preset above or type custom jewellery sub-category...'
-                          }
+                          placeholder={(() => {
+                            const matchedCat = categoriesList.find(
+                              (c) =>
+                                c.slug.toLowerCase() === productForm.mainCategory.toLowerCase() ||
+                                c.name.toLowerCase() === productForm.mainCategory.toLowerCase()
+                            );
+                            return matchedCat
+                              ? `Click a preset above or type custom ${matchedCat.name} sub-category...`
+                              : 'Click a preset above or type custom sub-category...';
+                          })()}
                           className="w-full px-4 py-2.5 bg-white border border-[#EAE6DB] rounded-xl text-xs sm:text-sm text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:ring-2 focus:ring-[#967BB6]/15 transition-all"
                         />
                         {productForm.subCategory && (
@@ -3496,6 +3696,293 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                     )}
                   </div>
 
+                  {/* ================= 5. COLOUR VARIANTS (MULTI-COLOUR PRODUCT OPTIONS) ================= */}
+                  <div className="space-y-4 pt-6 border-t border-[#EAE6DB]">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-xs font-bold uppercase tracking-widest text-[#967BB6] flex items-center gap-1.5">
+                          <Palette className="w-4 h-4 text-[#967BB6]" />
+                          <span>5. Multi-Colour Variants (Grouped Under Same Product)</span>
+                        </h3>
+                        <p className="text-xs text-brand-muted mt-0.5">
+                          Add colour choices (e.g. Sky Blue, Lavender, Blush Pink) and upload photos specific to that colour. On the storefront, selecting a colour dynamically updates the gallery.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleAddColorOption}
+                        className="px-4 py-2 bg-[#967BB6] hover:bg-[#7F62A1] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Add Colour Option</span>
+                      </button>
+                    </div>
+
+                    {/* Primary / Main Product Colour (Option #1) Card */}
+                    <div className="p-4 sm:p-5 rounded-2xl border-2 border-[#967BB6]/40 bg-[#FAF8F2]/90 shadow-xs space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-[#EAE6DB]">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-[#967BB6] text-white font-bold text-xs flex items-center justify-center">
+                            ★
+                          </span>
+                          <span className="text-xs font-bold uppercase tracking-wider text-brand-charcoal">
+                            Option #1: Primary Cover & Main Product Gallery
+                          </span>
+                          <span className="text-[10px] text-[#967BB6] font-bold bg-[#F3EEF9] px-2 py-0.5 rounded-full border border-[#967BB6]/30">
+                            Primary / Default
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-brand-muted">
+                          Uses photos uploaded above in <strong>Section 4: Product Gallery</strong> ({productForm.images.length} {productForm.images.length === 1 ? 'photo' : 'photos'})
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
+                        <div className="sm:col-span-3 flex items-center gap-3">
+                          <div className="w-14 h-18 sm:w-16 sm:h-20 rounded-2xl p-0.5 border-2 border-brand-charcoal ring-1 ring-brand-charcoal bg-white shrink-0 overflow-hidden shadow-xs relative">
+                            {productForm.images[0] ? (
+                              <img
+                                src={normalizeStorageUrl(productForm.images[0])}
+                                alt="Primary cover thumbnail"
+                                className="w-full h-full object-cover object-top"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex flex-col items-center justify-center bg-stone-100 text-[10px] text-stone-400 font-bold p-1 text-center">
+                                <span>No cover</span>
+                              </div>
+                            )}
+                            <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[8px] font-bold py-0.5 text-center">
+                              Primary
+                            </span>
+                          </div>
+                          <div className="text-xs text-brand-muted">
+                            <span className="font-bold text-brand-charcoal block">Cover Photo</span>
+                            <span className="text-[10px]">Primary storefront option</span>
+                          </div>
+                        </div>
+
+                        <div className="sm:col-span-9 space-y-1">
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-brand-charcoal">
+                            Primary Colour Name (e.g. Cream, White, Pastel Pink, Gold)
+                          </label>
+                          <input
+                            type="text"
+                            value={productForm.primaryColor}
+                            onChange={(e) => setProductForm((prev) => ({ ...prev, primaryColor: e.target.value }))}
+                            placeholder="e.g. Cream, White, Original (auto-detected from title if blank)"
+                            className="w-full bg-white border border-[#EAE6DB] rounded-xl px-3.5 py-2.5 text-xs font-bold text-brand-charcoal focus:outline-none focus:border-[#967BB6] transition-all shadow-2xs"
+                          />
+                          <p className="text-[10px] text-brand-muted">
+                            Customers on the storefront will see this name for the main cover/gallery images (e.g. <em>"Selected Color: Cream"</em>).
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {(!productForm.colors || productForm.colors.length === 0) ? (
+                      <div className="border border-dashed border-[#EAE6DB] rounded-2xl p-6 text-center bg-[#FAF8F2]/60 space-y-2">
+                        <Palette className="w-8 h-8 text-[#967BB6]/60 mx-auto" />
+                        <p className="text-xs font-bold text-brand-charcoal">No additional colour variants added yet</p>
+                        <p className="text-[11px] text-brand-muted max-w-md mx-auto">
+                          This product currently sells in its primary colour shown above. If this product is also available in additional colours (e.g. Red, Navy Blue, Blush Pink), click <strong>"Add Colour Option"</strong> above to group them under this single listing with their own dedicated photo galleries.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="text-xs font-bold uppercase tracking-wider text-brand-charcoal flex items-center gap-1.5">
+                          <span>Additional Colour Variants ({productForm.colors.length})</span>
+                        </div>
+                        {productForm.colors.map((colorVariant, colorIdx) => (
+                          <div
+                            key={colorIdx}
+                            className="p-4 sm:p-5 rounded-2xl border-2 border-[#EAE6DB] hover:border-[#967BB6]/40 bg-white shadow-xs space-y-4 transition-all"
+                          >
+                            {/* Colour Header */}
+                            <div className="flex items-center justify-between gap-2 pb-3 border-b border-[#EAE6DB]">
+                              <div className="flex items-center gap-2">
+                                <span className="w-6 h-6 rounded-full bg-[#F3EEF9] text-[#967BB6] font-bold text-xs flex items-center justify-center">
+                                  {colorIdx + 1}
+                                </span>
+                                <span className="text-xs font-bold uppercase tracking-wider text-brand-charcoal">
+                                  Colour Option #{colorIdx + 1}: <strong className="text-[#967BB6]">{colorVariant.name || 'Untitled Colour'}</strong>
+                                </span>
+                                <span className="text-[10px] text-brand-muted font-medium bg-[#FAF8F2] px-2 py-0.5 rounded-full border border-[#EAE6DB]">
+                                  {colorVariant.images?.length || 0} Photos
+                                </span>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveColorOption(colorIdx)}
+                                className="text-rose-500 hover:text-rose-700 text-xs font-bold flex items-center gap-1 p-1 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="Remove this colour option"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Remove Colour</span>
+                              </button>
+                            </div>
+
+                            {/* Colour Fields: Name & Hex Swatch */}
+                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                              <div className="sm:col-span-8 space-y-1">
+                                <label className="block text-[11px] font-bold uppercase tracking-wider text-brand-charcoal">
+                                  Colour Name <span className="text-rose-500">*</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  value={colorVariant.name}
+                                  onChange={(e) => handleUpdateColorOption(colorIdx, 'name', e.target.value)}
+                                  placeholder="e.g. Lavender Blossom, Sky Blue, Dusty Rose, Champagne Gold"
+                                  className="w-full bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl px-3.5 py-2 text-xs font-bold text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all"
+                                  required
+                                />
+                              </div>
+
+                              <div className="sm:col-span-4 space-y-1">
+                                <label className="block text-[11px] font-bold uppercase tracking-wider text-brand-charcoal">
+                                  Swatch Preview (Optional)
+                                </label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={colorVariant.hex || '#967BB6'}
+                                    onChange={(e) => handleUpdateColorOption(colorIdx, 'hex', e.target.value)}
+                                    className="w-9 h-9 rounded-xl border border-[#EAE6DB] p-0.5 cursor-pointer bg-white"
+                                    title="Pick colour swatch"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={colorVariant.hex || ''}
+                                    onChange={(e) => handleUpdateColorOption(colorIdx, 'hex', e.target.value)}
+                                    placeholder="#HEX (e.g. #8A70AB)"
+                                    className="flex-1 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl px-3 py-2 text-xs font-mono text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Colour Stock Status Toggle */}
+                            <div className="flex items-center gap-2.5 pt-1">
+                              <label className="flex items-center gap-2 text-xs font-bold text-brand-charcoal cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={colorVariant.inStock !== false}
+                                  onChange={(e) => handleUpdateColorOption(colorIdx, 'inStock', e.target.checked)}
+                                  className="w-4 h-4 text-[#967BB6] rounded border-[#EAE6DB] focus:ring-[#967BB6] cursor-pointer"
+                                />
+                                <span>In Stock</span>
+                              </label>
+                              <span className="text-[11px] text-brand-muted">
+                                {colorVariant.inStock === false
+                                  ? '• Marked as "Out of stock" with overlay banner on storefront'
+                                  : '• Active & available for buyers to select'}
+                              </span>
+                            </div>
+
+                            {/* Photos for this Colour Variant */}
+                            <div className="space-y-2 pt-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-brand-muted">
+                                  Photos Specific to "{colorVariant.name || `Colour #${colorIdx + 1}`}"
+                                </span>
+                                <span className="text-[10px] text-brand-muted">
+                                  Displayed when buyer selects this colour
+                                </span>
+                              </div>
+
+                              {/* Upload Button & Dropzone */}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <label className="px-4 py-2 bg-[#FAF8F2] hover:bg-[#F3EEF9] border border-[#EAE6DB] hover:border-[#967BB6] text-brand-charcoal hover:text-[#967BB6] rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-2xs">
+                                  <UploadCloud className="w-4 h-4 text-[#967BB6]" />
+                                  <span>+ Upload Photos for {colorVariant.name || 'this colour'}</span>
+                                  <input
+                                    type="file"
+                                    multiple
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => handleUploadColorImages(colorIdx, e.target.files)}
+                                  />
+                                </label>
+
+                                <span className="text-[11px] text-brand-muted">
+                                  Select one or multiple photos (JPG, PNG, WEBP)
+                                </span>
+                              </div>
+
+                              {/* Photos Thumbnail List */}
+                              {colorVariant.images && colorVariant.images.length > 0 && (
+                                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5 pt-2">
+                                  {colorVariant.images.map((cImg, imgIdx) => (
+                                    <div
+                                      key={imgIdx}
+                                      className="relative aspect-[4/5] rounded-xl border border-[#EAE6DB] overflow-hidden bg-[#FAF8F2] group shadow-2xs"
+                                    >
+                                      <img
+                                        src={cImg}
+                                        alt={`${colorVariant.name} photo ${imgIdx + 1}`}
+                                        className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-200"
+                                      />
+
+                                      {/* Photo badge */}
+                                      <div className="absolute top-1 left-1 z-10">
+                                        <span className="text-[9px] font-bold bg-black/60 text-white px-1.5 py-0.5 rounded-md">
+                                          {imgIdx === 0 ? 'Cover' : `#${imgIdx + 1}`}
+                                        </span>
+                                      </div>
+
+                                      {/* Remove Photo */}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveColorImage(colorIdx, imgIdx)}
+                                        className="absolute top-1 right-1 z-10 w-6 h-6 rounded-full bg-rose-600/90 hover:bg-rose-700 text-white flex items-center justify-center transition-colors shadow-xs cursor-pointer"
+                                        title="Delete photo"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+
+                                      {/* Reorder Buttons at bottom */}
+                                      <div className="absolute inset-x-1 bottom-1 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-lg p-0.5">
+                                        <button
+                                          type="button"
+                                          disabled={imgIdx === 0}
+                                          onClick={() => handleMoveColorImage(colorIdx, imgIdx, 'left')}
+                                          className="p-1 text-white disabled:opacity-30 hover:bg-white/20 rounded cursor-pointer"
+                                          title="Move left"
+                                        >
+                                          <MoveLeft className="w-2.5 h-2.5" />
+                                        </button>
+                                        <span className="text-[8px] font-bold text-white">#{imgIdx + 1}</span>
+                                        <button
+                                          type="button"
+                                          disabled={imgIdx === colorVariant.images.length - 1}
+                                          onClick={() => handleMoveColorImage(colorIdx, imgIdx, 'right')}
+                                          className="p-1 text-white disabled:opacity-30 hover:bg-white/20 rounded cursor-pointer"
+                                          title="Move right"
+                                        >
+                                          <MoveRight className="w-2.5 h-2.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+
+                        <button
+                          type="button"
+                          onClick={handleAddColorOption}
+                          className="w-full py-2.5 bg-[#FAF8F2] hover:bg-[#F3EEF9] border-2 border-dashed border-[#EAE6DB] hover:border-[#967BB6] text-[#967BB6] font-bold text-xs rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>Add Another Colour Option</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Form Action Buttons */}
                   <div className="flex items-center justify-end gap-3 pt-6 border-t border-[#EAE6DB]/70">
                     <button
@@ -3535,20 +4022,37 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                       />
                     </div>
 
-                    <div className="flex items-center gap-1 bg-[#FAF8F2] p-1 rounded-2xl border border-[#EAE6DB]">
-                      {(['all', 'nightwear', 'jewellery'] as const).map((cat) => (
-                        <button
-                          key={cat}
-                          onClick={() => setProductCategoryFilter(cat)}
-                          className={`px-3 py-1 text-xs font-bold uppercase rounded-xl transition-all ${
-                            productCategoryFilter === cat
-                              ? 'bg-white text-brand-charcoal shadow-xs'
-                              : 'text-brand-muted hover:text-brand-charcoal'
-                          }`}
-                        >
-                          {cat === 'all' ? 'All' : cat}
-                        </button>
-                      ))}
+                    <div className="flex flex-wrap items-center gap-1 bg-[#FAF8F2] p-1 rounded-2xl border border-[#EAE6DB]">
+                      <button
+                        type="button"
+                        onClick={() => setProductCategoryFilter('all')}
+                        className={`px-3 py-1 text-xs font-bold uppercase rounded-xl transition-all cursor-pointer ${
+                          productCategoryFilter === 'all'
+                            ? 'bg-white text-brand-charcoal shadow-xs'
+                            : 'text-brand-muted hover:text-brand-charcoal'
+                        }`}
+                      >
+                        All
+                      </button>
+                      {(categoriesList.length > 0 ? categoriesList : SEED_CATEGORIES).map((cat) => {
+                        const isSelected =
+                          productCategoryFilter.toLowerCase() === cat.slug.toLowerCase() ||
+                          productCategoryFilter.toLowerCase() === cat.name.toLowerCase();
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => setProductCategoryFilter(cat.slug)}
+                            className={`px-3 py-1 text-xs font-bold uppercase rounded-xl transition-all cursor-pointer whitespace-nowrap ${
+                              isSelected
+                                ? 'bg-white text-brand-charcoal shadow-xs'
+                                : 'text-brand-muted hover:text-brand-charcoal'
+                            }`}
+                          >
+                            {cat.name}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -3616,6 +4120,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                               )}
                             </div>
                             {prod.sku && <span className="text-[10px] text-brand-muted block mt-1 font-mono">{prod.sku}</span>}
+                            {prod.colors && prod.colors.length > 0 && (
+                              <span className="text-[10px] text-[#967BB6] font-semibold bg-[#F3EEF9] px-2 py-0.5 rounded-full inline-flex items-center gap-1 mt-1 border border-[#967BB6]/20">
+                                <Palette className="w-2.5 h-2.5" /> {prod.colors.length} Colours
+                              </span>
+                            )}
                           </td>
                           <td className="py-3.5 px-4 font-bold text-brand-charcoal">
                             ₹{prod.price}
@@ -3812,6 +4321,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                               </h4>
                               <div className="flex items-center gap-2 text-[11px] text-brand-muted">
                                 <span>Quantity: <strong className="text-brand-charcoal">{item.quantity}</strong></span>
+                                {item.color && (
+                                  <>
+                                    <span>•</span>
+                                    <span>Colour: <strong className="text-brand-charcoal">{item.color}</strong></span>
+                                  </>
+                                )}
                                 {item.size && (
                                   <>
                                     <span>•</span>
@@ -4641,6 +5156,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                       </div>
                     )}
                   </div>
+
+                  
                 </div>
               </div>
             </div>
