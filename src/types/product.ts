@@ -5,6 +5,7 @@ export interface ProductColorVariant {
   hex?: string;
   images?: string[];
   inStock?: boolean;
+  sizes?: string[];
 }
 
 export interface Product {

@@ -1859,7 +1859,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       ...prev,
       colors: [
         ...(prev.colors || []),
-        { name: '', hex: '#967BB6', images: [], inStock: true },
+        {
+          name: '',
+          hex: '#967BB6',
+          images: [],
+          inStock: true,
+          sizes: prev.sizes && prev.sizes.length > 0 ? [...prev.sizes] : ['FREE SIZE', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'],
+        },
       ],
     }));
   };
@@ -1878,6 +1884,47 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
       if (updated[colorIndex]) {
         updated[colorIndex] = { ...updated[colorIndex], [field]: value };
       }
+      return { ...prev, colors: updated };
+    });
+  };
+
+  const handleToggleVariantSize = (colorIndex: number, size: string) => {
+    setProductForm((prev) => {
+      const updated = [...(prev.colors || [])];
+      const variant = updated[colorIndex];
+      if (!variant) return prev;
+      const currentSizes = Array.isArray(variant.sizes)
+        ? [...variant.sizes]
+        : (prev.sizes && prev.sizes.length > 0 ? [...prev.sizes] : []);
+      const newSizes = currentSizes.includes(size)
+        ? currentSizes.filter((s) => s !== size)
+        : [...currentSizes, size];
+      updated[colorIndex] = { ...variant, sizes: newSizes };
+      return { ...prev, colors: updated };
+    });
+  };
+
+  const handleCopyPrimarySizesToVariant = (colorIndex: number) => {
+    setProductForm((prev) => {
+      const updated = [...(prev.colors || [])];
+      if (!updated[colorIndex]) return prev;
+      const primarySizes = prev.sizes && prev.sizes.length > 0
+        ? [...prev.sizes]
+        : ['FREE SIZE', 'S', 'M', 'L', 'XL'];
+      updated[colorIndex] = { ...updated[colorIndex], sizes: primarySizes };
+      return { ...prev, colors: updated };
+    });
+    triggerToast('Sizes Copied', 'Copied primary sizes to this colour variant.', undefined, 'info');
+  };
+
+  const handleSetAllSizesForVariant = (colorIndex: number, selectAll: boolean) => {
+    setProductForm((prev) => {
+      const updated = [...(prev.colors || [])];
+      if (!updated[colorIndex]) return prev;
+      updated[colorIndex] = {
+        ...updated[colorIndex],
+        sizes: selectAll ? ['FREE SIZE', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'] : [],
+      };
       return { ...prev, colors: updated };
     });
   };
@@ -1980,6 +2027,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             hex: typeof c === 'object' ? (c.hex || '') : '',
             inStock: typeof c === 'object' ? c.inStock !== false : true,
             images: typeof c === 'object' && Array.isArray(c.images) ? [...c.images] : [],
+            sizes: typeof c === 'object' && Array.isArray(c.sizes)
+              ? [...c.sizes]
+              : (Array.isArray(prod.sizes) && prod.sizes.length > 0 ? [...prod.sizes] : []),
           }))
         : [],
       inStock: currentQty > 0,
@@ -2035,6 +2085,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         hex: c.hex?.trim() || undefined,
         inStock: c.inStock !== false,
         images: Array.isArray(c.images) ? c.images.filter(Boolean) : [],
+        sizes: Array.isArray(c.sizes) && c.sizes.length > 0
+          ? c.sizes
+          : (productForm.sizes && productForm.sizes.length > 0 ? productForm.sizes : undefined),
       }));
 
     const allVariantImages = validColors.flatMap((c) => c.images || []);
@@ -3762,20 +3815,53 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                           </div>
                         </div>
 
-                        <div className="sm:col-span-9 space-y-1">
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-brand-charcoal">
-                            Primary Colour Name (e.g. Cream, White, Pastel Pink, Gold)
-                          </label>
-                          <input
-                            type="text"
-                            value={productForm.primaryColor}
-                            onChange={(e) => setProductForm((prev) => ({ ...prev, primaryColor: e.target.value }))}
-                            placeholder="e.g. Cream, White, Original (auto-detected from title if blank)"
-                            className="w-full bg-white border border-[#EAE6DB] rounded-xl px-3.5 py-2.5 text-xs font-bold text-brand-charcoal focus:outline-none focus:border-[#967BB6] transition-all shadow-2xs"
-                          />
-                          <p className="text-[10px] text-brand-muted">
-                            Customers on the storefront will see this name for the main cover/gallery images (e.g. <em>"Selected Color: Cream"</em>).
-                          </p>
+                        <div className="sm:col-span-9 space-y-3">
+                          <div className="space-y-1">
+                            <label className="block text-[11px] font-bold uppercase tracking-wider text-brand-charcoal">
+                              Primary Colour Name (e.g. Cream, White, Pastel Pink, Gold)
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.primaryColor}
+                              onChange={(e) => setProductForm((prev) => ({ ...prev, primaryColor: e.target.value }))}
+                              placeholder="e.g. Cream, White, Original (auto-detected from title if blank)"
+                              className="w-full bg-white border border-[#EAE6DB] rounded-xl px-3.5 py-2.5 text-xs font-bold text-brand-charcoal focus:outline-none focus:border-[#967BB6] transition-all shadow-2xs"
+                            />
+                            <p className="text-[10px] text-brand-muted">
+                              Customers on the storefront will see this name for the main cover/gallery images (e.g. <em>"Selected Color: Cream"</em>).
+                            </p>
+                          </div>
+
+                          {/* Available Sizes for Primary Colour */}
+                          <div className="space-y-1.5 pt-2 border-t border-[#EAE6DB]/70">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[11px] font-bold uppercase tracking-wider text-brand-charcoal">
+                                Available Sizes for Primary Colour ({productForm.sizes?.length || 0} selected)
+                              </label>
+                              <span className="text-[10px] text-brand-muted font-medium">
+                                Synced with Basic Info sizes
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {['FREE SIZE', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'].map((size) => {
+                                const isSelected = productForm.sizes.includes(size);
+                                return (
+                                  <button
+                                    key={size}
+                                    type="button"
+                                    onClick={() => toggleSizeTag(size)}
+                                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-[#1A1821] text-white shadow-2xs border border-[#1A1821]'
+                                        : 'bg-white text-brand-charcoal border border-[#EAE6DB] hover:bg-[#FAF8F2]'
+                                    }`}
+                                  >
+                                    {size}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -3878,6 +3964,77 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                                   ? '• Marked as "Out of stock" with overlay banner on storefront'
                                   : '• Active & available for buyers to select'}
                               </span>
+                            </div>
+
+                            {/* Available Sizes for this Colour Variant */}
+                            <div className="space-y-2 pt-2.5 pb-2.5 px-3.5 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl">
+                              <div className="flex items-center justify-between flex-wrap gap-2">
+                                <div>
+                                  <label className="block text-[11px] font-bold uppercase tracking-wider text-brand-charcoal">
+                                    Available Sizes for "{colorVariant.name || `Colour #${colorIdx + 1}`}"
+                                  </label>
+                                  <span className="text-[10px] text-brand-muted">
+                                    Select which sizes are in stock for this colour
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyPrimarySizesToVariant(colorIdx)}
+                                    className="text-[10px] font-bold text-[#967BB6] hover:text-[#7F62A1] hover:underline cursor-pointer"
+                                    title="Copy sizes configured in Primary Colour"
+                                  >
+                                    Copy from Primary
+                                  </button>
+                                  <span className="text-[10px] text-brand-muted">•</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetAllSizesForVariant(colorIdx, true)}
+                                    className="text-[10px] font-bold text-brand-charcoal hover:underline cursor-pointer"
+                                  >
+                                    All Sizes
+                                  </button>
+                                  <span className="text-[10px] text-brand-muted">•</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetAllSizesForVariant(colorIdx, false)}
+                                    className="text-[10px] font-bold text-rose-500 hover:underline cursor-pointer"
+                                  >
+                                    Clear
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                {['FREE SIZE', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'].map((size) => {
+                                  const variantSizes = Array.isArray(colorVariant.sizes)
+                                    ? colorVariant.sizes
+                                    : (productForm.sizes && productForm.sizes.length > 0 ? productForm.sizes : []);
+                                  const isSelected = variantSizes.includes(size);
+
+                                  return (
+                                    <button
+                                      key={size}
+                                      type="button"
+                                      onClick={() => handleToggleVariantSize(colorIdx, size)}
+                                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                        isSelected
+                                          ? 'bg-[#967BB6] text-white shadow-2xs border border-[#7F62A1] scale-[1.02]'
+                                          : 'bg-white text-brand-charcoal border border-[#EAE6DB] hover:bg-[#F3EEF9] hover:border-[#967BB6]/40'
+                                      }`}
+                                    >
+                                      {size}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              {(!colorVariant.sizes || colorVariant.sizes.length === 0) && (
+                                <p className="text-[10px] text-amber-600 font-medium italic pt-0.5">
+                                  No sizes selected for this colour. Will default to all primary sizes ({productForm.sizes.join(', ') || 'FREE SIZE'}).
+                                </p>
+                              )}
                             </div>
 
                             {/* Photos for this Colour Variant */}

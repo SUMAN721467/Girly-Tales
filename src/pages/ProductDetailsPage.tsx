@@ -36,6 +36,7 @@ export function resolveProductColorOptions(product: Product): ProductColorVarian
     name: primaryName,
     images: mainImages,
     inStock: typeof product.stockQuantity === 'number' ? product.stockQuantity > 0 : product.inStock !== false,
+    sizes: product.sizes && product.sizes.length > 0 ? product.sizes : [],
   };
 
   if (!hasVariants) {
@@ -45,11 +46,12 @@ export function resolveProductColorOptions(product: Product): ProductColorVarian
   const normalizedColors: ProductColorVariant[] = (product.colors || [])
     .map((c) =>
       typeof c === 'string'
-        ? { name: c, inStock: true, images: [] }
+        ? { name: c, inStock: true, images: [], sizes: product.sizes || [] }
         : {
             name: c.name || '',
             hex: c.hex,
             inStock: c.inStock !== false,
+            sizes: Array.isArray(c.sizes) && c.sizes.length > 0 ? c.sizes : (product.sizes || []),
             images: Array.isArray(c.images) ? c.images : [],
           }
     )
@@ -84,9 +86,6 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
 }) => {
   const [productsList, setProductsList] = useState<Product[]>(() => DatabaseService.getCachedProducts());
   const [activeImage, setActiveImage] = useState(0);
-  const [selectedSize, setSelectedSize] = useState<string | undefined>(
-    product.sizes && product.sizes.length > 0 ? product.sizes[0] : undefined
-  );
 
   // Resolved list of colors: Option #1 is always the primary cover photo & main gallery
   const availableColors = resolveProductColorOptions(product);
@@ -94,6 +93,25 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   const [selectedColor, setSelectedColor] = useState<string | undefined>(() => {
     return availableColors[0]?.name;
   });
+
+  // Dynamically resolve image gallery: if a colour variant with photos is selected, use its gallery
+  const activeColorVariant = availableColors.find(
+    (c) => c.name.toLowerCase().trim() === selectedColor?.toLowerCase().trim()
+  );
+  const colorImages = (activeColorVariant?.images && activeColorVariant.images.length > 0)
+    ? activeColorVariant.images
+    : null;
+
+  // Dynamically resolve available sizes for the chosen colour
+  const currentAvailableSizes: string[] = (
+    activeColorVariant?.sizes && activeColorVariant.sizes.length > 0
+      ? activeColorVariant.sizes
+      : (product.sizes && product.sizes.length > 0 ? product.sizes : [])
+  );
+
+  const [selectedSize, setSelectedSize] = useState<string | undefined>(
+    currentAvailableSizes.length > 0 ? currentAvailableSizes[0] : undefined
+  );
   const [quantity, setQuantity] = useState(1);
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
 
@@ -106,14 +124,6 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   const thumbnailContainerRef = useRef<HTMLDivElement>(null);
   const isFirstRender = useRef(true);
 
-  // Dynamically resolve image gallery: if a colour variant with photos is selected, use its gallery
-  const activeColorVariant = availableColors.find(
-    (c) => c.name.toLowerCase().trim() === selectedColor?.toLowerCase().trim()
-  );
-  const colorImages = (activeColorVariant?.images && activeColorVariant.images.length > 0)
-    ? activeColorVariant.images
-    : null;
-
   const imagesList = colorImages || (product.images && product.images.length > 0
     ? product.images
     : ['https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=1000&q=80']);
@@ -122,9 +132,13 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     setActiveImage(0);
-    setSelectedSize(product.sizes && product.sizes.length > 0 ? product.sizes[0] : undefined);
     const resolved = resolveProductColorOptions(product);
-    setSelectedColor(resolved[0]?.name);
+    const defaultColor = resolved[0]?.name;
+    setSelectedColor(defaultColor);
+    const initialSizes = resolved[0]?.sizes && resolved[0].sizes.length > 0
+      ? resolved[0].sizes
+      : (product.sizes && product.sizes.length > 0 ? product.sizes : []);
+    setSelectedSize(initialSizes.length > 0 ? initialSizes[0] : undefined);
     isFirstRender.current = true;
   }, [product.id]);
 
@@ -390,6 +404,20 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
   const handleColorSelect = (colorName: string) => {
     setSelectedColor(colorName);
     setActiveImage(0); // dynamically switch gallery and reset to first photo of this colour
+
+    // Dynamically update available sizes for chosen colour
+    const targetVariant = availableColors.find(
+      (c) => c.name.toLowerCase().trim() === colorName.toLowerCase().trim()
+    );
+    const targetSizes = targetVariant?.sizes && targetVariant.sizes.length > 0
+      ? targetVariant.sizes
+      : (product.sizes && product.sizes.length > 0 ? product.sizes : []);
+
+    if (targetSizes.length > 0) {
+      if (!selectedSize || !targetSizes.includes(selectedSize)) {
+        setSelectedSize(targetSizes[0]);
+      }
+    }
   };
 
   const handleShareProduct = async () => {
@@ -772,11 +800,11 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
           )}
 
           {/* Sizes (Matching Reference Design: SIZE: XXL [XXL] [XXXL]) */}
-          {product.sizes && product.sizes.length > 0 && (
+          {currentAvailableSizes && currentAvailableSizes.length > 0 && (
             <div className="space-y-2 pt-2">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-extrabold text-black uppercase tracking-wider font-sans">
-                  SIZE: <span className="text-[#967BB6] font-extrabold">{selectedSize || product.sizes[0]}</span>
+                  SIZE: <span className="text-[#967BB6] font-extrabold">{selectedSize || currentAvailableSizes[0]}</span>
                 </div>
                 <button
                   type="button"
@@ -788,7 +816,7 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
               </div>
 
               <div className="flex flex-wrap gap-2.5 pt-0.5">
-                {product.sizes.map((size) => {
+                {currentAvailableSizes.map((size) => {
                   const isSelected = selectedSize === size;
                   return (
                     <button
