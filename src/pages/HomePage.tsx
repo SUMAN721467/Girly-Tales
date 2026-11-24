@@ -591,58 +591,161 @@ export const HomePage: React.FC<HomePageProps> = ({
     }).filter((r) => !!r.product);
   }, [homeConfig.influencerReels, productsList]);
 
-  const trendingProducts = useMemo(() => {
-    return productsList.filter((p) => p.inStock !== false).slice(0, 4);
-  }, [productsList]);
+  const matchProductToCategory = (product: Product, cat: RealCategory): boolean => {
+    const catSlug = (cat.slug || '').toLowerCase().trim();
+    const catName = (cat.name || '').toLowerCase().trim();
+    const prodCat = (product.category || '').toLowerCase().trim();
+    const prodSub = (product.subCategory || '').toLowerCase().trim();
+    const prodName = (product.name || '').toLowerCase().trim();
 
-  const bestSellerProducts = useMemo(() => {
-    const inStock = productsList.filter((p) => p.inStock !== false);
-    if (inStock.length === 0) return [];
+    const cleanCatSlug = catSlug.replace(/[^a-z0-9]/g, '');
+    const cleanCatName = catName.replace(/[^a-z0-9]/g, '');
+    const cleanProdCat = prodCat.replace(/[^a-z0-9]/g, '');
+    const cleanProdSub = prodSub.replace(/[^a-z0-9]/g, '');
 
-    // 1. Explicitly marked bestsellers (flag or tag/badge containing 'bestseller')
-    const markedBestSellers = inStock.filter(
-      (p) => p.isBestSeller || /bestseller|best seller/i.test(p.tag || '') || /bestseller|best seller/i.test(p.badge || '')
-    );
+    // 1. Direct or stripped match
+    if (prodCat === catSlug || prodCat === catName) return true;
+    if (cleanCatSlug && cleanProdCat === cleanCatSlug) return true;
+    if (cleanCatName && cleanProdCat === cleanCatName) return true;
 
-    // If there are at least 4 marked best sellers, feature the first 4
-    if (markedBestSellers.length >= 4) {
-      return markedBestSellers.slice(0, 4);
+    // 2. Subcategory match
+    if (catSlug && prodSub.includes(catSlug)) return true;
+    if (catName && prodSub.includes(catName)) return true;
+    if (cleanCatSlug && cleanProdSub.includes(cleanCatSlug)) return true;
+    if (cleanCatName && cleanProdSub.includes(cleanCatName)) return true;
+
+    // 3. Specs match
+    const specCat = String(product.specs?.['Category'] || '').toLowerCase().trim();
+    if (specCat) {
+      const cleanSpecCat = specCat.replace(/[^a-z0-9]/g, '');
+      if (cleanSpecCat === cleanCatSlug || cleanSpecCat === cleanCatName) return true;
     }
 
-    // 2. Supplement with in-stock products not already showing in trendingProducts
-    // to give the storefront a rich variety across both rows
-    const trendingIds = new Set(trendingProducts.map((p) => p.id));
-    const nonTrending = inStock.filter((p) => !trendingIds.has(p.id));
-
-    // Sort remaining candidates by popularity (review count & rating)
-    const sortedNonTrending = [...nonTrending].sort((a, b) => {
-      const scoreB = (b.reviewCount || 0) * 10 + (b.rating || 4.5);
-      const scoreA = (a.reviewCount || 0) * 10 + (a.rating || 4.5);
-      return scoreB - scoreA;
-    });
-
-    const combined = [...markedBestSellers, ...sortedNonTrending];
-    const uniqueMap = new Map<string, Product>();
-    combined.forEach((p) => {
-      if (!uniqueMap.has(p.id)) uniqueMap.set(p.id, p);
-    });
-    const unique = Array.from(uniqueMap.values());
-
-    if (unique.length >= 4) {
-      return unique.slice(0, 4);
-    }
-
-    // Fallback: If inventory is under 8 items, fill from any remaining in-stock items
-    for (const p of inStock) {
-      if (unique.length >= 4) break;
-      if (!uniqueMap.has(p.id)) {
-        uniqueMap.set(p.id, p);
-        unique.push(p);
+    // 4. Keyword / Semantic Department Matching
+    // Jewellery
+    if (catSlug.includes('jewel') || catName.includes('jewel')) {
+      if (
+        prodCat.includes('jewel') ||
+        prodSub.includes('jewel') ||
+        prodSub.includes('ring') ||
+        prodSub.includes('necklace') ||
+        prodSub.includes('earring') ||
+        prodSub.includes('bracelet') ||
+        prodSub.includes('anklet') ||
+        prodName.includes('necklace') ||
+        prodName.includes('earring') ||
+        prodName.includes('bracelet') ||
+        prodName.includes('ring') ||
+        prodName.includes('jewel')
+      ) {
+        return true;
       }
     }
 
-    return unique.slice(0, 4);
-  }, [productsList, trendingProducts]);
+    // Nightwear
+    if (
+      catSlug.includes('night') ||
+      catName.includes('night') ||
+      catSlug.includes('sleep') ||
+      catName.includes('sleep') ||
+      catSlug.includes('pajama') ||
+      catSlug.includes('pyjama')
+    ) {
+      if (
+        prodCat.includes('night') ||
+        prodSub.includes('night') ||
+        prodSub.includes('suit') ||
+        prodSub.includes('pyjama') ||
+        prodSub.includes('pajama') ||
+        prodSub.includes('pj') ||
+        prodSub.includes('satin') ||
+        prodSub.includes('modal') ||
+        prodSub.includes('hosiery') ||
+        prodSub.includes('cotton') ||
+        prodSub.includes('robe') ||
+        prodName.includes('night') ||
+        prodName.includes('suit') ||
+        prodName.includes('pyjama') ||
+        prodName.includes('pajama')
+      ) {
+        return true;
+      }
+    }
+
+    // Hair Accessories
+    if (catSlug.includes('hair') || catName.includes('hair') || catSlug.includes('acces') || catName.includes('acces')) {
+      if (
+        prodCat.includes('hair') ||
+        prodSub.includes('hair') ||
+        prodSub.includes('scrunchie') ||
+        prodSub.includes('clip') ||
+        prodSub.includes('claw') ||
+        prodSub.includes('band') ||
+        prodName.includes('hair') ||
+        prodName.includes('scrunchie') ||
+        prodName.includes('clip') ||
+        prodName.includes('claw') ||
+        prodName.includes('headband')
+      ) {
+        return true;
+      }
+    }
+
+    // Soft Toys / Keychains / Bag Charms
+    if (
+      catSlug.includes('toy') ||
+      catName.includes('toy') ||
+      catSlug.includes('keychain') ||
+      catName.includes('keychain') ||
+      catSlug.includes('plush') ||
+      catName.includes('plush')
+    ) {
+      if (
+        prodCat.includes('toy') ||
+        prodCat.includes('keychain') ||
+        prodCat.includes('plush') ||
+        prodSub.includes('toy') ||
+        prodSub.includes('keychain') ||
+        prodSub.includes('plush') ||
+        prodSub.includes('charm') ||
+        prodName.includes('keychain') ||
+        prodName.includes('plush') ||
+        prodName.includes('charm') ||
+        prodName.includes('toy')
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  const categoryProductSections = useMemo(() => {
+    if (!productsList || productsList.length === 0) return [];
+
+    // Prioritize active database categories from admin, falling back to standard categories
+    const baseCategories: RealCategory[] = (dbCategories && dbCategories.length > 0)
+      ? [...dbCategories].sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0))
+      : [
+          { id: 'cat-jewellery', name: 'JEWELLERY', slug: 'jewellery', isActive: true, orderIndex: 0 },
+          { id: 'cat-nightwear', name: 'NIGHTWEAR', slug: 'nightwear', isActive: true, orderIndex: 1 },
+          { id: 'cat-hair-accessories', name: 'HAIR ACCESSORIES', slug: 'hair-accessories', isActive: true, orderIndex: 2 },
+          { id: 'cat-soft-toys-keychains', name: 'SOFT TOYS KEYCHAINS', slug: 'soft-toys-keychains', isActive: true, orderIndex: 3 },
+        ];
+
+    const inStock = productsList.filter((p) => p.inStock !== false);
+    const candidates = inStock.length > 0 ? inStock : productsList;
+
+    return baseCategories
+      .map((cat) => {
+        const matching = candidates.filter((p) => matchProductToCategory(p, cat));
+        return {
+          category: cat,
+          products: matching.slice(0, 4),
+        };
+      })
+      .filter((sec) => sec.products.length > 0);
+  }, [productsList, dbCategories]);
 
   return (
     <div className="pb-16 bg-[#fffeea] w-full">
@@ -667,64 +770,38 @@ export const HomePage: React.FC<HomePageProps> = ({
         />
       </section>
 
-      {/* 4. TRENDING THIS SEASON (1 ROW - 4 ITEMS) */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 sm:mt-12">
-        <div className="flex items-center justify-between gap-4 mb-6 sm:mb-8">
-          <h2 className="font-sans font-black text-lg sm:text-2xl md:text-3xl text-brand-charcoal uppercase tracking-tight">
-            {homeConfig.trendingTitle || 'TRENDING THIS SEASON'}
-          </h2>
-
-          <button
-            onClick={() => onNavigate('shop')}
-            className="bg-[#FBB6CE] hover:bg-[#F89CBA] text-[#1A1821] px-3.5 sm:px-6 py-2 rounded text-[11px] sm:text-xs font-black tracking-wider uppercase transition-all shadow-xs shrink-0"
-          >
-            {homeConfig.trendingCtaText || 'SHOP ALL TRENDING'}
-          </button>
-        </div>
-
-        {/* Responsive Product Grid - 1 Row (4 columns on desktop/tablet) */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-6">
-          {trendingProducts.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              onSelectProduct={onSelectProduct}
-            />
-          ))}
-        </div>
-      </section>
-
-      {/* 5. BEST SELLERS (1 ROW - 4 ITEMS) */}
-      {bestSellerProducts.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 sm:mt-14">
+      {/* 4. DYNAMIC CATEGORY SHOWCASE SECTIONS (4 PRODUCTS PER CATEGORY) */}
+      {categoryProductSections.map(({ category: cat, products }) => (
+        <section
+          key={cat.id || cat.slug}
+          className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 sm:mt-14"
+        >
           <div className="flex items-center justify-between gap-4 mb-6 sm:mb-8">
             <h2 className="font-sans font-black text-lg sm:text-2xl md:text-3xl text-brand-charcoal uppercase tracking-tight">
-              {homeConfig.bestSellerTitle || 'BESTSELLERS'}
+              {cat.name}
             </h2>
 
             <button
-              onClick={() => onNavigate('shop')}
-              className="bg-[#FBB6CE] hover:bg-[#F89CBA] text-[#1A1821] px-3.5 sm:px-6 py-2 rounded text-[11px] sm:text-xs font-black tracking-wider uppercase transition-all shadow-xs shrink-0"
+              type="button"
+              onClick={() => onNavigate('shop', cat.slug)}
+              className="bg-[#FBB6CE] hover:bg-[#F89CBA] text-[#1A1821] px-3.5 sm:px-6 py-2 rounded text-[11px] sm:text-xs font-black tracking-wider uppercase transition-all shadow-xs shrink-0 cursor-pointer"
             >
-              {homeConfig.bestSellerCtaText || 'SHOP ALL BESTSELLERS'}
+              VIEW ALL {cat.name}
             </button>
           </div>
 
           {/* Responsive Product Grid - 1 Row (4 columns on desktop/tablet) */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-6">
-            {bestSellerProducts.map((product) => (
+            {products.map((product) => (
               <ProductCard
                 key={product.id}
-                product={{
-                  ...product,
-                  isBestSeller: product.isBestSeller ?? true,
-                }}
+                product={product}
                 onSelectProduct={onSelectProduct}
               />
             ))}
           </div>
         </section>
-      )}
+      ))}
 
       {/* 6. INFLUENCER-APPROVED COMFORT & SHINE */}
       {influencerReels.length > 0 && (

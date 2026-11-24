@@ -453,7 +453,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const availableStock = typeof product.stockQuantity === 'number' ? product.stockQuantity : 999;
-    const size = selectedSize || (product.sizes && product.sizes.length > 0 ? product.sizes[0] : undefined);
+    const size = selectedSize || (product.sizes && product.sizes.length > 0 ? product.sizes[0] : 'FREE SIZE');
     const defaultColor = (product.colors && product.colors.length > 0)
       ? (typeof product.colors[0] === 'object' ? (product.colors[0] as any)?.name : String(product.colors[0]))
       : undefined;

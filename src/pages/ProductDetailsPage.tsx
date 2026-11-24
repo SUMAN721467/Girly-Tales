@@ -32,11 +32,12 @@ export function resolveProductColorOptions(product: Product): ProductColorVarian
   if (!hasVariants && mainImages.length === 0) return [];
 
   const primaryName = detectPrimaryColorName(product.name, product.primaryColor || product.specs?.['Primary Colour'] || product.specs?.['Colour']);
+  const defaultSizes = (Array.isArray(product.sizes) && product.sizes.length > 0) ? product.sizes : ['FREE SIZE'];
   const primaryOption: ProductColorVariant = {
     name: primaryName,
     images: mainImages,
     inStock: typeof product.stockQuantity === 'number' ? product.stockQuantity > 0 : product.inStock !== false,
-    sizes: product.sizes && product.sizes.length > 0 ? product.sizes : [],
+    sizes: defaultSizes,
   };
 
   if (!hasVariants) {
@@ -46,12 +47,12 @@ export function resolveProductColorOptions(product: Product): ProductColorVarian
   const normalizedColors: ProductColorVariant[] = (product.colors || [])
     .map((c) =>
       typeof c === 'string'
-        ? { name: c, inStock: true, images: [], sizes: product.sizes || [] }
+        ? { name: c, inStock: true, images: [], sizes: defaultSizes }
         : {
             name: c.name || '',
             hex: c.hex,
             inStock: c.inStock !== false,
-            sizes: Array.isArray(c.sizes) && c.sizes.length > 0 ? c.sizes : (product.sizes || []),
+            sizes: Array.isArray(c.sizes) && c.sizes.length > 0 ? c.sizes : defaultSizes,
             images: Array.isArray(c.images) ? c.images : [],
           }
     )
@@ -102,15 +103,15 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
     ? activeColorVariant.images
     : null;
 
-  // Dynamically resolve available sizes for the chosen colour
+  // Dynamically resolve available sizes for the chosen colour (defaults to ['FREE SIZE'] if no size is specified)
   const currentAvailableSizes: string[] = (
     activeColorVariant?.sizes && activeColorVariant.sizes.length > 0
       ? activeColorVariant.sizes
-      : (product.sizes && product.sizes.length > 0 ? product.sizes : [])
+      : (product.sizes && product.sizes.length > 0 ? product.sizes : ['FREE SIZE'])
   );
 
-  const [selectedSize, setSelectedSize] = useState<string | undefined>(
-    currentAvailableSizes.length > 0 ? currentAvailableSizes[0] : undefined
+  const [selectedSize, setSelectedSize] = useState<string>(
+    currentAvailableSizes[0] || 'FREE SIZE'
   );
   const [quantity, setQuantity] = useState(1);
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
@@ -137,8 +138,8 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
     setSelectedColor(defaultColor);
     const initialSizes = resolved[0]?.sizes && resolved[0].sizes.length > 0
       ? resolved[0].sizes
-      : (product.sizes && product.sizes.length > 0 ? product.sizes : []);
-    setSelectedSize(initialSizes.length > 0 ? initialSizes[0] : undefined);
+      : (product.sizes && product.sizes.length > 0 ? product.sizes : ['FREE SIZE']);
+    setSelectedSize(initialSizes[0] || 'FREE SIZE');
     isFirstRender.current = true;
   }, [product.id]);
 
@@ -411,12 +412,10 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
     );
     const targetSizes = targetVariant?.sizes && targetVariant.sizes.length > 0
       ? targetVariant.sizes
-      : (product.sizes && product.sizes.length > 0 ? product.sizes : []);
+      : (product.sizes && product.sizes.length > 0 ? product.sizes : ['FREE SIZE']);
 
-    if (targetSizes.length > 0) {
-      if (!selectedSize || !targetSizes.includes(selectedSize)) {
-        setSelectedSize(targetSizes[0]);
-      }
+    if (!selectedSize || !targetSizes.includes(selectedSize)) {
+      setSelectedSize(targetSizes[0] || 'FREE SIZE');
     }
   };
 
@@ -804,15 +803,18 @@ export const ProductDetailsPage: React.FC<ProductDetailsPageProps> = ({
             <div className="space-y-2 pt-2">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-extrabold text-black uppercase tracking-wider font-sans">
-                  SIZE: <span className="text-[#967BB6] font-extrabold">{selectedSize || currentAvailableSizes[0]}</span>
+                  SIZE: <span className="text-[#967BB6] font-extrabold">{selectedSize || currentAvailableSizes[0] || 'FREE SIZE'}</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsSizeGuideOpen(true)}
-                  className="text-xs sm:text-sm font-semibold text-blue-600 hover:text-blue-700 underline transition-colors cursor-pointer"
-                >
-                  Size Chart
-                </button>
+                {/* Size Chart (shown when apparel sizes exist) */}
+                {currentAvailableSizes.some((s) => s !== 'FREE SIZE') && (
+                  <button
+                    type="button"
+                    onClick={() => setIsSizeGuideOpen(true)}
+                    className="text-xs sm:text-sm font-semibold text-blue-600 hover:text-blue-700 underline transition-colors cursor-pointer"
+                  >
+                    Size Chart
+                  </button>
+                )}
               </div>
 
               <div className="flex flex-wrap gap-2.5 pt-0.5">
