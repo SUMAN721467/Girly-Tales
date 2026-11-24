@@ -1861,7 +1861,6 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
         ...(prev.colors || []),
         {
           name: '',
-          hex: '#967BB6',
           images: [],
           inStock: true,
           sizes: prev.sizes && prev.sizes.length > 0 ? [...prev.sizes] : ['FREE SIZE', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'],
@@ -3909,43 +3908,19 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                               </button>
                             </div>
 
-                            {/* Colour Fields: Name & Hex Swatch */}
-                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
-                              <div className="sm:col-span-8 space-y-1">
-                                <label className="block text-[11px] font-bold uppercase tracking-wider text-brand-charcoal">
-                                  Colour Name <span className="text-rose-500">*</span>
-                                </label>
-                                <input
-                                  type="text"
-                                  value={colorVariant.name}
-                                  onChange={(e) => handleUpdateColorOption(colorIdx, 'name', e.target.value)}
-                                  placeholder="e.g. Lavender Blossom, Sky Blue, Dusty Rose, Champagne Gold"
-                                  className="w-full bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl px-3.5 py-2 text-xs font-bold text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all"
-                                  required
-                                />
-                              </div>
-
-                              <div className="sm:col-span-4 space-y-1">
-                                <label className="block text-[11px] font-bold uppercase tracking-wider text-brand-charcoal">
-                                  Swatch Preview (Optional)
-                                </label>
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="color"
-                                    value={colorVariant.hex || '#967BB6'}
-                                    onChange={(e) => handleUpdateColorOption(colorIdx, 'hex', e.target.value)}
-                                    className="w-9 h-9 rounded-xl border border-[#EAE6DB] p-0.5 cursor-pointer bg-white"
-                                    title="Pick colour swatch"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={colorVariant.hex || ''}
-                                    onChange={(e) => handleUpdateColorOption(colorIdx, 'hex', e.target.value)}
-                                    placeholder="#HEX (e.g. #8A70AB)"
-                                    className="flex-1 bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl px-3 py-2 text-xs font-mono text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all"
-                                  />
-                                </div>
-                              </div>
+                            {/* Colour Field: Name */}
+                            <div className="space-y-1">
+                              <label className="block text-[11px] font-bold uppercase tracking-wider text-brand-charcoal">
+                                Colour Name <span className="text-rose-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={colorVariant.name}
+                                onChange={(e) => handleUpdateColorOption(colorIdx, 'name', e.target.value)}
+                                placeholder="e.g. Lavender Blossom, Sky Blue, Dusty Rose, Champagne Gold, Red"
+                                className="w-full bg-[#FAF8F2] border border-[#EAE6DB] rounded-xl px-3.5 py-2.5 text-xs font-bold text-brand-charcoal focus:outline-none focus:border-[#967BB6] focus:bg-white transition-all shadow-2xs"
+                                required
+                              />
                             </div>
 
                             {/* Colour Stock Status Toggle */}
