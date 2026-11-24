@@ -1871,11 +1871,24 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
   };
 
   const handleRemoveColorOption = (colorIndex: number) => {
-    setProductForm((prev) => ({
-      ...prev,
-      colors: (prev.colors || []).filter((_, i) => i !== colorIndex),
-    }));
-    triggerToast('Colour Removed', 'Colour option removed from product.', undefined, 'info');
+    const variant = productForm.colors?.[colorIndex];
+    const colorName = variant?.name?.trim() || `Colour Option #${colorIndex + 1}`;
+    const photosCount = variant?.images?.length || 0;
+
+    setDeleteTarget({
+      type: 'Colour Option',
+      id: `color-${colorIndex}`,
+      name: `${colorName}`,
+      description: `This will remove the "${colorName}" colour variant (${photosCount} photo${photosCount === 1 ? '' : 's'} attached) and its configured sizes from this product.`,
+      onConfirm: () => {
+        setProductForm((prev) => ({
+          ...prev,
+          colors: (prev.colors || []).filter((_, i) => i !== colorIndex),
+        }));
+        triggerToast('Colour Removed', `"${colorName}" has been removed from this product.`, undefined, 'info');
+      },
+    });
+    setDeleteConfirmInput('');
   };
 
   const handleUpdateColorOption = (colorIndex: number, field: 'name' | 'hex' | 'inStock', value: any) => {
@@ -3197,34 +3210,6 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
                       </div>
                     </div>
 
-                    {/* Row 3: Sizes * (Select one or more) */}
-                    <div className="space-y-2.5 pt-2">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-bold text-brand-charcoal">
-                          Available Sizes (Select one or more)
-                        </label>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {['FREE SIZE', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'].map((size) => {
-                          const isSelected = productForm.sizes.includes(size);
-                          return (
-                            <button
-                              key={size}
-                              type="button"
-                              onClick={() => toggleSizeTag(size)}
-                              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                                isSelected
-                                  ? 'bg-brand-charcoal text-white shadow-xs border border-brand-charcoal'
-                                  : 'bg-[#FAF8F2] text-brand-charcoal border border-[#EAE6DB] hover:bg-[#fffeea]'
-                              }`}
-                            >
-                              {size}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
                     {/* Dedicated Sub-Category Section (e.g. Padded vs Non-Padded) */}
                     <div className="space-y-2.5 pt-2.5 bg-[#FAF8F2]/70 border border-[#EAE6DB] rounded-2xl p-4">
                       <div className="flex items-center justify-between">
@@ -3838,13 +3823,35 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
 
                           {/* Available Sizes for Primary Colour */}
                           <div className="space-y-1.5 pt-2 border-t border-[#EAE6DB]/70">
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between flex-wrap gap-2">
                               <label className="text-[11px] font-bold uppercase tracking-wider text-brand-charcoal">
                                 Available Sizes for Primary Colour ({productForm.sizes?.length || 0} selected)
                               </label>
-                              <span className="text-[10px] text-brand-muted font-medium">
-                                Synced with Basic Info sizes
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setProductForm((prev) => ({ ...prev, sizes: ['FREE SIZE', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'] }))}
+                                  className="text-[10px] font-bold text-brand-charcoal hover:underline cursor-pointer"
+                                >
+                                  All Sizes
+                                </button>
+                                <span className="text-[10px] text-brand-muted">•</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setProductForm((prev) => ({ ...prev, sizes: ['FREE SIZE'] }))}
+                                  className="text-[10px] font-bold text-[#967BB6] hover:underline cursor-pointer"
+                                >
+                                  FREE SIZE only
+                                </button>
+                                <span className="text-[10px] text-brand-muted">•</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setProductForm((prev) => ({ ...prev, sizes: [] }))}
+                                  className="text-[10px] font-bold text-rose-500 hover:underline cursor-pointer"
+                                >
+                                  Clear
+                                </button>
+                              </div>
                             </div>
                             <div className="flex flex-wrap items-center gap-1.5">
                               {['FREE SIZE', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'].map((size) => {
